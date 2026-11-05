@@ -1,0 +1,6 @@
+{
+  "name": "DoorMaster Installation Ops",
+  "description": "Enterprise door installation management platform featuring role-based portals (Account Officer, Manager, Client, Installer, Shop Manager), real-time notifications, on-site clock in/out, photo verification, signature capture, and performance bonus tracking.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

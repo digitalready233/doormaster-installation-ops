@@ -1,0 +1,634 @@
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Router, NavigationEnd, RouterOutlet, RouterLink } from '@angular/router';
+import { filter } from 'rxjs';
+import { MatIconModule } from '@angular/material/icon';
+import { InstallationStore } from '../../services/installation.store';
+import { ThemeStore } from '../../services/theme';
+import { PwaService } from '../../services/pwa.service';
+import { JobDetailModal } from '../../components/job-detail-modal/job-detail-modal';
+import { NewJobModal } from '../../components/new-job-modal/new-job-modal';
+import { BonusModal } from '../../components/bonus-modal/bonus-modal';
+import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-modal';
+import { AddUserModal } from '../../components/add-user-modal/add-user-modal';
+import { NotificationDrawer } from '../../components/notification-drawer/notification-drawer';
+import { InstallationJob, NotificationItem, RoleDefinition, RoleType } from '../../models/installation.model';
+
+export type ActiveView = 
+  | 'overview' 
+  | 'doors' 
+  | 'work' 
+  | 'installer' 
+  | 'client' 
+  | 'shop' 
+  | 'dispatcher' 
+  | 'map' 
+  | 'performance' 
+  | 'finance' 
+  | 'roles' 
+  | 'settings' 
+  | 'profile'
+export interface MenuItemConfig {
+  id: ActiveView;
+  label: string;
+  icon: string;
+  iconColor: string;
+  activeColor: string;
+  category: 'field' | 'finance' | 'governance';
+  badgeType?: 'live' | 'ping' | 'eta' | 'count' | 'currency' | 'ledger';
+  description: string;
+}
+
+export interface MenuSection {
+  id: 'field' | 'finance' | 'governance';
+  title: string;
+  items: MenuItemConfig[];
+}
+
+@Component({
+  selector: 'app-dashboard-layout',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    CommonModule,
+    RouterOutlet,
+    RouterLink,
+    MatIconModule,
+    JobDetailModal,
+    NewJobModal,
+    BonusModal,
+    CustomRoleModal,
+    AddUserModal,
+    NotificationDrawer
+  ],
+  templateUrl: './dashboard-layout.html'
+})
+export class DashboardLayout {
+  readonly store = inject(InstallationStore);
+  readonly themeStore = inject(ThemeStore);
+  readonly pwa = inject(PwaService);
+  readonly router = inject(Router);
+
+  readonly inspectedJobId = signal<string | null>(null);
+  readonly showNewJobModal = signal<boolean>(false);
+  readonly showBonusModal = signal<boolean>(false);
+  readonly showCustomRoleModal = signal<boolean>(false);
+  readonly showAddUserModal = signal<boolean>(false);
+  readonly showNotificationDrawer = signal<boolean>(false);
+
+  // Left Sidebar & Responsive Navigation
+  readonly sidebarCollapsed = signal<boolean>(false);
+  readonly mobileSidebarOpen = signal<boolean>(false);
+  readonly globalSearchQuery = signal<string>('');
+  readonly toastMessage = signal<string | null>(null);
+  readonly contactModalOpen = signal<boolean>(false);
+  readonly activeContactInfo = signal<{ name: string; phone: string; jobTitle: string; address: string } | null>(null);
+  readonly profileDropdownOpen = signal<boolean>(false);
+  readonly notificationDropdownOpen = signal<boolean>(false);
+  private notificationCloseTimeout: any = null;
+  private profileCloseTimeout: any = null;
+  private profileHoverTime: number = 0;
+
+  onProfileHover() {
+    if (this.profileCloseTimeout) {
+      clearTimeout(this.profileCloseTimeout);
+      this.profileCloseTimeout = null;
+    }
+    this.closeNotificationDropdown();
+    this.profileHoverTime = Date.now();
+    this.profileDropdownOpen.set(true);
+  }
+
+  onProfileLeave() {
+    if (this.profileCloseTimeout) {
+      clearTimeout(this.profileCloseTimeout);
+    }
+    this.profileCloseTimeout = setTimeout(() => {
+      this.profileDropdownOpen.set(false);
+      this.profileCloseTimeout = null;
+    }, 300);
+  }
+
+  onProfileClick(event?: Event) {
+    if (event) event.stopPropagation();
+    if (this.profileCloseTimeout) {
+      clearTimeout(this.profileCloseTimeout);
+      this.profileCloseTimeout = null;
+    }
+    this.closeNotificationDropdown();
+
+    const timeSinceHover = Date.now() - this.profileHoverTime;
+    // If it was opened by hover in the last 700ms, keep it open!
+    if (this.profileDropdownOpen() && timeSinceHover < 700) {
+      this.profileDropdownOpen.set(true);
+    } else {
+      this.profileDropdownOpen.update(prev => !prev);
+    }
+  }
+
+  toggleProfileDropdown() {
+    this.onProfileClick();
+  }
+
+  openProfileDropdown() {
+    if (this.profileCloseTimeout) {
+      clearTimeout(this.profileCloseTimeout);
+      this.profileCloseTimeout = null;
+    }
+    this.closeNotificationDropdown();
+    this.profileDropdownOpen.set(true);
+  }
+
+  closeProfileDropdown() {
+    if (this.profileCloseTimeout) {
+      clearTimeout(this.profileCloseTimeout);
+      this.profileCloseTimeout = null;
+    }
+    this.profileDropdownOpen.set(false);
+  }
+
+  onNotificationHover() {
+    if (this.notificationCloseTimeout) {
+      clearTimeout(this.notificationCloseTimeout);
+      this.notificationCloseTimeout = null;
+    }
+    this.closeProfileDropdown();
+    this.notificationDropdownOpen.set(true);
+  }
+
+  onNotificationLeave() {
+    if (this.notificationCloseTimeout) {
+      clearTimeout(this.notificationCloseTimeout);
+    }
+    this.notificationCloseTimeout = setTimeout(() => {
+      this.notificationDropdownOpen.set(false);
+      this.notificationCloseTimeout = null;
+    }, 250);
+  }
+
+  openNotificationDropdown() {
+    if (this.notificationCloseTimeout) {
+      clearTimeout(this.notificationCloseTimeout);
+      this.notificationCloseTimeout = null;
+    }
+    this.closeProfileDropdown();
+    this.notificationDropdownOpen.set(true);
+  }
+
+  closeNotificationDropdown() {
+    if (this.notificationCloseTimeout) {
+      clearTimeout(this.notificationCloseTimeout);
+      this.notificationCloseTimeout = null;
+    }
+    this.notificationDropdownOpen.set(false);
+  }
+
+  toggleNotificationDropdown() {
+    if (this.notificationCloseTimeout) {
+      clearTimeout(this.notificationCloseTimeout);
+      this.notificationCloseTimeout = null;
+    }
+    if (!this.notificationDropdownOpen()) {
+      this.closeProfileDropdown();
+      this.notificationDropdownOpen.set(true);
+    } else {
+      this.notificationDropdownOpen.set(false);
+    }
+  }
+
+  openFullNotificationDrawer() {
+    this.closeNotificationDropdown();
+    this.showNotificationDrawer.set(true);
+  }
+
+  onNotificationClick(notif: NotificationItem) {
+    this.store.markNotificationRead(notif.id);
+    this.closeNotificationDropdown();
+    if (notif.jobId) {
+      this.openJobDetails(notif.jobId);
+    }
+  }
+
+  getNotificationIcon(type: NotificationItem['type']): string {
+    switch (type) {
+      case 'job_assigned': return 'assignment_ind';
+      case 'installer_accepted': return 'handshake';
+      case 'driver_accepted': return 'check_circle';
+      case 'driver_rejected': return 'cancel';
+      case 'door_dispatched': return 'local_shipping';
+      case 'technician_clocked_in': return 'login';
+      case 'technician_clocked_out': return 'logout';
+      case 'signoff_required': return 'draw';
+      case 'installation_verified': return 'verified';
+      case 'bonus_awarded': return 'payments';
+      default: return 'notifications';
+    }
+  }
+
+  getNotificationBadgeStyle(type: NotificationItem['type']): string {
+    switch (type) {
+      case 'job_assigned': return 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-400';
+      case 'installer_accepted': return 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-400';
+      case 'driver_accepted': return 'bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-400 font-bold';
+      case 'driver_rejected': return 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-400 font-bold';
+      case 'door_dispatched': return 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-400';
+      case 'technician_clocked_in': return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-400';
+      case 'signoff_required': return 'bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-400';
+      case 'installation_verified': return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-400';
+      case 'bonus_awarded': return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300 font-bold';
+      default: return 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200';
+    }
+  }
+
+  formatNotificationTime(isoString: string): string {
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  }
+
+  openSettings() {
+    this.closeProfileDropdown();
+    this.setView('settings');
+  }
+
+  openProfile() {
+    this.closeProfileDropdown();
+    this.setView('profile');
+  }
+
+  // Current URL tracking for active menu highlighting
+  readonly currentUrl = signal<string>(this.router.url);
+
+  readonly currentView = computed<ActiveView>(() => {
+    const url = this.currentUrl();
+    const segment = url.split('?')[0].split('#')[0].replace(/^\//, '');
+    const valid: ActiveView[] = ['overview', 'doors', 'work', 'installer', 'client', 'shop', 'dispatcher', 'map', 'performance', 'finance', 'roles', 'settings', 'profile'];
+    return (valid.includes(segment as ActiveView) ? segment : 'overview') as ActiveView;
+  });
+
+  readonly currentViewLabel = computed<string>(() => {
+    const v = this.currentView();
+    if (v === 'overview') return 'Dashboard';
+    if (v === 'shop') return 'Shop & Counter';
+    if (v === 'doors') return 'Doors Catalog';
+    if (v === 'work') return 'Work';
+    if (v === 'installer') return 'Technician Field';
+    if (v === 'client') return 'Client Live Tracking';
+    if (v === 'dispatcher') return 'Logistics Dispatch';
+    if (v === 'map') return 'Live Delivery Map';
+    if (v === 'performance') return 'Incentive Bonuses';
+    if (v === 'finance') return 'Accounts Ledger';
+    if (v === 'roles') return 'Roles & Permissions';
+    if (v === 'settings') return 'Settings Hub';
+    if (v === 'profile') return 'My Profile';
+    return v;
+  });
+
+  readonly currentUser = computed(() => this.store.currentUser());
+
+  // All master menu items definition
+  readonly allMenuItems: MenuItemConfig[] = [
+    {
+      id: 'overview',
+      label: 'Dashboard',
+      icon: 'dashboard',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      activeColor: 'text-emerald-600 dark:text-emerald-400',
+      category: 'field',
+      badgeType: 'live',
+      description: 'Fleet overview & active dispatch map'
+    },
+    {
+      id: 'shop',
+      label: 'Shop & Counter',
+      icon: 'storefront',
+      iconColor: 'text-cyan-600 dark:text-cyan-400',
+      activeColor: 'text-cyan-600 dark:text-cyan-400',
+      category: 'field',
+      badgeType: 'count',
+      description: 'Book installation, door specs & counter payments'
+    },
+    {
+      id: 'doors',
+      label: 'Doors Catalog & Registry',
+      icon: 'meeting_room',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      activeColor: 'text-emerald-600 dark:text-emerald-400',
+      category: 'field',
+      badgeType: 'count',
+      description: 'Door specifications, inventory & models'
+    },
+    {
+      id: 'work',
+      label: 'Work',
+      icon: 'work',
+      iconColor: 'text-indigo-600 dark:text-indigo-400',
+      activeColor: 'text-indigo-600 dark:text-indigo-400',
+      category: 'field',
+      badgeType: 'count',
+      description: 'Assigned tasks and progress'
+    },
+    {
+      id: 'installer',
+      label: 'Technician Field',
+      icon: 'handyman',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      activeColor: 'text-emerald-600 dark:text-emerald-400',
+      category: 'field',
+      badgeType: 'ping',
+      description: 'Field tasks, clock in/out & checklists'
+    },
+    {
+      id: 'client',
+      label: 'Client Live Tracking',
+      icon: 'navigation',
+      iconColor: 'text-indigo-600 dark:text-indigo-400',
+      activeColor: 'text-indigo-600 dark:text-indigo-400',
+      category: 'field',
+      badgeType: 'eta',
+      description: 'Live ETA journey, door specs & verification'
+    },
+    {
+      id: 'dispatcher',
+      label: 'Logistics Fleet Dispatch',
+      icon: 'local_shipping',
+      iconColor: 'text-teal-600 dark:text-teal-400',
+      activeColor: 'text-teal-600 dark:text-teal-400',
+      category: 'field',
+      badgeType: 'count',
+      description: 'Truck manifests, road transit & cargo site handover'
+    },
+    {
+      id: 'map',
+      label: 'Delivery Route Map',
+      icon: 'map',
+      iconColor: 'text-teal-600 dark:text-teal-400',
+      activeColor: 'text-teal-600 dark:text-teal-400',
+      category: 'field',
+      badgeType: 'live',
+      description: 'Vehicle telematics, road routing & dynamic re-routing'
+    },
+    {
+      id: 'performance',
+      label: 'Incentive Bonuses',
+      icon: 'military_tech',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      activeColor: 'text-emerald-600 dark:text-emerald-400',
+      category: 'finance',
+      badgeType: 'currency',
+      description: 'Technician bonus earnings & metrics'
+    },
+    {
+      id: 'finance',
+      label: 'Accounts Ledger',
+      icon: 'account_balance_wallet',
+      iconColor: 'text-amber-600 dark:text-amber-400',
+      activeColor: 'text-amber-600 dark:text-amber-400',
+      category: 'finance',
+      badgeType: 'ledger',
+      description: 'Order financials, payouts & invoicing'
+    },
+    {
+      id: 'roles',
+      label: 'Roles & Permissions',
+      icon: 'admin_panel_settings',
+      iconColor: 'text-purple-600 dark:text-purple-400',
+      activeColor: 'text-purple-600 dark:text-purple-400',
+      category: 'governance',
+      badgeType: 'count',
+      description: 'Access governance & role assignment'
+    }
+  ];
+
+  constructor() {
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd)
+    ).subscribe((e: NavigationEnd) => {
+      this.currentUrl.set(e.urlAfterRedirects || e.url);
+      this.enforceRoleAccess();
+    });
+    this.enforceRoleAccess();
+  }
+
+  private enforceRoleAccess() {
+    const view = this.currentView();
+    const roleId = this.store.currentRole();
+    const roleDef = this.store.currentRoleDefinition();
+    if (!this.isViewAllowedForRole(view, roleId, roleDef)) {
+      const target = roleId === 'client' ? '/client' :
+                     roleId === 'dispatcher' ? '/dispatcher' :
+                     roleId === 'installer' ? '/installer' :
+                     roleId === 'shop_manager' ? '/shop' :
+                     roleId === 'account_officer' ? '/finance' :
+                     '/overview';
+      this.router.navigate([target]);
+    }
+  }
+
+  isViewAllowedForRole(viewId: ActiveView, roleId: string, roleDef: RoleDefinition): boolean {
+    if (viewId === 'settings' || viewId === 'profile') return true;
+    // When impersonating another user, the user is mainly logged in with primary permissions
+    if (this.store.isImpersonating()) {
+      if (viewId === 'roles' && (this.store.originalRole() === 'manager' || this.store.originalUser()?.role === 'manager')) {
+        return true;
+      }
+    }
+    if (viewId === 'overview') {
+      return roleId !== 'client';
+    }
+    switch (roleId) {
+      case 'manager':
+        return true;
+      case 'installer':
+        return viewId === 'installer' || viewId === 'performance';
+      case 'client':
+        return viewId === 'client';
+      case 'account_officer':
+        return viewId === 'finance' || viewId === 'performance';
+      case 'shop_manager':
+        return viewId === 'shop' || viewId === 'doors';
+      case 'dispatcher':
+        return viewId === 'dispatcher' || viewId === 'map';
+      default: {
+        const p = roleDef?.permissions;
+        if (!p) return true;
+        switch (viewId) {
+          case 'installer':
+            return p.canClockInOut || p.canUploadPhotos;
+          case 'client':
+            return p.canSignVerification;
+          case 'shop':
+            return p.canDispatchDoors;
+          case 'doors':
+            return p.canDispatchDoors || p.canManageRoles;
+          case 'performance':
+            return p.canApproveBonuses || p.canClockInOut;
+          case 'finance':
+            return p.canViewFinancials;
+          case 'roles':
+            return p.canManageRoles;
+          case 'dispatcher':
+          case 'map':
+            return roleId === 'dispatcher';
+          default:
+            return false;
+        }
+      }
+    }
+  }
+
+  readonly filteredMenuItems = computed(() => {
+    const roleId = this.store.currentRole();
+    const roleDef = this.store.currentRoleDefinition();
+    return this.allMenuItems.filter(item => {
+      return this.isViewAllowedForRole(item.id, roleId, roleDef);
+    });
+  });
+
+  readonly filteredMenuSections = computed<MenuSection[]>(() => {
+    const allowed = this.filteredMenuItems();
+    const sections: MenuSection[] = [
+      { id: 'field', title: 'FIELD OPERATIONS & FLEET', items: allowed.filter(i => i.category === 'field') },
+      { id: 'finance', title: 'LEDGER & INCENTIVES', items: allowed.filter(i => i.category === 'finance') },
+      { id: 'governance', title: 'SYSTEM GOVERNANCE', items: allowed.filter(i => i.category === 'governance') }
+    ];
+    return sections.filter(s => s.items.length > 0);
+  });
+
+  readonly activeLiveJob = computed(() => {
+    const all = this.store.jobs();
+    return all.find(j => j.status === 'on_site' || j.status === 'dispatched' || j.status === 'accepted') || null;
+  });
+
+  setView(view: ActiveView) {
+    this.mobileSidebarOpen.set(false);
+    this.router.navigate(['/' + view]);
+  }
+
+  toggleSidebarCollapse() {
+    this.sidebarCollapsed.update(prev => !prev);
+  }
+
+  toggleMobileSidebar() {
+    this.mobileSidebarOpen.update(prev => !prev);
+  }
+
+  closeMobileSidebar() {
+    this.mobileSidebarOpen.set(false);
+  }
+
+  onRoleChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    const roleId = target.value as RoleType;
+    this.setRoleDirect(roleId);
+  }
+
+  setRoleDirect(roleId: RoleType) {
+    this.store.currentRole.set(roleId);
+    
+    let targetView: ActiveView = 'overview';
+    if (this.currentView() === 'overview') {
+      targetView = 'overview';
+    } else if (roleId === 'installer') {
+      targetView = 'installer';
+    } else if (roleId === 'client') {
+      targetView = 'client';
+    } else if (roleId === 'account_officer') {
+      targetView = 'finance';
+    } else if (roleId === 'shop_manager') {
+      targetView = 'shop';
+    } else if (roleId === 'dispatcher') {
+      targetView = 'dispatcher';
+    } else if (roleId === 'manager') {
+      targetView = 'overview';
+    } else {
+      const allowed = this.filteredMenuItems();
+      if (allowed.length > 0) {
+        targetView = allowed[0].id;
+      }
+    }
+
+    this.setView(targetView);
+    const def = this.store.currentRoleDefinition();
+    const count = this.filteredMenuItems().length;
+    this.showToast(`Logged in as ${def.name} • ${count} ${count === 1 ? 'menu' : 'menus'} active`);
+  }
+
+  openSignInPage() {
+    this.closeProfileDropdown();
+    this.store.signOutApi();
+    this.router.navigate(['/signin']);
+  }
+
+  openLandingPage() {
+    this.closeProfileDropdown();
+    this.router.navigate(['/landing']);
+  }
+
+  openDashboard() {
+    this.closeProfileDropdown();
+    this.router.navigate(['/overview']);
+  }
+
+  openJobDetails(jobId: string) {
+    this.inspectedJobId.set(jobId);
+  }
+
+  closeJobDetails() {
+    this.inspectedJobId.set(null);
+  }
+
+  openContactTechnician(job: InstallationJob) {
+    this.activeContactInfo.set({
+      name: job.assignedInstallerName || 'Marcus Vance',
+      phone: '+1 (555) 234-8891',
+      jobTitle: job.doorModel,
+      address: job.client.siteAddress
+    });
+    this.contactModalOpen.set(true);
+  }
+
+  closeContactModal() {
+    this.contactModalOpen.set(false);
+    this.activeContactInfo.set(null);
+  }
+
+  showToast(msg: string) {
+    this.toastMessage.set(msg);
+    setTimeout(() => {
+      if (this.toastMessage() === msg) {
+        this.toastMessage.set(null);
+      }
+    }, 4000);
+  }
+
+  onRouteActivated(component: any) {
+    if (!component) return;
+    if (component.jobSelected) {
+      component.jobSelected.subscribe((jobId: string) => this.openJobDetails(jobId));
+    }
+    if (component.newJobOpened) {
+      component.newJobOpened.subscribe(() => this.showNewJobModal.set(true));
+    }
+    if (component.bonusModalOpened) {
+      component.bonusModalOpened.subscribe(() => this.showBonusModal.set(true));
+    }
+    if (component.manageUsersOpened) {
+      component.manageUsersOpened.subscribe(() => this.setView('roles'));
+    }
+    if (component.customRoleModalOpened) {
+      component.customRoleModalOpened.subscribe(() => this.showCustomRoleModal.set(true));
+    }
+    if (component.addUserModalOpened) {
+      component.addUserModalOpened.subscribe(() => this.showAddUserModal.set(true));
+    }
+    if (component.roleSwitched) {
+      component.roleSwitched.subscribe((role: RoleType) => this.setRoleDirect(role));
+    }
+    if (component.settingsOpened) {
+      component.settingsOpened.subscribe(() => this.setView('settings'));
+    }
+  }
+}

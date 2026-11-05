@@ -1,0 +1,10 @@
+<div 
+  class="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col antialiased transition-colors duration-200"
+  [class.dark]="themeStore.isDark()"
+>
+  <!-- Global PWA Service Worker Offline Warning & Sync Alerts -->
+  <app-pwa-status-banner />
+
+  <!-- Main Application Route Canvas -->
+  <router-outlet />
+</div>

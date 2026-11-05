@@ -1,0 +1,270 @@
+// Prisma Schema for DoorMaster Installation Operations Platform
+// Database: MySQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Door {
+  id                 String   @id @db.VarChar(64)
+  name               String   @db.VarChar(255)
+  modelCode          String?  @map("model_code") @db.VarChar(100)
+  category           String?  @default("General Doors") @db.VarChar(150)
+  dimensions         String?  @default("2100 × 900 × 50mm") @db.VarChar(150)
+  material           String?  @db.Text
+  finish             String?  @db.Text
+  hardwareSpecs      String?  @map("hardware_specs") @db.Text
+  fireRating         String?  @default("Standard / FD30") @map("fire_rating") @db.VarChar(100)
+  acousticRating     String?  @default("35 dB") @map("acoustic_rating") @db.VarChar(100)
+  unitPrice          Decimal  @default(2500.00) @map("unit_price") @db.Decimal(12, 2)
+  formattedPrice     String?  @default("₵2,500.00") @map("formatted_price") @db.VarChar(100)
+  stockQuantity      Int      @default(5) @map("stock_quantity")
+  leadTimeDays       Int      @default(3) @map("lead_time_days")
+  status             String   @default("in_stock") @db.VarChar(50)
+  supplierOrWorkshop String?  @default("Door Master Official (doormaster.online)") @map("supplier_or_workshop") @db.VarChar(255)
+  imageUrl           String?  @map("image_url") @db.Text
+  sourceUrl          String?  @map("source_url") @db.Text
+  scrapedAt          String?  @map("scraped_at") @db.VarChar(64)
+  description        String?  @db.Text
+  warrantyYears      Int      @default(10) @map("warranty_years")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([category], map: "idx_category")
+  @@index([status], map: "idx_status")
+  @@map("doors")
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(150)
+  itemCount   Int      @default(0) @map("item_count")
+  icon        String?  @default("meeting_room") @db.VarChar(60)
+  description String?  @db.Text
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("categories")
+}
+
+model User {
+  id           String   @id @db.VarChar(64)
+  name         String   @db.VarChar(255)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         String   @db.VarChar(50)
+  phone        String?  @default("+233 24 555 0100") @db.VarChar(50)
+  status       String   @default("active") @db.VarChar(50)
+  avatarUrl    String?  @map("avatar_url") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([email], map: "idx_email")
+  @@index([role], map: "idx_role")
+  @@index([status], map: "idx_status")
+  @@map("users")
+}
+
+model InstallationJob {
+  id                        String   @id @db.VarChar(64)
+  jobNumber                 String   @unique @map("job_number") @db.VarChar(50)
+  title                     String?  @db.VarChar(255)
+  clientName                String   @map("client_name") @db.VarChar(255)
+  clientPhone               String   @map("client_phone") @db.VarChar(50)
+  clientEmail               String?  @default("") @map("client_email") @db.VarChar(255)
+  address                   String   @db.Text
+  lat                       Decimal  @default(5.6037) @db.Decimal(10, 7)
+  lng                       Decimal  @default(-0.1870) @db.Decimal(10, 7)
+  doorId                    String?  @map("door_id") @db.VarChar(64)
+  doorName                  String   @map("door_name") @db.VarChar(255)
+  doorCategory              String?  @default("General Doors") @map("door_category") @db.VarChar(150)
+  doorModelCode             String?  @default("") @map("door_model_code") @db.VarChar(100)
+  doorDimensions            String?  @default("2100 × 900 × 50mm") @map("door_dimensions") @db.VarChar(150)
+  finish                    String?  @db.Text
+  hardwareSpecs             String?  @map("hardware_specs") @db.Text
+  lockModel                 String?  @default("DoorMaster Bio-Metric Smart Lock") @map("lock_model") @db.VarChar(150)
+  shopBranch                String?  @default("Accra Flagship Showroom") @map("shop_branch") @db.VarChar(255)
+  depositAmount             Decimal  @default(0.00) @map("deposit_amount") @db.Decimal(10, 2)
+  balanceDue                Decimal  @default(0.00) @map("balance_due") @db.Decimal(10, 2)
+  status                    String   @default("scheduled") @db.VarChar(50)
+  assignedDriverId          String?  @map("assigned_driver_id") @db.VarChar(64)
+  assignedDriverName        String?  @map("assigned_driver_name") @db.VarChar(255)
+  driverAssignmentStatus    String?  @default("pending") @map("driver_assignment_status") @db.VarChar(50)
+  assignedInstallerId       String?  @map("assigned_installer_id") @db.VarChar(64)
+  assignedInstallerName     String?  @map("assigned_installer_name") @db.VarChar(255)
+  assignedInstallerIds      Json?    @map("assigned_installer_ids")
+  assignedInstallerNames    Json?    @map("assigned_installer_names")
+  assignedInstallers        Json?    @map("assigned_installers")
+  installerAssignmentStatus String?  @default("pending") @map("installer_assignment_status") @db.VarChar(50)
+  operationsApproved        Boolean  @default(false) @map("operations_approved")
+  scheduledTime             String?  @default("Today, 2:00 PM") @map("scheduled_time") @db.VarChar(100)
+  notes                     String?  @db.Text
+
+  // JSON columns for high-fidelity structured data
+  doors                     Json?    @map("doors_data")
+  client                    Json?    @map("client_data")
+  shopBooking               Json?    @map("shop_booking_data")
+  technicianSiteFunds       Json?    @map("tech_site_funds_data")
+  logisticsTruck            Json?    @map("logistics_truck_data")
+  clockSessions             Json?    @map("clock_sessions_data")
+  hardwareChecklist         Json?    @map("hardware_checklist_data")
+  photos                    Json?    @map("photos_data")
+  customerSignoff           Json?    @map("customer_signoff_data")
+  financials                Json?    @map("financials_data")
+
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([status], map: "idx_job_status")
+  @@map("installation_jobs")
+}
+
+model InstallerTrackSession {
+  id             String    @id @db.VarChar(64)
+  installerId    String    @map("installer_id") @db.VarChar(64)
+  installerName  String    @map("installer_name") @db.VarChar(255)
+  jobId          String?   @map("job_id") @db.VarChar(64)
+  sessionType    String    @default("clock_in") @map("session_type") @db.VarChar(50)
+  clockInTime    DateTime  @default(now()) @map("clock_in_time")
+  clockOutTime   DateTime? @map("clock_out_time")
+  latitude       Decimal?  @db.Decimal(10, 7)
+  longitude      Decimal?  @db.Decimal(10, 7)
+  accuracyMeters Decimal?  @map("accuracy_meters") @db.Decimal(6, 2)
+  siteVerified   Boolean   @default(false) @map("site_verified")
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([installerId], map: "idx_inst_track_installer")
+  @@index([jobId], map: "idx_inst_track_job")
+  @@map("installer_track_sessions")
+}
+
+model DispatchTracking {
+  id             String    @id @db.VarChar(64)
+  jobId          String    @map("job_id") @db.VarChar(64)
+  dispatcherId   String?   @map("dispatcher_id") @db.VarChar(64)
+  dispatcherName String?   @map("dispatcher_name") @db.VarChar(255)
+  truckPlate     String?   @map("truck_plate") @db.VarChar(50)
+  truckModel     String?   @map("truck_model") @db.VarChar(100)
+  status         String    @default("idle") @db.VarChar(50)
+  currentLat     Decimal?  @map("current_lat") @db.Decimal(10, 7)
+  currentLng     Decimal?  @map("current_lng") @db.Decimal(10, 7)
+  targetAddress  String?   @map("target_address") @db.Text
+  departureTime  DateTime? @map("departure_time")
+  arrivalTime    DateTime? @map("arrival_time")
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@index([jobId], map: "idx_dispatch_job")
+  @@map("dispatch_tracking")
+}
+
+model Inquiry {
+  id            String   @id @db.VarChar(64)
+  clientName    String   @map("client_name") @db.VarChar(255)
+  clientPhone   String   @map("client_phone") @db.VarChar(50)
+  clientEmail   String?  @map("client_email") @db.VarChar(255)
+  doorCategory  String?  @map("door_category") @db.VarChar(100)
+  projectType   String?  @map("project_type") @db.VarChar(100)
+  location      String?  @db.Text
+  numberOfDoors Int      @default(1) @map("number_of_doors")
+  notes         String?  @db.Text
+  status        String   @default("pending") @db.VarChar(50)
+  source        String   @default("landing_page") @db.VarChar(50)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([status], map: "idx_inquiry_status")
+  @@map("inquiries")
+}
+
+model CustomerSignoffRecord {
+  id                String   @id @db.VarChar(64)
+  jobId             String   @unique @map("job_id") @db.VarChar(64)
+  clientName        String   @map("client_name") @db.VarChar(255)
+  clientPhone       String?  @map("client_phone") @db.VarChar(50)
+  rating            Int      @default(5)
+  feedback          String?  @db.Text
+  signatureDataUrl  String?  @map("signature_data_url") @db.LongText
+  satisfactionLevel String?  @default("Excellent") @map("satisfaction_level") @db.VarChar(50)
+  signedAt          DateTime @default(now()) @map("signed_at")
+
+  @@map("customer_signoffs")
+}
+
+model SmsLog {
+  id             String   @id @db.VarChar(64)
+  recipientPhone String   @map("recipient_phone") @db.VarChar(50)
+  recipientRole  String   @map("recipient_role") @db.VarChar(50)
+  recipientName  String   @map("recipient_name") @db.VarChar(255)
+  senderId       String   @default("DoorMaster") @map("sender_id") @db.VarChar(50)
+  messageText    String   @map("message_text") @db.Text
+  triggerEvent   String   @map("trigger_event") @db.VarChar(100)
+  status         String   @default("delivered") @db.VarChar(50)
+  providerRef    String?  @default("SIM-DIRECT") @map("provider_ref") @db.VarChar(100)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("sms_logs")
+}
+
+model Notification {
+  id              String   @id @db.VarChar(64)
+  recipientRole   String   @map("recipient_role") @db.VarChar(50)
+  recipientUserId String?  @map("recipient_user_id") @db.VarChar(64)
+  title           String   @db.VarChar(255)
+  message         String   @db.Text
+  type            String   @db.VarChar(100)
+  jobId           String   @map("job_id") @db.VarChar(64)
+  read            Boolean  @default(false)
+  actionLabel     String?  @map("action_label") @db.VarChar(100)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([recipientRole], map: "idx_notif_role")
+  @@index([jobId], map: "idx_notif_job")
+  @@map("notifications")
+}
+
+model LiveLocation {
+  id          String   @id @db.VarChar(64)
+  userId      String   @unique @map("user_id") @db.VarChar(64)
+  userName    String?  @map("user_name") @db.VarChar(255)
+  role        String   @db.VarChar(50)
+  jobId       String?  @map("job_id") @db.VarChar(64)
+  latitude    Decimal  @db.Decimal(10, 7)
+  longitude   Decimal  @db.Decimal(10, 7)
+  accuracyM   Decimal? @map("accuracy_m") @db.Decimal(6, 2)
+  heading     Decimal? @db.Decimal(6, 2)
+  speedKmh    Decimal? @map("speed_kmh") @db.Decimal(6, 2)
+  status      String   @default("online") @db.VarChar(50)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([role], map: "idx_live_loc_role")
+  @@index([jobId], map: "idx_live_loc_job")
+  @@map("live_locations")
+}
+
+model ShopLocation {
+  id               String   @id @db.VarChar(64)
+  shopName         String   @map("shop_name") @db.VarChar(255)
+  branchCode       String?  @default("DM-ACC-01") @map("branch_code") @db.VarChar(50)
+  address          String   @db.Text
+  city             String?  @default("Accra") @db.VarChar(100)
+  region           String?  @default("Greater Accra") @db.VarChar(100)
+  phone            String?  @default("+233 24 555 0100") @db.VarChar(50)
+  email            String?  @default("spintex.branch@doormaster.online") @db.VarChar(255)
+  latitude         Decimal  @default(5.6231) @db.Decimal(10, 7)
+  longitude        Decimal  @default(-0.1582) @db.Decimal(10, 7)
+  dispatchRadiusKm Decimal  @default(25.0) @map("dispatch_radius_km") @db.Decimal(5, 2)
+  operatingHours   String?  @default("Mon - Sat: 08:00 - 18:00") @map("operating_hours") @db.VarChar(150)
+  managerName      String?  @default("Kwame Mensah - Master Shop Manager") @map("manager_name") @db.VarChar(255)
+  isPrimary        Boolean  @default(true) @map("is_primary")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("shop_locations")
+}
+
+

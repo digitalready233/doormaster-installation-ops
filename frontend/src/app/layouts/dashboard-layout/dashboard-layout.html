@@ -1,0 +1,1256 @@
+<!-- ========================================================================= -->
+<!-- 1. DESKTOP FIXED LEFT SIDEBAR (Uber Fleet & Handyman Dispatch Architecture) -->
+<!-- ========================================================================= -->
+<aside 
+  class="hidden lg:flex fixed inset-y-0 left-0 z-40 flex-col bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800/80 transition-all duration-300 ease-in-out select-none"
+  [class.w-72]="!sidebarCollapsed()"
+  [class.w-20]="sidebarCollapsed()"
+>
+  <!-- Sidebar Header: Brand & Collapse Toggle -->
+  <div class="h-16 px-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80">
+    <div class="flex items-center gap-3 overflow-hidden">
+      <a routerLink="/overview" class="w-9 h-9 rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950 flex items-center justify-center font-mono font-black text-sm shadow-md shrink-0 cursor-pointer">
+        DM
+      </a>
+      @if (!sidebarCollapsed()) {
+        <div class="flex flex-col truncate">
+          <span class="text-sm font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
+            <span>DoorMaster</span>
+            <span class="text-[10px] uppercase font-mono px-1.5 py-0.2 bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/30 rounded font-semibold tracking-wider">
+              PRO
+            </span>
+          </span>
+          <div class="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>LIVE DISPATCH</span>
+          </div>
+        </div>
+      }
+    </div>
+
+    <button 
+      type="button"
+      (click)="toggleSidebarCollapse()"
+      class="p-1.5 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-lg transition-colors cursor-pointer"
+      [title]="sidebarCollapsed() ? 'Expand Sidebar' : 'Collapse Sidebar'"
+      aria-label="Toggle sidebar"
+    >
+      <mat-icon class="!text-lg">{{ sidebarCollapsed() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+    </button>
+  </div>
+
+
+
+  <!-- Quick Action: Book Installation -->
+  @if (store.currentRoleDefinition().permissions.canCreateJobs) {
+    <div class="px-3 pt-3">
+      <button 
+        type="button"
+        (click)="showNewJobModal.set(true)"
+        class="w-full py-2 px-3 bg-slate-950 hover:bg-slate-800 text-white dark:bg-white dark:hover:bg-slate-100 dark:text-slate-950 font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 group active:scale-[0.98] cursor-pointer"
+        [class.px-0]="sidebarCollapsed()"
+        [title]="'Book Door Installation'"
+      >
+        <mat-icon class="!text-lg group-hover:rotate-90 transition-transform duration-200">add</mat-icon>
+        @if (!sidebarCollapsed()) {
+          <span class="text-xs tracking-tight font-extrabold">Book Installation</span>
+        }
+      </button>
+    </div>
+  }
+
+  <!-- Navigation Menu Links: Filtered specific to active Persona -->
+  <div class="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+    @for (section of filteredMenuSections(); track section.id) {
+      <div>
+        @if (!sidebarCollapsed()) {
+          <h3 class="px-2.5 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2 font-bold flex items-center justify-between">
+            <span>{{ section.title }}</span>
+            <span class="text-[9px] font-normal text-slate-400 dark:text-slate-500">({{ section.items.length }})</span>
+          </h3>
+        }
+        <nav class="space-y-1">
+          @for (item of section.items; track item.id) {
+            <button 
+              type="button"
+              (click)="setView(item.id)"
+              class="w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-xs font-semibold transition-all group cursor-pointer"
+              [class]="currentView() === item.id ? 'bg-slate-100 text-slate-950 dark:bg-slate-800 dark:text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-slate-900'"
+              [title]="item.label + ' • ' + item.description"
+            >
+              <mat-icon class="!text-xl shrink-0" [class]="currentView() === item.id ? item.activeColor : item.iconColor">{{ item.icon }}</mat-icon>
+              @if (!sidebarCollapsed()) {
+                <span class="flex-1 text-left truncate">{{ item.label }}</span>
+                
+                @if (item.badgeType === 'live' && store.stats().inProgress > 0) {
+                  <span class="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400 text-[10px] font-mono rounded font-bold">
+                    {{ store.stats().inProgress }} live
+                  </span>
+                }
+                @else if (item.badgeType === 'ping') {
+                  <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                }
+                @else if (item.badgeType === 'eta') {
+                  <span class="text-[10px] font-mono text-indigo-700 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-500/20 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-transparent">
+                    ETA
+                  </span>
+                }
+                @else if (item.badgeType === 'count' && item.id === 'doors') {
+                  <span class="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-500/20 px-1.5 py-0.5 rounded">
+                    {{ store.doors().length }}
+                  </span>
+                }
+                @else if (item.badgeType === 'count' && item.id === 'shop') {
+                  <span class="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                    {{ store.jobs().length }}
+                  </span>
+                }
+                @else if (item.badgeType === 'count' && item.id === 'roles') {
+                  @if (store.pendingUsers().length > 0) {
+                    <span class="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500 text-white font-bold animate-pulse">
+                      {{ store.pendingUsers().length }}
+                    </span>
+                  } @else {
+                    <span class="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                      {{ store.users().length }}
+                    </span>
+                  }
+                }
+                @else if (item.badgeType === 'currency') {
+                  <span class="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 font-bold tabular-nums">
+                    ${{ store.stats().totalBonusesAllocated }}
+                  </span>
+                }
+                @else if (item.badgeType === 'ledger') {
+                  <span class="text-[10px] font-mono text-amber-700 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-500/20 px-1.5 py-0.5 rounded">
+                    Ledger
+                  </span>
+                }
+              }
+            </button>
+          }
+        </nav>
+      </div>
+    }
+  </div>
+
+  <!-- Sidebar Footer: API Status & Settings Hub -->
+  <div class="p-3 border-t border-slate-200 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-950/80 space-y-2">
+    @if (!sidebarCollapsed()) {
+      <!-- Live MySQL API Status -->
+      <div class="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between">
+        <div class="flex items-center gap-2 text-xs">
+          <mat-icon class="!text-base text-indigo-500">storage</mat-icon>
+          <span class="font-semibold text-slate-700 dark:text-slate-200">Live MySQL API</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          @if (store.dbStatus()?.connected) {
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">Connected</span>
+          } @else {
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            <span class="text-[10px] font-mono text-amber-600 dark:text-amber-400">Checking</span>
+          }
+        </div>
+      </div>
+
+      <!-- My Profile Navigation Button in Sidebar -->
+      <button 
+        type="button"
+        (click)="openProfile()"
+        class="w-full py-2 px-3 rounded-xl border transition-all flex items-center justify-between text-xs font-semibold shadow-2xs active:scale-98 cursor-pointer"
+        [class]="currentView() === 'profile' 
+          ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700 shadow-xs' 
+          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200'"
+        title="Open My Profile (Manage Credentials, Avatar & Tel)"
+      >
+        <div class="flex items-center gap-2">
+          <mat-icon class="!text-base" [class]="currentView() === 'profile' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'">
+            person
+          </mat-icon>
+          <span class="font-semibold">My Profile</span>
+        </div>
+        <span class="text-[10px] font-mono uppercase text-emerald-600 dark:text-emerald-400 font-bold">
+          Account
+        </span>
+      </button>
+
+      <!-- Settings Hub Button in Sidebar (Replaces Light Mode button) -->
+      <button 
+        type="button"
+        (click)="setView('settings')"
+        class="w-full py-2 px-3 rounded-xl border transition-all flex items-center justify-between text-xs font-semibold shadow-2xs active:scale-98 cursor-pointer"
+        [class]="currentView() === 'settings' 
+          ? 'border-cyan-500 bg-cyan-50 text-cyan-900 dark:bg-cyan-950/70 dark:text-cyan-200 dark:border-cyan-700 shadow-xs' 
+          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200'"
+        title="Open Settings (Shop Location, SMS Gateways & Phone Directory)"
+      >
+        <div class="flex items-center gap-2">
+          <mat-icon class="!text-base" [class]="currentView() === 'settings' ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-500 dark:text-slate-400'">
+            tune
+          </mat-icon>
+          <span class="font-semibold">Settings Hub</span>
+        </div>
+        <span class="text-[10px] font-mono uppercase text-slate-400 dark:text-slate-500 font-bold">
+          Shop / SMS
+        </span>
+      </button>
+
+      <div class="flex items-center justify-between text-xs px-2 pt-1">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="text-[11px] text-slate-500 dark:text-slate-400 font-mono">Radar Active</span>
+        </div>
+
+        <button 
+          type="button"
+          (click)="showNotificationDrawer.set(true)"
+          class="relative p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+          title="Dispatch Alerts"
+          aria-label="Dispatch alerts"
+        >
+          <mat-icon class="!text-lg">notifications</mat-icon>
+          @if (store.unreadNotificationsCount() > 0) {
+            <span class="absolute top-0 right-0 w-4 h-4 bg-emerald-500 text-slate-950 rounded-full text-[9px] font-black font-mono flex items-center justify-center animate-pulse">
+              {{ store.unreadNotificationsCount() }}
+            </span>
+          }
+        </button>
+      </div>
+    } @else {
+      <!-- Collapsed: Demo/API toggle + profile + settings + notifications -->
+      <div class="flex flex-col items-center gap-2">
+        <button 
+          type="button"
+          (click)="store.checkDbStatus()"
+          class="p-2 rounded-lg transition-colors cursor-pointer"
+          [class]="'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'"
+          [title]="'Active: MySQL API Mode'"
+        >
+          <mat-icon class="!text-lg">storage</mat-icon>
+        </button>
+
+        <button 
+          type="button"
+          (click)="openProfile()"
+          class="p-2 rounded-lg transition-colors cursor-pointer"
+          [class]="currentView() === 'profile' 
+            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300' 
+            : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'"
+          title="Open My Profile (Manage Details & Avatar)"
+          aria-label="My Profile"
+        >
+          <mat-icon class="!text-lg">person</mat-icon>
+        </button>
+
+        <button 
+          type="button"
+          (click)="setView('settings')"
+          class="p-2 rounded-lg transition-colors cursor-pointer"
+          [class]="currentView() === 'settings' 
+            ? 'bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300' 
+            : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'"
+          title="System, SMS & Shop Location Settings"
+          aria-label="Settings"
+        >
+          <mat-icon class="!text-lg">tune</mat-icon>
+        </button>
+
+        <button 
+          type="button"
+          (click)="showNotificationDrawer.set(true)"
+          class="relative p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+          title="Dispatch Alerts"
+          aria-label="Dispatch alerts"
+        >
+          <mat-icon class="!text-lg">notifications</mat-icon>
+          @if (store.unreadNotificationsCount() > 0) {
+            <span class="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-emerald-500 text-slate-950 rounded-full text-[8px] font-black font-mono flex items-center justify-center">
+              {{ store.unreadNotificationsCount() }}
+            </span>
+          }
+        </button>
+      </div>
+    }
+  </div>
+</aside>
+
+<!-- ========================================================================= -->
+<!-- 2. MOBILE TOP NAVIGATION BAR (Handyman & Uber Mobile App Header)            -->
+<!-- ========================================================================= -->
+<header class="lg:hidden sticky top-0 z-40 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center justify-between shadow-2xs relative">
+  <!-- Login As Top Center Indicator on Mobile Navbar -->
+  @if (store.impersonationSession(); as imp) {
+    <div 
+      class="absolute top-0 left-1/2 -translate-x-1/2 z-50 h-[50px] w-[400px] max-w-[calc(100vw-32px)] px-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 dark:from-amber-600 dark:via-amber-500 dark:to-amber-600 text-slate-950 dark:text-white rounded-b-2xl shadow-lg border-b border-x border-amber-300/80 dark:border-amber-400/50 flex items-center justify-between gap-2.5 select-none"
+    >
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="w-7 h-7 rounded-lg bg-slate-950/15 dark:bg-white/20 flex items-center justify-center shrink-0">
+          <mat-icon class="!text-base">switch_account</mat-icon>
+        </div>
+        <div class="flex flex-col min-w-0 leading-tight">
+          <div class="flex items-center gap-1.5 truncate">
+            <span class="text-[10px] font-black uppercase tracking-wider opacity-90">Login As:</span>
+            <span class="text-xs font-black truncate">{{ imp.targetUser.name }}</span>
+          </div>
+          <div class="flex items-center gap-1.5 text-[10px] font-mono truncate opacity-90">
+            <span class="px-1.5 py-0.2 rounded bg-slate-950/20 dark:bg-white/20 font-bold uppercase tracking-wider text-[9px]">
+              {{ imp.targetRole }}
+            </span>
+            <span class="truncate">{{ imp.targetUser.email || imp.targetUser.phone || 'Active' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Exit Button: Just an Icon on the Right -->
+      <button
+        type="button"
+        (click)="store.revertLoginAs()"
+        class="w-7 h-7 rounded-lg bg-slate-950/15 hover:bg-slate-950/30 dark:bg-white/20 dark:hover:bg-white/30 text-slate-950 dark:text-white transition-all flex items-center justify-center shrink-0 cursor-pointer active:scale-90"
+        title="Exit Login As"
+        aria-label="Exit Login As"
+      >
+        <mat-icon class="!text-base">close</mat-icon>
+      </button>
+    </div>
+  }
+  <div class="flex items-center gap-2.5">
+    <button 
+      type="button"
+      (click)="toggleMobileSidebar()"
+      class="p-2 -ml-1 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+      aria-label="Open navigation menu"
+    >
+      <mat-icon class="!text-xl">menu</mat-icon>
+    </button>
+
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-lg bg-slate-950 text-white dark:bg-white dark:text-slate-950 flex items-center justify-center font-mono font-black text-xs shadow-sm">
+        DM
+      </div>
+      <div>
+        <span class="text-sm font-black text-slate-900 dark:text-white tracking-tight">DoorMaster</span>
+        <span class="text-[9px] uppercase font-mono px-1 py-0.2 bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/30 rounded font-semibold ml-1">
+          PRO
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-1.5">
+    <!-- Mobile User Profile Link with Avatar & Name -->
+    <button 
+      type="button" 
+      (click)="openProfile()"
+      class="px-2 py-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:border-emerald-500 cursor-pointer transition-colors"
+      title="View & Edit My Profile"
+    >
+      <div class="relative w-6 h-6 rounded-md overflow-hidden shrink-0 shadow-2xs">
+        @if (currentUser().avatarUrl) {
+          <img [src]="currentUser().avatarUrl" [alt]="currentUser().name" class="w-full h-full object-cover" />
+        } @else {
+          <div class="w-full h-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px]">
+            {{ currentUser().name.charAt(0) }}
+          </div>
+        }
+        <span class="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-white dark:ring-slate-900"></span>
+      </div>
+      <span class="truncate max-w-[85px] font-bold text-slate-900 dark:text-white">{{ currentUser().name.split(' ')[0] }}</span>
+    </button>
+
+    <!-- Sign Out button -->
+    <button 
+      type="button" 
+      (click)="openSignInPage()"
+      class="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+      title="Sign Out"
+      aria-label="Sign out"
+    >
+      <mat-icon class="!text-lg">logout</mat-icon>
+    </button>
+
+    <!-- Theme Mode Toggle Button on Mobile Header -->
+    <button 
+      type="button" 
+      (click)="themeStore.toggleTheme()"
+      class="p-1.5 text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+      [title]="themeStore.isDark() ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+      aria-label="Toggle theme mode"
+    >
+      <mat-icon class="!text-lg" [class.text-amber-500]="!themeStore.isDark()" [class.text-indigo-400]="themeStore.isDark()">
+        {{ themeStore.isDark() ? 'dark_mode' : 'light_mode' }}
+      </mat-icon>
+    </button>
+
+    <!-- Alerts bell -->
+    <button 
+      type="button"
+      (click)="showNotificationDrawer.set(true)"
+      class="relative p-1.5 text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+      title="Dispatch alerts"
+      aria-label="Dispatch alerts"
+    >
+      <mat-icon class="!text-lg">notifications</mat-icon>
+      @if (store.unreadNotificationsCount() > 0) {
+        <span class="absolute top-0 right-0 w-3.5 h-3.5 bg-emerald-500 text-slate-950 rounded-full text-[8px] font-black font-mono flex items-center justify-center">
+          {{ store.unreadNotificationsCount() }}
+        </span>
+      }
+    </button>
+  </div>
+</header>
+
+<!-- ========================================================================= -->
+<!-- 3. MOBILE SIDEBAR DRAWER (Slide-over navigation)                           -->
+<!-- ========================================================================= -->
+@if (mobileSidebarOpen()) {
+  <!-- Overlay Backdrop -->
+  <div 
+    class="lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in"
+    (click)="closeMobileSidebar()"
+    aria-hidden="true"
+  ></div>
+
+  <!-- Slide-over Drawer Panel -->
+  <div class="lg:hidden fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] bg-white dark:bg-slate-950 shadow-2xl flex flex-col border-r border-slate-200 dark:border-slate-800 animate-in slide-in-from-left duration-300">
+    <div class="h-16 px-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg bg-slate-950 text-white dark:bg-white dark:text-slate-950 flex items-center justify-center font-mono font-black text-xs shadow-sm">
+          DM
+        </div>
+        <span class="font-black text-slate-900 dark:text-white text-base">DoorMaster Operations</span>
+      </div>
+      <button 
+        type="button"
+        (click)="closeMobileSidebar()"
+        class="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+        aria-label="Close menu"
+      >
+        <mat-icon class="!text-xl">close</mat-icon>
+      </button>
+    </div>
+
+    <!-- Active Persona Switcher inside Drawer -->
+    <div class="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50">
+      <div class="flex items-center justify-between mb-2">
+        <label for="mobileRoleSelect" class="text-[11px] font-bold text-slate-500 uppercase tracking-wider font-mono">Current Persona</label>
+        <span class="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono font-medium">Logged in</span>
+      </div>
+      <select 
+        id="mobileRoleSelect"
+        [value]="store.currentRole()"
+        (change)="onRoleChange($event)"
+        class="w-full text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+      >
+        @for (r of store.roles(); track r.id) {
+          <option [value]="r.id">{{ r.name }} ({{ r.label }})</option>
+        }
+      </select>
+
+      <div class="mt-3 grid grid-cols-2 gap-2">
+        <button 
+          type="button"
+          (click)="openLandingPage(); closeMobileSidebar()"
+          class="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+        >
+          <mat-icon class="!text-sm text-emerald-500">public</mat-icon>
+          <span>Public Site</span>
+        </button>
+
+        <button 
+          type="button"
+          (click)="openSignInPage(); closeMobileSidebar()"
+          class="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:text-red-600 dark:hover:text-red-400 text-xs font-semibold flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+        >
+          <mat-icon class="!text-sm">logout</mat-icon>
+          <span>Sign Out</span>
+        </button>
+      </div>
+
+      <!-- Profile & Settings inside Mobile Drawer -->
+      <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+        <button
+          type="button"
+          (click)="openProfile()"
+          class="w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold shadow-2xs transition-all cursor-pointer"
+          [class]="currentView() === 'profile' 
+            ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700 shadow-xs' 
+            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200'"
+        >
+          <div class="flex items-center gap-2">
+            <mat-icon class="!text-base" [class]="currentView() === 'profile' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'">
+              person
+            </mat-icon>
+            <span class="font-semibold">My Profile</span>
+          </div>
+          <span class="text-[10px] font-mono uppercase text-slate-400 dark:text-slate-500 font-bold">
+            Edit Details
+          </span>
+        </button>
+
+        <button
+          type="button"
+          (click)="setView('settings')"
+          class="w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold shadow-2xs transition-all cursor-pointer"
+          [class]="currentView() === 'settings' 
+            ? 'bg-cyan-50 dark:bg-cyan-950/70 border-cyan-400 dark:border-cyan-800 text-cyan-900 dark:text-cyan-200' 
+            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'"
+        >
+          <span class="flex items-center gap-2">
+            <mat-icon class="!text-base text-cyan-600 dark:text-cyan-400">tune</mat-icon>
+            <span>System & Shop Settings</span>
+          </span>
+          <span class="text-[10px] font-mono text-cyan-700 dark:text-cyan-400 uppercase font-bold">Open</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation links in Mobile Drawer: Filtered specific to active Persona -->
+    <div class="flex-1 overflow-y-auto p-3 space-y-4">
+      @for (section of filteredMenuSections(); track section.id) {
+        <div>
+          <h3 class="px-2.5 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5 font-bold">
+            {{ section.title }}
+          </h3>
+          <nav class="space-y-1">
+            @for (item of section.items; track item.id) {
+              <button 
+                type="button"
+                (click)="setView(item.id)"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                [class]="currentView() === item.id ? 'bg-slate-100 text-slate-950 dark:bg-slate-800 dark:text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/60 dark:hover:bg-slate-900'"
+              >
+                <mat-icon class="!text-xl" [class]="currentView() === item.id ? item.activeColor : item.iconColor">{{ item.icon }}</mat-icon>
+                <span class="flex-1 text-left">{{ item.label }}</span>
+                @if (item.badgeType === 'live' && store.stats().inProgress > 0) {
+                  <span class="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400 text-[10px] font-mono rounded font-bold">
+                    {{ store.stats().inProgress }} live
+                  </span>
+                }
+              </button>
+            }
+          </nav>
+        </div>
+      }
+    </div>
+
+    <div class="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex flex-col gap-2">
+      <div class="flex items-center justify-between text-xs text-slate-500">
+        <span class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="font-mono text-[11px]">Accra Fleet Radar</span>
+        </span>
+        <span class="font-mono text-[10px] text-slate-400">v2.4 Live</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-1">
+        <button 
+          type="button"
+          (click)="openLandingPage(); closeMobileSidebar()"
+          class="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+        >
+          <mat-icon class="!text-sm text-emerald-500">public</mat-icon>
+          <span>Public Site</span>
+        </button>
+
+        <button 
+          type="button"
+          (click)="openSignInPage(); closeMobileSidebar()"
+          class="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:text-red-600 dark:hover:text-red-400 text-xs font-semibold flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+        >
+          <mat-icon class="!text-sm">logout</mat-icon>
+          <span>Sign Out</span>
+        </button>
+      </div>
+
+      @if (store.currentRoleDefinition().permissions.canCreateJobs) {
+        <button 
+          type="button"
+          (click)="showNewJobModal.set(true); closeMobileSidebar()"
+          class="w-full py-2.5 bg-slate-950 text-white dark:bg-white dark:text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer"
+        >
+          <mat-icon class="!text-base">add</mat-icon>
+          <span>Book Installation</span>
+        </button>
+      }
+    </div>
+  </div>
+}
+
+<!-- ========================================================================= -->
+<!-- 4. DESKTOP MAIN VIEWPORT (Offset by fixed sidebar)                         -->
+<!-- ========================================================================= -->
+<div 
+  class="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+  [class.lg:pl-72]="!sidebarCollapsed()"
+  [class.lg:pl-20]="sidebarCollapsed()"
+>
+  <!-- Desktop Top Context Bar -->
+  <header class="hidden lg:flex sticky top-0 z-30 h-16 bg-white/90 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 px-6 items-center justify-between gap-4 relative">
+    <!-- Login As Top Center Indicator on Desktop Navbar (height: 50px, width: 400px, rounded bottom corners, exit icon button on right) -->
+    @if (store.impersonationSession(); as imp) {
+      <div 
+        class="absolute top-0 left-1/2 -translate-x-1/2 z-50 h-[50px] w-[400px] max-w-[calc(100vw-32px)] px-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 dark:from-amber-600 dark:via-amber-500 dark:to-amber-600 text-slate-950 dark:text-white rounded-b-2xl shadow-lg border-b border-x border-amber-300/80 dark:border-amber-400/50 flex items-center justify-between gap-2.5 animate-in fade-in slide-in-from-top-2 duration-200 select-none"
+      >
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-7 h-7 rounded-lg bg-slate-950/15 dark:bg-white/20 flex items-center justify-center shrink-0">
+            <mat-icon class="!text-base">switch_account</mat-icon>
+          </div>
+          <div class="flex flex-col min-w-0 leading-tight">
+            <div class="flex items-center gap-1.5 truncate">
+              <span class="text-[10px] font-black uppercase tracking-wider opacity-90">Login As:</span>
+              <span class="text-xs font-black truncate">{{ imp.targetUser.name }}</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-[10px] font-mono truncate opacity-90">
+              <span class="px-1.5 py-0.2 rounded bg-slate-950/20 dark:bg-white/20 font-bold uppercase tracking-wider text-[9px]">
+                {{ imp.targetRole }}
+              </span>
+              <span class="truncate">{{ imp.targetUser.email || imp.targetUser.phone || 'Active Session' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Exit Button: Just an Icon on the Right -->
+        <button
+          type="button"
+          (click)="store.revertLoginAs()"
+          class="w-7 h-7 rounded-lg bg-slate-950/15 hover:bg-slate-950/30 dark:bg-white/20 dark:hover:bg-white/30 text-slate-950 dark:text-white transition-all flex items-center justify-center shrink-0 cursor-pointer active:scale-90"
+          title="Exit Login As"
+          aria-label="Exit Login As"
+        >
+          <mat-icon class="!text-base">close</mat-icon>
+        </button>
+      </div>
+    }
+    <!-- Breadcrumb trail -->
+    <div class="flex items-center gap-2 text-xs">
+      <span class="text-slate-500 dark:text-slate-400 font-mono">DoorMaster</span>
+      <span class="text-slate-300 dark:text-slate-600">/</span>
+      <span class="text-slate-800 dark:text-slate-300 font-bold">{{ currentViewLabel() }}</span>
+      <span class="text-slate-300 dark:text-slate-600">/</span>
+      <span class="text-emerald-700 dark:text-emerald-400 font-mono font-medium">{{ store.stats().inProgress }} Active Site Operations</span>
+    </div>
+
+    <!-- Right Actions: Notification Bell + Profile Dropdown at the far right -->
+    <div class="flex items-center gap-3">
+      <!-- Notification Bell with hover dropdown & drawer trigger -->
+      <div 
+        class="relative"
+        (mouseenter)="onNotificationHover()"
+        (mouseleave)="onNotificationLeave()"
+      >
+        <!-- Invisible backdrop to close dropdown on outside click -->
+        @if (notificationDropdownOpen()) {
+          <div class="fixed inset-0 z-40" (click)="closeNotificationDropdown()"></div>
+        }
+
+        <!-- Notification Bell Trigger Button -->
+        <button 
+          type="button"
+          (click)="toggleNotificationDropdown()"
+          class="relative z-50 p-2 text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          [class.bg-slate-100]="notificationDropdownOpen()"
+          [class.dark:bg-slate-800]="notificationDropdownOpen()"
+          title="Dispatch alerts"
+          aria-label="Dispatch alerts"
+          aria-haspopup="true"
+          [attr.aria-expanded]="notificationDropdownOpen()"
+        >
+          <mat-icon class="!text-xl">notifications</mat-icon>
+          @if (store.unreadNotificationsCount() > 0) {
+            <span class="absolute top-1 right-1 w-4 h-4 bg-emerald-500 text-slate-950 rounded-full text-[10px] font-black font-mono flex items-center justify-center animate-pulse">
+              {{ store.unreadNotificationsCount() }}
+            </span>
+          }
+        </button>
+
+        <!-- Notification Dropdown Panel -->
+        @if (notificationDropdownOpen()) {
+          <div 
+            class="absolute right-0 mt-2 w-96 max-w-[90vw] rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 text-slate-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-150 overflow-hidden flex flex-col"
+            role="menu"
+            aria-label="Recent dispatch alerts"
+          >
+            <!-- Header -->
+            <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-900 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/80">
+              <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <mat-icon class="!text-base">notifications</mat-icon>
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold text-slate-900 dark:text-white">Dispatch Alerts</h4>
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400">
+                    Role: <span class="font-medium text-slate-700 dark:text-slate-300 capitalize">{{ store.currentRoleDefinition().label }}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                @if (store.unreadNotificationsCount() > 0) {
+                  <span class="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                    {{ store.unreadNotificationsCount() }} new
+                  </span>
+                  <button 
+                    type="button"
+                    (click)="store.markAllNotificationsRead()"
+                    class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline px-1 cursor-pointer"
+                    title="Mark all notifications as read"
+                  >
+                    Mark read
+                  </button>
+                }
+              </div>
+            </div>
+
+            <!-- Notification Items List -->
+            <div class="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-900 p-1.5 space-y-0.5">
+              @if (store.roleNotifications().length === 0) {
+                <div class="py-8 px-4 text-center text-slate-400 dark:text-slate-500">
+                  <mat-icon class="!text-2xl mb-1 text-slate-300 dark:text-slate-600">notifications_none</mat-icon>
+                  <p class="text-xs font-medium text-slate-600 dark:text-slate-300">No active alerts</p>
+                  <p class="text-[10px] text-slate-400 mt-0.5">Alerts for {{ store.currentRoleDefinition().name }} will appear here in real time.</p>
+                </div>
+              } @else {
+                @for (notif of store.roleNotifications().slice(0, 5); track notif.id) {
+                  <div 
+                    class="p-2.5 hover:bg-slate-50 dark:hover:bg-slate-900/90 rounded-xl transition-colors text-left relative cursor-pointer"
+                    [class.bg-emerald-500/5]="!notif.read"
+                    (click)="onNotificationClick(notif)"
+                  >
+                    <div class="flex items-start gap-2.5">
+                      <div 
+                        class="w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-xs"
+                        [class]="getNotificationBadgeStyle(notif.type)"
+                      >
+                        <mat-icon class="!text-xs !w-3.5 !h-3.5">{{ getNotificationIcon(notif.type) }}</mat-icon>
+                      </div>
+
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-2 mb-0.5">
+                          <h5 class="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {{ notif.title }}
+                          </h5>
+                          <span class="text-[10px] text-slate-400 font-mono shrink-0">
+                            {{ formatNotificationTime(notif.timestamp) }}
+                          </span>
+                        </div>
+                        
+                        <p class="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
+                          {{ notif.message }}
+                        </p>
+
+                        <div class="mt-1.5 flex items-center justify-between">
+                          <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase font-semibold">
+                            Job {{ notif.jobId }}
+                          </span>
+
+                          <div class="flex items-center gap-2">
+                            @if (!notif.read) {
+                              <button 
+                                type="button"
+                                (click)="$event.stopPropagation(); store.markNotificationRead(notif.id)"
+                                class="text-[10px] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                              >
+                                Dismiss
+                              </button>
+                            }
+                            @if (notif.actionLabel) {
+                              <span class="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                                {{ notif.actionLabel }} →
+                              </span>
+                            }
+                          </div>
+                        </div>
+                      </div>
+
+                      @if (!notif.read) {
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-1.5" title="Unread"></span>
+                      }
+                    </div>
+                  </div>
+                }
+              }
+            </div>
+
+            <!-- Footer: View All Alerts in Drawer -->
+            <div class="p-2 border-t border-slate-100 dark:border-slate-900 bg-slate-50/80 dark:bg-slate-900/80 flex items-center justify-between">
+              <button
+                type="button"
+                (click)="openFullNotificationDrawer()"
+                class="w-full py-2 px-3 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Open All Alerts Drawer ({{ store.roleNotifications().length }})</span>
+                <mat-icon class="!text-sm">arrow_forward</mat-icon>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Profile Dropdown (Positioned at the far right after notification button) -->
+      <div 
+        class="relative"
+        (mouseenter)="onProfileHover()"
+        (mouseleave)="onProfileLeave()"
+      >
+        <!-- Invisible backdrop to close dropdown on outside click -->
+        @if (profileDropdownOpen()) {
+          <div class="fixed inset-0 z-40" (click)="closeProfileDropdown()"></div>
+        }
+
+        <!-- Profile trigger button group -->
+        <button
+          type="button"
+          (click)="onProfileClick($event)"
+          class="relative z-50 flex items-center gap-2.5 p-1.5 pl-2 pr-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all shadow-2xs cursor-pointer select-none group"
+          [class.ring-2]="profileDropdownOpen()"
+          [class.ring-emerald-500/30]="profileDropdownOpen()"
+          title="Open user profile menu"
+          aria-label="Open user profile menu"
+          aria-haspopup="true"
+          [attr.aria-expanded]="profileDropdownOpen()"
+        >
+          <div class="relative w-8 h-8 rounded-lg overflow-hidden shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+            @if (currentUser().avatarUrl) {
+              <img [src]="currentUser().avatarUrl" [alt]="currentUser().name" class="w-full h-full object-cover rounded-lg border border-slate-200 dark:border-slate-700" />
+            } @else {
+              <div class="w-full h-full bg-gradient-to-br from-indigo-600 to-slate-900 text-white flex items-center justify-center font-bold text-xs rounded-lg">
+                {{ currentUser().name.charAt(0) }}
+              </div>
+            }
+            <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
+          </div>
+          <div class="text-left hidden xl:block min-w-0">
+            <p class="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[150px] leading-tight group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+              {{ currentUser().name }}
+            </p>
+            <p class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-medium truncate">
+              {{ store.currentRoleDefinition().label }}
+            </p>
+          </div>
+          <mat-icon class="!text-base text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-transform duration-200 shrink-0" [class.rotate-180]="profileDropdownOpen()">
+            keyboard_arrow_down
+          </mat-icon>
+        </button>
+
+        <!-- Dropdown Menu panel with seamless hover bridge -->
+        @if (profileDropdownOpen()) {
+          <div 
+            class="absolute right-0 top-full pt-1.5 w-72 z-50 text-slate-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-150"
+            role="menu"
+          >
+            <div class="rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-2xl py-2 overflow-hidden">
+              <!-- User Summary Header (Clickable: Navigates straight to /profile) -->
+            <button
+              type="button"
+              (click)="openProfile()"
+              class="w-full px-4 py-3 border-b border-slate-100 dark:border-slate-900 text-left hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors cursor-pointer group"
+              title="Click to view & edit your profile details"
+            >
+              <div class="flex items-center gap-3">
+                <div class="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 shadow-sm group-hover:ring-2 group-hover:ring-emerald-500/50 transition-all">
+                  @if (currentUser().avatarUrl) {
+                    <img [src]="currentUser().avatarUrl" [alt]="currentUser().name" class="w-full h-full object-cover" />
+                  } @else {
+                    <div class="w-full h-full bg-gradient-to-br from-indigo-600 to-slate-950 text-white flex items-center justify-center font-bold text-sm">
+                      {{ currentUser().name.charAt(0) }}
+                    </div>
+                  }
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs font-black text-slate-900 dark:text-white truncate flex items-center justify-between">
+                    <span>{{ currentUser().name }}</span>
+                    <mat-icon class="!text-xs text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">arrow_forward</mat-icon>
+                  </div>
+                  <div class="text-[11px] text-slate-400 font-mono truncate">
+                    {{ currentUser().email }}
+                  </div>
+                  <div class="flex items-center gap-1.5 mt-1">
+                    <span class="text-[9px] uppercase font-mono px-1.5 py-0.2 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 rounded font-bold">
+                      {{ store.currentRoleDefinition().label }}
+                    </span>
+                    <span class="text-[9px] text-slate-400 font-mono truncate">
+                      {{ store.isAuthenticated() ? 'Live MySQL' : 'Demo Persona' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </button>
+
+            <!-- Profile Menu Items -->
+            <div class="py-1 text-xs">
+              <!-- My Profile -->
+              <button
+                type="button"
+                (click)="openProfile()"
+                class="w-full px-4 py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer group"
+                [class.bg-emerald-50]="currentView() === 'profile'"
+                [class.dark:bg-emerald-950/40]="currentView() === 'profile'"
+              >
+                <div 
+                  class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors"
+                  [class]="currentView() === 'profile' 
+                    ? 'bg-emerald-500 text-white' 
+                    : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:bg-emerald-500/10 group-hover:text-emerald-600'"
+                >
+                  <mat-icon class="!text-lg">person</mat-icon>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-bold text-xs text-slate-900 dark:text-white flex items-center justify-between">
+                    <span [class.text-emerald-700]="currentView() === 'profile'" [class.dark:text-emerald-300]="currentView() === 'profile'">My Profile</span>
+                    <span class="text-[9px] font-mono text-indigo-600 dark:text-indigo-400 uppercase font-semibold">View / Edit</span>
+                  </div>
+                  <div class="text-[10px] text-slate-400 truncate">Manage avatar, details & contact info</div>
+                </div>
+              </button>
+
+              <!-- Dark / Light Mode Switcher -->
+              <button
+                type="button"
+                (click)="themeStore.toggleTheme()"
+                class="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer"
+              >
+                <div class="flex items-center gap-2.5">
+                  <mat-icon class="!text-lg" [class.text-amber-500]="!themeStore.isDark()" [class.text-indigo-400]="themeStore.isDark()">
+                    {{ themeStore.isDark() ? 'dark_mode' : 'light_mode' }}
+                  </mat-icon>
+                  <span class="font-medium">Theme Appearance</span>
+                </div>
+                <span class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
+                  {{ themeStore.isDark() ? 'Dark' : 'Light' }}
+                </span>
+              </button>
+
+              <!-- Settings & Shop Hub -->
+              <button
+                type="button"
+                (click)="openSettings()"
+                class="w-full px-4 py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer"
+              >
+                <mat-icon class="!text-lg text-cyan-600 dark:text-cyan-400">tune</mat-icon>
+                <div>
+                  <div class="font-medium">Settings & Shop Hub</div>
+                  <div class="text-[10px] text-slate-400">Workshop GPS, phones & SMS gateway</div>
+                </div>
+              </button>
+
+              <!-- Public Landing Page Link (Maintained under profile dropdown) -->
+              <button
+                type="button"
+                (click)="openLandingPage()"
+                class="w-full px-4 py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer"
+              >
+                <mat-icon class="!text-lg text-emerald-600 dark:text-emerald-400">public</mat-icon>
+                <div>
+                  <div class="font-medium">Public Landing Page</div>
+                  <div class="text-[10px] text-slate-400">Door catalog & client booking landing</div>
+                </div>
+              </button>
+            </div>
+
+            <!-- Impersonation Revert in Profile Dropdown -->
+            @if (store.isImpersonating()) {
+              <div class="pt-1 mt-1 border-t border-amber-200 dark:border-amber-900/50 text-xs">
+                <button
+                  type="button"
+                  (click)="store.revertLoginAs()"
+                  class="w-full px-4 py-2.5 flex items-center gap-2.5 text-left text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors font-bold cursor-pointer"
+                >
+                  <mat-icon class="!text-lg">switch_account</mat-icon>
+                  <span>Exit Temporary Session</span>
+                </button>
+              </div>
+            }
+
+            <!-- Sign Out Link (Maintained under profile dropdown) -->
+            <div class="pt-1 mt-1 border-t border-slate-100 dark:border-slate-900 text-xs">
+              <button
+                type="button"
+                (click)="openSignInPage()"
+                class="w-full px-4 py-2.5 flex items-center gap-2.5 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors font-semibold cursor-pointer"
+              >
+                <mat-icon class="!text-lg">logout</mat-icon>
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+      </div>
+    </div>
+  </header>
+
+  <!-- ======================================================================= -->
+  <!-- 5. UBER-STYLE LIVE ACTIVE TRACKING TICKER (Always visible if active job)  -->
+  <!-- ======================================================================= -->
+  @if (activeLiveJob()) {
+    @let aj = activeLiveJob()!;
+    <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 border-b border-emerald-200 dark:border-emerald-500/30 px-4 sm:px-6 py-2.5 text-xs shadow-xs transition-colors">
+      <div class="max-w-screen-2xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        
+        <!-- Live Indicator & Order Meta -->
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="relative flex h-2.5 w-2.5 shrink-0">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 truncate">
+            <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-mono text-[10px] font-bold">
+              @if (aj.status === 'on_site') { CLOCKED IN ON SITE }
+              @else if (aj.status === 'dispatched') { DOOR EN ROUTE }
+              @else if (aj.status === 'accepted') { TECHNICIAN ASSIGNED }
+              @else { LIVE OPERATION }
+            </span>
+            <span class="font-mono font-bold text-slate-900 dark:text-white">{{ aj.id }}</span>
+            <span class="text-slate-300 dark:text-slate-600 hidden sm:inline">·</span>
+            <span class="font-bold text-slate-900 dark:text-white truncate">{{ aj.doorModel }}</span>
+            <span class="text-slate-300 dark:text-slate-600 hidden sm:inline">·</span>
+            <span class="text-slate-600 dark:text-slate-400 truncate max-w-xs">{{ aj.client.siteAddress }}</span>
+            <span class="text-slate-300 dark:text-slate-600 hidden md:inline">·</span>
+            <span class="text-slate-600 dark:text-slate-400 hidden md:inline">Tech: <strong class="text-slate-900 dark:text-white">{{ aj.assignedInstallerName || 'Marcus Vance' }}</strong></span>
+          </div>
+        </div>
+
+        <!-- Quick Actions on Live Ticker -->
+        <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+          @if (store.currentRole() !== 'manager') {
+            <button 
+              type="button"
+              (click)="setView('client')"
+              class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+            >
+              <mat-icon class="!text-xs">navigation</mat-icon>
+              <span>Track Live Journey</span>
+            </button>
+          }
+
+          <button 
+            type="button"
+            (click)="openContactTechnician(aj)"
+            class="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
+          >
+            <mat-icon class="!text-xs text-emerald-600 dark:text-emerald-400">phone</mat-icon>
+            <span>Call Technician</span>
+          </button>
+
+          <button 
+            type="button"
+            (click)="openJobDetails(aj.id)"
+            class="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-medium hover:text-slate-900 dark:hover:text-white transition-colors shadow-2xs cursor-pointer"
+          >
+            Details →
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ======================================================================= -->
+  <!-- 6. MAIN CONTENT VIEW CANVAS (ROUTED VIEW COMPONENT)                    -->
+  <!-- ======================================================================= -->
+  <main class="flex-1 w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-12 text-slate-900 dark:text-slate-100">
+    <div class="rounded-2xl">
+      <router-outlet (activate)="onRouteActivated($event)"></router-outlet>
+    </div>
+  </main>
+
+  <!-- ======================================================================= -->
+  <!-- 7. DESKTOP FOOTER                                                      -->
+  <!-- ======================================================================= -->
+  <footer class="mt-auto border-t border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-950 py-5 text-slate-500 dark:text-slate-400">
+    <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-slate-900 dark:text-slate-200">DoorMaster Pro Field Ops</span>
+        <span aria-hidden="true" class="text-slate-300 dark:text-slate-600">·</span>
+        <span>Architectural Entrance Systems & Hardware Fitting</span>
+      </div>
+      <div class="flex items-center gap-4 text-[11px] font-mono text-slate-500 dark:text-slate-400">
+        <span class="flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span>GPS Geofence Verified</span>
+        </span>
+        <span class="text-slate-300 dark:text-slate-700">·</span>
+        <span>Digital Signature Legal Archival</span>
+        <span class="text-slate-300 dark:text-slate-700">·</span>
+        <span>Incentive Matrix</span>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<!-- ========================================================================= -->
+<!-- 8. MOBILE BOTTOM APP BAR (Handyman & Uber Mobile App Bottom Navigation)   -->
+<!-- ========================================================================= -->
+<nav class="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 py-1.5 px-2 flex justify-around items-center safe-area-pb">
+  <!-- Dynamic Tabs specific to active Persona (up to 3 primary) -->
+  @for (item of filteredMenuItems().slice(0, 3); track item.id) {
+    <button 
+      type="button"
+      (click)="setView(item.id)"
+      class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors relative cursor-pointer"
+      [class.text-slate-950]="currentView() === item.id"
+      [class.dark:text-white]="currentView() === item.id"
+      [class.font-bold]="currentView() === item.id"
+      [title]="item.label"
+    >
+      <mat-icon class="!text-xl" [class]="currentView() === item.id ? item.activeColor : item.iconColor">{{ item.icon }}</mat-icon>
+      <span class="text-[10px] tracking-tight truncate max-w-[68px]">{{ item.label.split(' ')[0] }}</span>
+      @if (item.badgeType === 'live' && store.stats().inProgress > 0) {
+        <span class="absolute top-1 right-2 w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+      }
+    </button>
+  }
+
+  <!-- Tab: Notifications Drawer -->
+  <button 
+    type="button"
+    (click)="showNotificationDrawer.set(true)"
+    class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors relative cursor-pointer"
+  >
+    <mat-icon class="!text-xl">notifications</mat-icon>
+    <span class="text-[10px] tracking-tight">Alerts</span>
+    @if (store.unreadNotificationsCount() > 0) {
+      <span class="absolute top-0.5 right-2 w-3.5 h-3.5 bg-emerald-500 text-slate-950 rounded-full text-[8px] font-black font-mono flex items-center justify-center">
+        {{ store.unreadNotificationsCount() }}
+      </span>
+    }
+  </button>
+
+  <!-- Tab: Menu Drawer toggle -->
+  <button 
+    type="button"
+    (click)="toggleMobileSidebar()"
+    class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors cursor-pointer"
+    [class.text-slate-950]="mobileSidebarOpen()"
+    [class.dark:text-white]="mobileSidebarOpen()"
+  >
+    <mat-icon class="!text-xl">menu</mat-icon>
+    <span class="text-[10px] tracking-tight">Menu</span>
+  </button>
+</nav>
+
+<!-- ========================================================================= -->
+<!-- 9. TOAST NOTIFICATION POPUP                                               -->
+<!-- ========================================================================= -->
+@if (toastMessage()) {
+  <div class="fixed bottom-18 lg:bottom-6 right-6 z-50 bg-slate-900 dark:bg-slate-950 text-white border border-slate-700/80 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 text-xs">
+    <mat-icon class="!text-base text-emerald-400">info</mat-icon>
+    <span class="font-medium">{{ toastMessage() }}</span>
+    <button 
+      type="button" 
+      (click)="toastMessage.set(null)"
+      class="text-slate-400 hover:text-white ml-1 cursor-pointer"
+      aria-label="Dismiss message"
+    >
+      <mat-icon class="!text-sm">close</mat-icon>
+    </button>
+  </div>
+}
+
+<!-- ========================================================================= -->
+<!-- 10. DIRECT CONTACT TECHNICIAN MODAL (Uber-style Driver Dialer Simulator)    -->
+<!-- ========================================================================= -->
+@if (contactModalOpen() && activeContactInfo()) {
+  @let info = activeContactInfo()!;
+  <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-2xl max-w-sm w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-mono">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>DIRECT FIELD COMM</span>
+        </div>
+        <button 
+          type="button" 
+          (click)="closeContactModal()"
+          class="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+          aria-label="Close modal"
+        >
+          <mat-icon class="!text-lg">close</mat-icon>
+        </button>
+      </div>
+
+      <div class="text-center space-y-2">
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 border-2 border-slate-600 text-white flex items-center justify-center font-bold text-2xl mx-auto shadow-inner">
+          {{ info.name.charAt(0) }}
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-slate-900 dark:text-white">{{ info.name }}</h3>
+          <p class="text-xs text-emerald-700 dark:text-emerald-400 font-medium">DoorMaster Certified Lead Technician</p>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">{{ info.phone }}</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-1">
+        <p class="text-slate-500 dark:text-slate-400">Assigned Work Order:</p>
+        <p class="font-bold text-slate-900 dark:text-white">{{ info.jobTitle }}</p>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">{{ info.address }}</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2.5">
+        <button 
+          type="button"
+          (click)="showToast('Calling ' + info.name + ' at ' + info.phone); closeContactModal()"
+          class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors shadow-md cursor-pointer"
+        >
+          <mat-icon class="!text-base">call</mat-icon>
+          <span>Dial Direct</span>
+        </button>
+
+        <button 
+          type="button"
+          (click)="showToast('Message sent to ' + info.name); closeContactModal()"
+          class="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold border border-slate-200 dark:border-slate-700 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <mat-icon class="!text-base">chat</mat-icon>
+          <span>Message Site</span>
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ========================================================================= -->
+<!-- 11. EXISTING CORE MODALS (Job Details, New Job, Bonus, Roles, Alerts)      -->
+<!-- ========================================================================= -->
+@if (inspectedJobId()) {
+  <app-job-detail-modal 
+    [jobId]="inspectedJobId()!"
+    (closed)="closeJobDetails()"
+  />
+}
+
+@if (showNewJobModal()) {
+  <app-new-job-modal 
+    (closed)="showNewJobModal.set(false)"
+  />
+}
+
+@if (showBonusModal()) {
+  <app-bonus-modal 
+    (closed)="showBonusModal.set(false)"
+  />
+}
+
+@if (showCustomRoleModal()) {
+  <app-custom-role-modal 
+    (closed)="showCustomRoleModal.set(false)"
+  />
+}
+
+@if (showAddUserModal()) {
+  <app-add-user-modal 
+    (closed)="showAddUserModal.set(false)"
+    (userCreated)="store.loadUsers()"
+  />
+}
+
+@if (showNotificationDrawer()) {
+  <app-notification-drawer 
+    (closed)="showNotificationDrawer.set(false)"
+    (jobSelected)="openJobDetails($event)"
+  />
+}

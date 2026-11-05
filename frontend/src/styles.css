@@ -1,0 +1,339 @@
+/* DoorMaster Global Styles with Full Offline & CDN Material Symbols & Icons Support */
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+@import "sweetalert2/dist/sweetalert2.min.css";
+
+/* Local High-Performance Font Definitions (Zero Network Dependencies & 100% Offline Resilience) */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/fonts/poppins-300.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/poppins-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/poppins-500.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/poppins-600.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/poppins-700.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/poppins-800.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url('/fonts/material-symbols-outlined.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Material Icons';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/material-icons.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Material Icons Outlined';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/material-symbols-outlined.woff2') format('woff2'),
+       url('/fonts/material-icons.woff2') format('woff2');
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Poppins', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+@layer base {
+  html {
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+  
+  body, button, input, select, textarea, optgroup {
+    font-family: 'Poppins', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  
+  code, kbd, samp, pre, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  /* Universal Angular Material Icons & Symbols Ligature Rendering */
+  mat-icon,
+  .mat-icon,
+  .material-icons,
+  .material-symbols-outlined,
+  .material-icons-outlined,
+  .material-icons-round,
+  .material-icons-sharp {
+    font-family: 'Material Symbols Outlined', 'Material Icons', 'Material Icons Outlined', sans-serif !important;
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-feature-settings: 'liga';
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    user-select: none;
+    box-sizing: content-box;
+    vertical-align: middle;
+  }
+
+  /* Responsive icon scaling when Tailwind text sizing utilities are applied */
+  mat-icon[class*="!text-"],
+  mat-icon[class*="text-"] {
+    width: 1em;
+    height: 1em;
+    min-width: 1em;
+    min-height: 1em;
+    line-height: 1 !important;
+  }
+}
+
+/* Custom scrollbars that adapt to dark and light */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.5);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
+}
+
+/* Direct OpenStreetMap Dark Mode adaptation */
+.dark .leaflet-tile-pane {
+  filter: brightness(0.65) invert(1) contrast(2.6) hue-rotate(195deg) saturate(0.35);
+}
+
+/* Ensure Leaflet maps never escape their local container stacking context */
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0;
+}
+
+/* Globally tame all Leaflet internal pane & control z-indexes strictly between 1 and 8 */
+.leaflet-pane {
+  z-index: 1 !important;
+}
+.leaflet-tile-pane {
+  z-index: 1 !important;
+}
+.leaflet-overlay-pane {
+  z-index: 2 !important;
+}
+.leaflet-shadow-pane {
+  z-index: 3 !important;
+}
+.leaflet-marker-pane {
+  z-index: 4 !important;
+}
+.leaflet-tooltip-pane {
+  z-index: 5 !important;
+}
+.leaflet-popup-pane {
+  z-index: 6 !important;
+}
+.leaflet-top,
+.leaflet-bottom,
+.leaflet-control {
+  z-index: 8 !important;
+}
+
+/* Ensure zoom controls clear top floating ribbons and overlays */
+.leaflet-control-zoom {
+  margin-top: 50px !important;
+}
+
+/* ========================================================================= */
+/* SweetAlert2 Recipe Gallery: Colored Toasts                                */
+/* Reference: https://sweetalert2.github.io/recipe-gallery/colored-toasts.html */
+/* ========================================================================= */
+.swal2-toast-shown .swal2-container,
+.swal2-container.swal2-top-end,
+.swal2-container.swal2-top-right {
+  box-sizing: border-box !important;
+  width: 360px !important;
+  max-width: 100% !important;
+  padding: 0.5rem !important;
+  pointer-events: none !important;
+  z-index: 99999 !important;
+}
+
+.colored-toast,
+.swal2-popup.colored-toast,
+.swal2-container .swal2-popup.colored-toast {
+  pointer-events: auto !important;
+  width: 360px !important;
+  max-width: calc(100vw - 1rem) !important;
+  box-sizing: border-box !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.22), 0 2px 6px -2px rgba(0, 0, 0, 0.12) !important;
+  border: none !important;
+  padding: 0.75em 1em !important;
+}
+
+/* Exact recipe gallery colors for each alert state */
+.colored-toast.swal2-icon-success {
+  background-color: #a5dc86 !important;
+}
+
+.colored-toast.swal2-icon-error {
+  background-color: #f27474 !important;
+}
+
+.colored-toast.swal2-icon-warning {
+  background-color: #f8bb86 !important;
+}
+
+.colored-toast.swal2-icon-info {
+  background-color: #3fc3ee !important;
+}
+
+.colored-toast.swal2-icon-question {
+  background-color: #87adbd !important;
+}
+
+/* White text, close buttons, and html container */
+.colored-toast .swal2-title,
+.colored-toast-title {
+  color: white !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+}
+
+.colored-toast .swal2-close {
+  color: white !important;
+}
+
+.colored-toast .swal2-html-container,
+.colored-toast-html {
+  color: white !important;
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+  margin: 2px 0 0 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  overflow: visible !important;
+}
+
+/* Progress bar in semi-transparent white */
+.colored-toast .swal2-timer-progress-bar,
+.colored-toast-progress {
+  background: rgba(255, 255, 255, 0.5) !important;
+  height: 3px !important;
+}
+
+.colored-toast .swal2-icon {
+  border-color: white !important;
+  color: white !important;
+}
+
+/* Sub-icon and text layout directly below title in white */
+.colored-toast .dm-toast-sub {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+.colored-toast .dm-sub-icon-wrap {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+.colored-toast .dm-sub-icon {
+  width: 11px !important;
+  height: 11px !important;
+  min-width: 11px !important;
+  min-height: 11px !important;
+  color: white !important;
+  stroke: currentColor !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
+}
+
+.colored-toast .dm-sub-text {
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+  font-weight: 500 !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
