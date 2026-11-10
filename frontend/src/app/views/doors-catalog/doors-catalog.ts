@@ -43,22 +43,22 @@ interface ImagePreset {
           </p>
         </div>
 
-        <!-- Header Actions: Live Scraper & Manual Add (Restricted to Operations Manager) -->
-        @if (store.currentRole() === 'manager') {
+        <!-- Header Actions: Live Scraper & Manual Add (Restricted to Operations Manager & Admin) -->
+        @if (store.currentRole() === 'manager' || store.currentRole() === 'admin') {
           <div class="flex flex-wrap items-center gap-2.5 shrink-0">
-            <!-- Deep Scrape All 28 Pages to MySQL -->
+            <!-- Deep Scrape All 28 Pages -->
             <button
               type="button"
               (click)="triggerScrapeAll28Pages()"
               [disabled]="store.isScraping()"
               class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 active:scale-[0.98] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-              title="Scrape all 28 pages from https://doormaster.online/shop/page/1/ to page/28/ directly into MySQL database"
+              title="Scrape all 28 pages from https://doormaster.online/shop/page/1/ to page/28/ directly into catalog database"
             >
               <mat-icon class="!text-lg" [class.animate-spin]="store.isScraping()">
                 {{ store.isScraping() ? 'sync' : 'cloud_download' }}
               </mat-icon>
               <span class="text-xs tracking-tight font-extrabold">
-                {{ store.isScraping() ? 'Scraping Pages 1-28 to MySQL...' : 'Scrape All 28 Pages to MySQL' }}
+                {{ store.isScraping() ? 'Scraping Pages 1-28...' : 'Scrape All 28 Pages' }}
               </span>
               <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-400/20 text-indigo-200 border border-indigo-400/30">
                 329 Doors
@@ -90,53 +90,6 @@ interface ImagePreset {
             </button>
           </div>
         }
-      </div>
-
-      <!-- MySQL Database & Backend Status Banner -->
-      <div class="p-3.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs transition-colors"
-        [class.bg-indigo-950/20]="true"
-        [class.border-indigo-500/30]="true"
-        [class.bg-emerald-950/20]="false"
-        [class.border-indigo-500/30]="true"
-      >
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            [class.bg-indigo-500/20]="true"
-            [class.text-indigo-400]="true"
-            [class.bg-emerald-500/20]="false"
-            [class.text-emerald-400]="false"
-          >
-            <mat-icon class="!text-base">storage</mat-icon>
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-slate-900 dark:text-white">
-                Active Backend Mode: Live MySQL Database
-              </span>
-              <span class="text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase"
-                [class.bg-indigo-500/20]="true"
-                [class.text-indigo-400]="true"
-                [class.bg-emerald-500/20]="false"
-                [class.text-emerald-400]="false"
-              >
-                api
-              </span>
-            </div>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Connected to <strong class="text-slate-800 dark:text-slate-200">doormaster_ops</strong> on MySQL 127.0.0.1:3306 • Storing <strong>{{ store.doors().length }}</strong> scraped doors across <strong>{{ store.availableCategories().length }}</strong> categories.
-            </p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
-          <button
-            type="button"
-            (click)="store.checkDbStatus()"
-            class="px-3 py-1.5 rounded-lg border border-indigo-500/40 text-indigo-400 font-mono text-xs font-semibold transition-all hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            Refresh DB Status
-          </button>
-        </div>
       </div>
 
       <!-- 2. Inventory Metrics KPI Ribbon -->
@@ -522,7 +475,7 @@ interface ImagePreset {
                           <mat-icon class="!text-base">visibility</mat-icon>
                         </button>
 
-                        @if (store.currentRole() === 'manager') {
+                        @if (store.currentRole() === 'manager' || store.currentRole() === 'admin') {
                           <button
                             type="button"
                             (click)="confirmDelete(door)"
@@ -1185,12 +1138,12 @@ export class DoorsCatalog {
     }
   }
 
-  // Action: Complete Deep Scrape of All 28 Pages to MySQL
+  // Action: Complete Deep Scrape of All 28 Pages to Database
   async triggerScrapeAll28Pages() {
-    this.alert.toastInfo('Deep Scrape Started', 'Scraping all 28 pages from https://doormaster.online/shop/ into MySQL database...');
+    this.alert.toastInfo('Deep Scrape Started', 'Scraping all 28 pages from https://doormaster.online/shop/ into catalog database...');
     const result = await this.store.scrapeAllPagesFromBackend(1, 28);
     if (result.success) {
-      this.alert.success('Deep Scrape Complete', `Scraped and saved ${result.count} doors & 20 categories into MySQL database.`);
+      this.alert.success('Deep Scrape Complete', `Scraped and saved ${result.count} doors & 20 categories into catalog database.`);
     } else {
       this.alert.error('Deep Scrape Failed', result.message || 'Could not complete deep scrape to database.');
     }
@@ -1272,7 +1225,7 @@ export class DoorsCatalog {
     return !!(field && field.invalid && (field.dirty || field.touched));
   }
 
-  submitNewDoor() {
+  async submitNewDoor() {
     if (this.addDoorForm.invalid) {
       this.addDoorForm.markAllAsTouched();
       this.alert.toastWarning('Incomplete Fields', 'Please fill in all required door specifications.');
@@ -1304,6 +1257,7 @@ export class DoorsCatalog {
         warrantyYears: Number(formVals.warrantyYears) || 10
       });
 
+      await this.store.loadDoorsFromBackend();
       this.closeAddModal();
       this.alert.success('Door Added to Catalog', `Architectural door "${created.name}" (${created.modelCode}) registered successfully.`);
     } catch (err: any) {
@@ -1324,7 +1278,7 @@ export class DoorsCatalog {
 
     if (confirmed) {
       this.store.deleteDoor(door.id);
-      this.alert.toastSuccess('Door Removed', `"${door.name}" was removed from the catalog.`);
+      await this.store.loadDoorsFromBackend();
     }
   }
 

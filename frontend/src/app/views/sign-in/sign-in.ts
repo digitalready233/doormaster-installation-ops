@@ -349,14 +349,8 @@ export interface DemoPersona {
           </div>
 
           <!-- Footer Metadata -->
-          <div class="mt-8 pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-500 font-mono">
-            <div class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full" [class]="store.dbStatus()?.connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'"></span>
-              <span>{{ store.dbStatus()?.connected ? 'MySQL Cloud Engine Connected' : 'Atelier Local Simulation Engine' }}</span>
-            </div>
-            <div>
-              <span>DoorMaster Systems &copy; 2026</span>
-            </div>
+          <div class="mt-8 pt-4 border-t border-slate-800/80 flex items-center justify-center text-[11px] text-slate-500 font-mono">
+            <span>DoorMaster Systems &copy; 2026</span>
           </div>
         </div>
       </div>
@@ -450,6 +444,14 @@ export class SignIn {
 
   readonly demoPersonas: DemoPersona[] = [
     {
+      role: 'admin',
+      name: 'Alexander Cross',
+      title: 'System Administrator',
+      email: 'admin@doormasterops.com',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+      badge: 'Super Admin'
+    },
+    {
       role: 'manager',
       name: 'Sarah Sterling',
       title: 'Operations Director',
@@ -525,7 +527,7 @@ export class SignIn {
   constructor() {
     if (this.store.isAuthenticated()) {
       const role = this.store.apiUser()?.role;
-      const target = role === 'client' ? '/client' : '/overview';
+      const target = role === 'client' || role === 'installer' ? '/map' : '/overview';
       this.router.navigate([target]);
       return;
     }
@@ -544,7 +546,6 @@ export class SignIn {
     });
     this.authErrorMessage.set(null);
     this.authSuccessMessage.set(null);
-    this.alert.toastSuccess(`Auto-filled: ${persona.name}`, `${persona.title} credentials ready.`);
   }
 
   selectBranchManager(event: Event) {
@@ -558,7 +559,6 @@ export class SignIn {
       });
       this.authErrorMessage.set(null);
       this.authSuccessMessage.set(null);
-      this.alert.toastSuccess(`Auto-filled: ${bm.name}`, `Shop Manager for ${bm.branchName}`);
     }
   }
 
@@ -605,8 +605,10 @@ export class SignIn {
     this.isSubmitting.set(false);
 
     if (res.success && res.user) {
-      this.authSuccessMessage.set(`Welcome back, ${res.user.name}!`);
-      const target = res.user.role === 'client' ? '/client' : '/overview';
+      const welcomeMsg = res.message || `Welcome back, ${res.user.name}!`;
+      this.authSuccessMessage.set(welcomeMsg);
+      this.alert.toastSuccess('Signed In Successfully', welcomeMsg);
+      const target = res.user.role === 'client' || res.user.role === 'installer' ? '/map' : '/overview';
       setTimeout(() => {
         this.router.navigate([target]);
       }, 350);

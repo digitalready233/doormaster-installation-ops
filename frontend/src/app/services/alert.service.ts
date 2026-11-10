@@ -227,12 +227,28 @@ export class AlertService {
       .replace(/'/g, '&#039;');
   }
 
+  private getToastBackground(icon: SweetAlertIcon): string {
+    switch (icon) {
+      case 'success':
+        return '#059669';
+      case 'error':
+        return '#dc2626';
+      case 'warning':
+        return '#d97706';
+      case 'info':
+        return '#0284c7';
+      case 'question':
+      default:
+        return '#4f46e5';
+    }
+  }
+
   /**
    * Core compact SweetAlert2 toast launcher
    * Follows exact specification:
    * - position: "top-end"
    * - showConfirmButton: false
-   * - timer: 1500
+   * - timer: 2500
    * - size and font reduced by half
    * - message below with sub-icon
    */
@@ -241,19 +257,24 @@ export class AlertService {
     title: string,
     text: string = '',
     subIcon: SubIconType = 'check',
-    timer: number = 1500
+    timer: number = 2500
   ): Promise<SweetAlertResult> {
-    const subHtml = this.formatSubHtml(text || 'Changes saved to system.', subIcon);
+    const cleanText = (text || 'Changes saved to system.')
+      .replace(/\s*via Prisma/gi, '')
+      .replace(/MySQL\s+/gi, '');
+    const subHtml = this.formatSubHtml(cleanText, subIcon);
 
     return Swal.fire({
       toast: true,
       position: 'top-end',
       icon,
-      iconColor: 'white',
+      iconColor: '#ffffff',
+      background: this.getToastBackground(icon),
+      color: '#ffffff',
       title,
       html: subHtml,
       showConfirmButton: false,
-      timer: timer > 0 ? timer : 1500,
+      timer: timer > 0 ? timer : 2500,
       timerProgressBar: true,
       customClass: {
         popup: 'colored-toast font-sans',
@@ -269,14 +290,14 @@ export class AlertService {
   }
 
   /**
-   * Standard CRUD Success (Default: "Your work has been saved", 1500ms, top-end)
+   * Standard CRUD Success (Default: "Your work has been saved", 2500ms, top-end)
    */
   crudSuccess(
     title: string = 'Your work has been saved',
     text: string = 'Changes saved to system.',
     subIcon: SubIconType = 'save'
   ): Promise<SweetAlertResult> {
-    return this.fireCompactToast('success', title, text, subIcon, 1500);
+    return this.fireCompactToast('success', title, text, subIcon, 2500);
   }
 
   /**
@@ -293,14 +314,14 @@ export class AlertService {
       categorized.title,
       categorized.subText,
       subIconOverride || categorized.subIcon,
-      1800
+      2800
     );
   }
 
   /**
-   * Success notification - top-end compact half-sized toast with 1500ms timer
+   * Success notification - top-end compact half-sized toast with 2500ms timer
    */
-  success(title: string = 'Your work has been saved', text: string = '', timer: number = 1500): Promise<SweetAlertResult> {
+  success(title: string = 'Your work has been saved', text: string = '', timer: number = 2500): Promise<SweetAlertResult> {
     let subIcon: SubIconType = 'check';
     const lower = `${title} ${text}`.toLowerCase();
     if (lower.includes('save') || lower.includes('work has been saved')) subIcon = 'save';
@@ -315,7 +336,7 @@ export class AlertService {
    */
   error(title: string, text: string = ''): Promise<SweetAlertResult> {
     const categorized = this.classifyError(title, text);
-    return this.fireCompactToast('error', categorized.title, categorized.subText, categorized.subIcon, 1800);
+    return this.fireCompactToast('error', categorized.title, categorized.subText, categorized.subIcon, 2800);
   }
 
   /**
@@ -323,14 +344,14 @@ export class AlertService {
    */
   warning(title: string, text: string = ''): Promise<SweetAlertResult> {
     const categorized = this.classifyError(title, text);
-    return this.fireCompactToast('warning', title, text || categorized.subText, 'validation', 1600);
+    return this.fireCompactToast('warning', title, text || categorized.subText, 'validation', 2600);
   }
 
   /**
    * Info notification with info sub-icon below
    */
   info(title: string, text: string = ''): Promise<SweetAlertResult> {
-    return this.fireCompactToast('info', title, text || 'Information update.', 'info', 1500);
+    return this.fireCompactToast('info', title, text || 'Information update.', 'info', 2500);
   }
 
   /**
@@ -340,11 +361,11 @@ export class AlertService {
     title: string = 'Network Failure',
     text: string = 'Could not reach server. Data saved to local cache.'
   ): Promise<SweetAlertResult> {
-    return this.fireCompactToast('warning', title, text, 'network', 1800);
+    return this.fireCompactToast('warning', title, text, 'network', 2800);
   }
 
   /**
-   * Fast Non-Blocking Toast: Success (1500ms, top-end)
+   * Fast Non-Blocking Toast: Success (2500ms, top-end)
    */
   toastSuccess(title: string = 'Your work has been saved', text?: string) {
     let subIcon: SubIconType = 'check';
@@ -353,7 +374,7 @@ export class AlertService {
     else if (lower.includes('add') || lower.includes('create') || lower.includes('register') || lower.includes('book')) subIcon = 'database';
     else if (lower.includes('delete') || lower.includes('remove')) subIcon = 'delete';
 
-    this.fireCompactToast('success', title, text || 'Changes saved to system.', subIcon, 1500);
+    this.fireCompactToast('success', title, text || 'Changes saved to system.', subIcon, 2500);
   }
 
   /**
@@ -361,7 +382,7 @@ export class AlertService {
    */
   toastError(title: string, text?: string) {
     const categorized = this.classifyError(title, text);
-    this.fireCompactToast('error', categorized.title, categorized.subText, categorized.subIcon, 1800);
+    this.fireCompactToast('error', categorized.title, categorized.subText, categorized.subIcon, 2800);
   }
 
   /**
@@ -369,14 +390,14 @@ export class AlertService {
    */
   toastWarning(title: string, text?: string) {
     const categorized = this.classifyError(title, text);
-    this.fireCompactToast('warning', title, text || categorized.subText, 'validation', 1600);
+    this.fireCompactToast('warning', title, text || categorized.subText, 'validation', 2600);
   }
 
   /**
    * Fast Non-Blocking Toast: Info
    */
   toastInfo(title: string, text?: string) {
-    return this.fireCompactToast('info', title, text || 'System update.', 'info', 1500);
+    return this.fireCompactToast('info', title, text || 'System update.', 'info', 2500);
   }
 
   /**

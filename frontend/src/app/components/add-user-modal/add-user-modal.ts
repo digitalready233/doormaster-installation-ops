@@ -24,7 +24,7 @@ import { RoleType } from '../../models/installation.model';
             </div>
             <div>
               <h2 class="text-base font-bold text-slate-900 dark:text-white">Add New User / Staff Account</h2>
-              <p class="text-xs text-slate-500 dark:text-slate-400">Create & provision authorized credentials into MySQL</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Create & provision authorized credentials</p>
             </div>
           </div>
 
@@ -118,8 +118,9 @@ import { RoleType } from '../../models/installation.model';
                   formControlName="role"
                   class="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer appearance-none"
                 >
+                  <option value="admin">System Administrator (Full Security & Governance)</option>
+                  <option value="manager">Operations Manager (Fleet Dispatch & Operations)</option>
                   <option value="installer">Installer (Site Clock-in & Checklists)</option>
-                  <option value="manager">Operations Manager (Fleet Dispatch & Governance)</option>
                   <option value="shop_manager">Shop Manager (Showroom Counter & Booking)</option>
                   <option value="dispatcher">Logistics Dispatcher / Driver (Fleet Transport)</option>
                   <option value="account_officer">Finance & Account Officer (Auditing & Funds)</option>
@@ -131,6 +132,113 @@ import { RoleType } from '../../models/installation.model';
                 <mat-icon class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 !text-lg pointer-events-none">expand_more</mat-icon>
               </div>
             </div>
+
+            <!-- Assigned Shop / Branch Selector -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Assigned Shop / Branch
+                @if (userForm.get('role')?.value === 'shop_manager') {
+                  <span class="text-rose-500">*</span>
+                } @else {
+                  <span class="text-slate-400 font-normal">(Scopes /shop data to this branch if assigned)</span>
+                }
+              </label>
+              <div class="relative">
+                <mat-icon class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 !text-lg !w-5 !h-5">storefront</mat-icon>
+                <select
+                  formControlName="shopId"
+                  class="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer appearance-none"
+                >
+                  @if (userForm.get('role')?.value === 'shop_manager') {
+                    <option value="">-- Select Assigned DoorMaster Shop --</option>
+                  } @else {
+                    <option value="">-- Global / Not Assigned to a Single Shop --</option>
+                  }
+                  @for (b of branches(); track b.branchCode) {
+                    <option [value]="b.id">{{ b.shopName }} ({{ b.branchCode }} · {{ b.city }})</option>
+                  }
+                </select>
+                <mat-icon class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 !text-lg pointer-events-none">expand_more</mat-icon>
+              </div>
+            </div>
+
+            <!-- Installer Team & Squad Position Assignment (Grid Select) -->
+            @if (userForm.get('role')?.value === 'installer') {
+              <div class="p-3.5 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-800/70 space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-blue-950 dark:text-blue-200 flex items-center gap-1.5">
+                    <mat-icon class="!text-base text-blue-600 dark:text-blue-400">groups</mat-icon>
+                    <span>Installation Team & Squad Position</span>
+                  </span>
+                  <span class="text-[10px] font-mono text-blue-700 dark:text-blue-300">Synced with Role Settings</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  @for (team of installerTeams(); track team.id) {
+                    <div
+                      (click)="selectInstallerTeam(team.id)"
+                      class="p-2.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between gap-2"
+                      [class]="selectedTeamId() === team.id
+                        ? 'border-blue-600 bg-blue-600/10 dark:bg-blue-500/20 text-blue-950 dark:text-white ring-1 ring-blue-500/30'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'"
+                    >
+                      <div class="min-w-0">
+                        <div class="text-[11px] font-black truncate">Team {{ team.code }}</div>
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 truncate">{{ team.name }}</div>
+                      </div>
+                      <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 dark:bg-slate-700 shrink-0">
+                        {{ team.members.length }}
+                      </span>
+                    </div>
+                  }
+                </div>
+
+                @if (selectedTeamPositions().length > 0) {
+                  <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">
+                      Select Position in Team
+                    </label>
+                    <div class="flex flex-wrap gap-1.5">
+                      @for (pos of selectedTeamPositions(); track pos) {
+                        <button
+                          type="button"
+                          (click)="selectedTeamPosition.set(pos)"
+                          class="px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer"
+                          [class]="selectedTeamPosition() === pos
+                            ? 'bg-indigo-600 text-white border-indigo-700'
+                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'"
+                        >
+                          {{ pos }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+
+                <div class="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    (click)="selectedTeamRole.set('assistant')"
+                    class="py-1.5 px-2.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer"
+                    [class]="selectedTeamRole() === 'assistant'
+                      ? 'bg-blue-600 text-white border-blue-700'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'"
+                  >
+                    Squad Member
+                  </button>
+                  <button
+                    type="button"
+                    (click)="selectedTeamRole.set('lead')"
+                    class="py-1.5 px-2.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer"
+                    [class]="selectedTeamRole() === 'lead'
+                      ? 'bg-amber-500 text-slate-950 border-amber-600'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'"
+                  >
+                    ★ Team Lead
+                  </button>
+                </div>
+              </div>
+            }
 
             <!-- Initial Account Status -->
             <div>
@@ -245,12 +353,34 @@ export class AddUserModal {
   readonly showPassword = signal<boolean>(false);
 
   readonly customRoles = () => this.store.roles().filter(r => !r.isSystem);
+  readonly branches = this.store.branches;
+  readonly installerTeams = this.store.installerTeams;
+
+  readonly selectedTeamId = signal<string>('team-alpha');
+  readonly selectedTeamRole = signal<'lead' | 'assistant'>('assistant');
+  readonly selectedTeamPosition = signal<string>('Installation Technician');
+
+  readonly selectedTeamPositions = () => {
+    const team = this.installerTeams().find(t => t.id === this.selectedTeamId());
+    return team?.positions?.length
+      ? team.positions
+      : ['Team Lead', 'Lead Master Tech', 'Senior Acoustic Tech', 'Smart Lock Specialist', 'Precision Joiner Tech', 'Installation Technician'];
+  };
+
+  selectInstallerTeam(teamId: string) {
+    this.selectedTeamId.set(teamId);
+    const positions = this.selectedTeamPositions();
+    if (positions.length > 0 && !positions.includes(this.selectedTeamPosition())) {
+      this.selectedTeamPosition.set(positions[0]);
+    }
+  }
 
   readonly userForm = new FormGroup({
     name: new FormControl('', [Validators.required, Validators.minLength(2)]),
     email: new FormControl('', [Validators.required, Validators.email]),
     phone: new FormControl('+233 24 555 01', [Validators.required, Validators.minLength(8)]),
     role: new FormControl<RoleType | string>('installer', [Validators.required]),
+    shopId: new FormControl<string>(''),
     status: new FormControl<string>('active', [Validators.required]),
     password: new FormControl('DoorMaster2026!*', [Validators.required, Validators.minLength(6)])
   });
@@ -272,14 +402,25 @@ export class AddUserModal {
     }
 
     const val = this.userForm.getRawValue();
+    if (val.role === 'shop_manager' && !val.shopId) {
+      this.errorMessage.set('Please select the DoorMaster shop this Shop Manager is assigned to.');
+      this.alert.toastWarning('Shop Assignment Required', 'Shop Managers must be assigned to a DoorMaster shop.');
+      return;
+    }
+
     this.isSubmitting.set(true);
     this.errorMessage.set(null);
 
+    const isInstaller = val.role === 'installer';
     const res = await this.store.addNewUser({
       name: val.name!,
       email: val.email!,
       role: val.role!,
       phone: val.phone!,
+      shopId: val.shopId ? val.shopId : null,
+      teamId: isInstaller ? this.selectedTeamId() : null,
+      teamRole: isInstaller ? this.selectedTeamRole() : null,
+      teamPosition: isInstaller ? this.selectedTeamPosition() : null,
       password: val.password || 'DoorMaster2026!*',
       status: val.status || 'active'
     });

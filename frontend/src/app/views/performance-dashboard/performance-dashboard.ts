@@ -7,6 +7,17 @@ import { InstallationStore } from '../../services/installation.store';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatIconModule],
   template: `
+    @if (isRestrictedRole()) {
+      <div class="py-16 text-center max-w-md mx-auto space-y-3">
+        <div class="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 mx-auto flex items-center justify-center">
+          <mat-icon class="!text-2xl">lock</mat-icon>
+        </div>
+        <h2 class="text-base font-bold text-slate-900 dark:text-white">Access Restricted</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400">
+          Executive performance audit and bonus policies are reserved for Operations Management and Accounts Administration.
+        </p>
+      </div>
+    } @else {
     <div class="space-y-6">
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
@@ -21,7 +32,7 @@ import { InstallationStore } from '../../services/installation.store';
           <h1 class="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">Installer Performance & Bonus Portal</h1>
         </div>
 
-        @if (store.currentRole() === 'manager') {
+        @if (store.currentRole() === 'manager' || store.currentRole() === 'admin') {
           <button 
             type="button"
             (click)="bonusModalOpened.emit()"
@@ -39,7 +50,7 @@ import { InstallationStore } from '../../services/installation.store';
           <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Total Bonuses Disbursed</span>
           <div class="flex items-baseline gap-2">
             <span class="text-3xl font-extrabold font-mono text-emerald-700 dark:text-emerald-400 tracking-tight tabular-nums">
-              &#36;{{ totalDisbursed() }}
+              GH₵{{ totalDisbursed() }}
             </span>
           </div>
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-2">100% verified against customer sign-offs</p>
@@ -49,7 +60,7 @@ import { InstallationStore } from '../../services/installation.store';
           <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Pending Management Release</span>
           <div class="flex items-baseline gap-2">
             <span class="text-3xl font-extrabold font-mono text-amber-700 dark:text-amber-400 tracking-tight tabular-nums">
-              &#36;{{ totalPending() }}
+              GH₵{{ totalPending() }}
             </span>
             <span class="text-xs text-amber-800 dark:text-amber-300 font-medium font-mono">{{ pendingJobs().length }} jobs</span>
           </div>
@@ -93,7 +104,7 @@ import { InstallationStore } from '../../services/installation.store';
           <table class="w-full text-left border-collapse text-xs">
             <thead>
               <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                <th class="py-3 px-4">Technician Name</th>
+                <th class="py-3 px-4">Installer Name</th>
                 <th class="py-3 px-4">Doors Installed</th>
                 <th class="py-3 px-4">Customer Rating</th>
                 <th class="py-3 px-4">On-Time Rate</th>
@@ -140,11 +151,11 @@ import { InstallationStore } from '../../services/installation.store';
                   </td>
 
                   <td class="py-3.5 px-4 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums whitespace-nowrap">
-                    &#36;{{ inst.metrics.totalBonusesEarned }}
+                    GH₵{{ inst.metrics.totalBonusesEarned }}
                   </td>
 
                   <td class="py-3.5 px-4 text-right font-mono font-bold text-amber-700 dark:text-amber-400 tabular-nums whitespace-nowrap">
-                    &#36;{{ inst.metrics.pendingBonuses }}
+                    GH₵{{ inst.metrics.pendingBonuses }}
                   </td>
                 </tr>
               }
@@ -153,8 +164,8 @@ import { InstallationStore } from '../../services/installation.store';
         </div>
       </div>
 
-      <!-- Management Bonus Approval Queue Section (Restricted to Manager & Finance) -->
-      @if (store.currentRole() === 'manager' || store.currentRole() === 'account_officer') {
+      <!-- Management Bonus Approval Queue Section (Restricted to Admin, Manager & Finance) -->
+      @if (store.currentRole() === 'admin' || store.currentRole() === 'manager' || store.currentRole() === 'account_officer') {
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
         <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div class="flex items-center gap-2">
@@ -198,7 +209,7 @@ import { InstallationStore } from '../../services/installation.store';
                 <div class="flex items-center gap-3">
                   <div class="text-right">
                     <span class="text-base font-bold font-mono text-emerald-700 dark:text-emerald-400 tabular-nums">
-                      +&#36;{{ job.financials.bonusAmount }}
+                      +GH₵{{ job.financials.bonusAmount }}
                     </span>
                     <span class="block text-[10px] text-slate-400 dark:text-slate-500 uppercase">Calculated Bonus</span>
                   </div>
@@ -219,11 +230,16 @@ import { InstallationStore } from '../../services/installation.store';
       </div>
       }
     </div>
+    }
   `
 })
 export class PerformanceDashboard {
   readonly store = inject(InstallationStore);
   bonusModalOpened = output<void>();
+
+  readonly isRestrictedRole = computed(() => {
+    return ['client', 'installer', 'shop_manager', 'dispatcher'].includes(this.store.currentRole());
+  });
 
   readonly totalDisbursed = computed(() => {
     return this.store.installers().reduce((sum, i) => sum + i.metrics.totalBonusesEarned, 0);

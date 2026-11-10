@@ -29,7 +29,7 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
             </span>
           </div>
           <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-            Operational field dispatch, technician assignments, and live task progress
+            Operational field dispatch, installer assignments, and live task progress
           </p>
         </div>
 
@@ -75,96 +75,19 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
       </div>
 
       <!-- ======================================================================= -->
-      <!-- COMPACT FILTER CONTROLS BAR (All Filter Options Available on Page)      -->
+      <!-- COMPACT FILTER CONTROLS BAR (Single Row)                                -->
       <!-- ======================================================================= -->
-      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-2">
-        <div class="flex flex-wrap items-center gap-2 text-xs">
+      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2 shadow-2xs">
+        <div class="flex items-center gap-2 flex-nowrap overflow-x-auto text-xs py-0.5">
           
-          <!-- 1. Date Range Segmented Buttons -->
-          <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200/60 dark:border-slate-700/60">
-            @for (opt of dateOptions; track opt.value) {
-              <button
-                type="button"
-                (click)="dateFilter.set(opt.value)"
-                class="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer"
-                [class]="dateFilter() === opt.value ? 'bg-slate-900 dark:bg-slate-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                [title]="'Filter tasks scheduled for ' + opt.label"
-              >
-                {{ opt.label }}
-              </button>
-            }
-          </div>
-
-          <!-- 2. Status Dropdown -->
-          <div class="relative">
-            <select
-              [value]="statusFilter()"
-              (change)="statusFilter.set(($any($event.target)).value)"
-              class="text-[11px] font-medium h-7 pl-2.5 pr-7 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-            >
-              <option value="all">All Statuses ({{ allJobs().length }})</option>
-              @for (st of statusOptions(); track st.value) {
-                <option [value]="st.value">{{ st.label }} ({{ st.count }})</option>
-              }
-            </select>
-          </div>
-
-          <!-- 3. Installer / Technician Dropdown -->
-          <div class="relative">
-            <select
-              [value]="installerFilter()"
-              (change)="installerFilter.set(($any($event.target)).value)"
-              class="text-[11px] font-medium h-7 pl-2.5 pr-7 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-            >
-              <option value="all">All Technicians</option>
-              @if (store.currentInstallerId()) {
-                <option value="my_tasks">★ My Assigned Tasks</option>
-              }
-              <option value="unassigned">⚠️ Unassigned ({{ unassignedCount() }})</option>
-              <optgroup label="Active Technicians">
-                @for (tech of installerOptions(); track tech.id) {
-                  <option [value]="tech.id">{{ tech.name }} ({{ tech.count }})</option>
-                }
-              </optgroup>
-            </select>
-          </div>
-
-          <!-- 4. Branch / Workshop Dropdown -->
-          <div class="relative">
-            <select
-              [value]="branchFilter()"
-              (change)="branchFilter.set(($any($event.target)).value)"
-              class="text-[11px] font-medium h-7 pl-2.5 pr-7 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-            >
-              <option value="all">All Branches</option>
-              @for (branch of branchOptions(); track branch.name) {
-                <option [value]="branch.name">{{ branch.name }} ({{ branch.count }})</option>
-              }
-            </select>
-          </div>
-
-          <!-- 5. Assignment Status Dropdown -->
-          <div class="relative">
-            <select
-              [value]="assignmentStatusFilter()"
-              (change)="assignmentStatusFilter.set(($any($event.target)).value)"
-              class="text-[11px] font-medium h-7 pl-2.5 pr-7 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-            >
-              <option value="all">All Assignment States</option>
-              <option value="accepted">Accepted by Tech</option>
-              <option value="pending">Pending Acceptance</option>
-              <option value="rejected">Rejected by Tech</option>
-            </select>
-          </div>
-
-          <!-- 6. Search Bar -->
-          <div class="relative flex-1 min-w-[160px]">
+          <!-- 1. Search Bar -->
+          <div class="relative shrink-0 w-44 sm:w-52">
             <mat-icon class="!text-xs text-slate-400 absolute left-2 top-2">search</mat-icon>
             <input
               type="text"
               [value]="searchQuery()"
               (input)="searchQuery.set(($any($event.target)).value)"
-              placeholder="Filter by ID, client, door, site..."
+              placeholder="Filter by ID, client, door..."
               class="w-full pl-7 pr-7 h-7 text-[11px] bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
             @if (searchQuery()) {
@@ -178,16 +101,93 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
             }
           </div>
 
+          <!-- 2. Date Range Segmented Buttons -->
+          <div class="inline-flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200/60 dark:border-slate-700/60 shrink-0">
+            @for (opt of dateOptions; track opt.value) {
+              <button
+                type="button"
+                (click)="dateFilter.set(opt.value)"
+                class="px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap"
+                [class]="dateFilter() === opt.value ? 'bg-slate-900 dark:bg-slate-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                [title]="'Filter tasks scheduled for ' + opt.label"
+              >
+                {{ opt.label }}
+              </button>
+            }
+          </div>
+
+          <!-- 3. Status Dropdown -->
+          <div class="relative shrink-0">
+            <select
+              [value]="statusFilter()"
+              (change)="statusFilter.set(($any($event.target)).value)"
+              class="text-[11px] font-medium h-7 pl-2.5 pr-7 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer max-w-[145px] truncate"
+            >
+              <option value="all">All Statuses ({{ allJobs().length }})</option>
+              @for (st of statusOptions(); track st.value) {
+                <option [value]="st.value">{{ st.label }} ({{ st.count }})</option>
+              }
+            </select>
+          </div>
+
+          <!-- 4. Installer Dropdown -->
+          <div class="relative shrink-0">
+            <select
+              [value]="installerFilter()"
+              (change)="installerFilter.set(($any($event.target)).value)"
+              class="text-[11px] font-medium h-7 pl-2.5 pr-7 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer max-w-[155px] truncate"
+            >
+              <option value="all">All Installers</option>
+              @if (store.currentInstallerId()) {
+                <option value="my_tasks">★ My Assigned Tasks</option>
+              }
+              <option value="unassigned">⚠️ Unassigned ({{ unassignedCount() }})</option>
+              <optgroup label="Active Installers">
+                @for (tech of installerOptions(); track tech.id) {
+                  <option [value]="tech.id">{{ tech.name }} ({{ tech.count }})</option>
+                }
+              </optgroup>
+            </select>
+          </div>
+
+          <!-- 5. Branch / Workshop Dropdown -->
+          <div class="relative shrink-0">
+            <select
+              [value]="branchFilter()"
+              (change)="branchFilter.set(($any($event.target)).value)"
+              class="text-[11px] font-medium h-7 pl-2.5 pr-7 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer max-w-[140px] truncate"
+            >
+              <option value="all">All Branches</option>
+              @for (branch of branchOptions(); track branch.name) {
+                <option [value]="branch.name">{{ branch.name }} ({{ branch.count }})</option>
+              }
+            </select>
+          </div>
+
+          <!-- 6. Assignment Status Dropdown -->
+          <div class="relative shrink-0">
+            <select
+              [value]="assignmentStatusFilter()"
+              (change)="assignmentStatusFilter.set(($any($event.target)).value)"
+              class="text-[11px] font-medium h-7 pl-2.5 pr-7 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer max-w-[145px] truncate"
+            >
+              <option value="all">All Assignment States</option>
+              <option value="accepted">Accepted by Tech</option>
+              <option value="pending">Pending Acceptance</option>
+              <option value="rejected">Rejected by Tech</option>
+            </select>
+          </div>
+
           <!-- 7. Reset Filters Button -->
           @if (hasActiveFilters()) {
             <button
               type="button"
               (click)="resetFilters()"
-              class="h-7 px-2.5 rounded-lg text-[11px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+              class="h-7 px-2.5 rounded-lg text-[11px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 transition-colors flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap ml-auto"
               title="Clear all active filters"
             >
               <mat-icon class="!text-xs">filter_alt_off</mat-icon>
-              <span>Reset Filters</span>
+              <span>Reset</span>
             </button>
           }
         </div>
@@ -204,12 +204,14 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
                 <th class="py-1.5 px-3">Job ID</th>
                 <th class="py-1.5 px-3">Door / Specification</th>
                 <th class="py-1.5 px-3">Client & Location</th>
-                <th class="py-1.5 px-3">Technician(s)</th>
+                <th class="py-1.5 px-3">Installer(s)</th>
                 <th class="py-1.5 px-3">Assignment</th>
                 <th class="py-1.5 px-3">Status</th>
                 <th class="py-1.5 px-3">Branch</th>
                 <th class="py-1.5 px-3">Scheduled</th>
-                <th class="py-1.5 px-3 text-right">Bonus</th>
+                @if (canViewBonus()) {
+                  <th class="py-1.5 px-3 text-right">Bonus</th>
+                }
                 <th class="py-1.5 px-3 text-center">Action</th>
               </tr>
             </thead>
@@ -252,7 +254,7 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
                         <span>{{ job.assignedInstallerName }}</span>
                       </span>
                     } @else if (job.assignedInstallerId || (job.assignedInstallerIds && job.assignedInstallerIds.length === 1)) {
-                      <span class="text-slate-800 dark:text-slate-200 font-medium">{{ job.assignedInstallerName || 'Technician' }}</span>
+                      <span class="text-slate-800 dark:text-slate-200 font-medium">{{ job.assignedInstallerName || 'Installer' }}</span>
                     } @else {
                       <span class="text-amber-600 dark:text-amber-400 font-bold flex items-center gap-0.5">
                         <mat-icon class="!text-[12px]">warning</mat-icon>
@@ -296,9 +298,11 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
                   </td>
 
                   <!-- 9. Bonus -->
-                  <td class="py-1.5 px-3 text-right font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                    ₵{{ job.financials.bonusAmount }}
-                  </td>
+                  @if (canViewBonus()) {
+                    <td class="py-1.5 px-3 text-right font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                      GH₵{{ job.financials.bonusAmount }}
+                    </td>
+                  }
 
                   <!-- 10. Action Button -->
                   <td class="py-1.5 px-3 text-center whitespace-nowrap">
@@ -313,10 +317,10 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="10" class="py-10 text-center text-slate-400 dark:text-slate-500">
+                  <td [attr.colspan]="canViewBonus() ? 10 : 9" class="py-10 text-center text-slate-400 dark:text-slate-500">
                     <mat-icon class="!text-3xl text-slate-300 dark:text-slate-600 mb-1">filter_list_off</mat-icon>
                     <p class="font-bold text-xs text-slate-600 dark:text-slate-400">No tasks match the selected filter criteria.</p>
-                    <p class="text-[11px] text-slate-400 mt-0.5">Try choosing a different date range, status, technician, or resetting search.</p>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Try choosing a different date range, status, installer, or resetting search.</p>
                     @if (hasActiveFilters()) {
                       <button
                         type="button"
@@ -341,6 +345,14 @@ export class Work {
   readonly store = inject(InstallationStore);
   readonly jobSelected = output<string>();
 
+  readonly canViewBonus = computed(() => {
+    const role = this.store.currentRole();
+    if (['client', 'installer', 'shop_manager', 'dispatcher'].includes(role)) {
+      return false;
+    }
+    return this.store.currentRoleDefinition().permissions.canApproveBonuses || role === 'admin' || role === 'account_officer';
+  });
+
   // Filter signals
   readonly dateFilter = signal<DateFilter>('all');
   readonly statusFilter = signal<string>('all');
@@ -350,11 +362,11 @@ export class Work {
   readonly searchQuery = signal<string>('');
 
   readonly dateOptions: { value: DateFilter; label: string }[] = [
-    { value: 'today', label: 'Today' },
-    { value: 'week', label: 'This Week' },
-    { value: 'month', label: 'This Month' },
-    { value: 'year', label: 'This Year' },
-    { value: 'all', label: 'All Time' }
+    { value: 'all', label: 'All' },
+    { value: 'today', label: 'Day' },
+    { value: 'week', label: 'Week' },
+    { value: 'month', label: 'Month' },
+    { value: 'year', label: 'Year' }
   ];
 
   /**
@@ -381,7 +393,7 @@ export class Work {
   });
 
   /**
-   * Technicians options dynamically derived and counted from live jobs and installers list
+   * Installers options dynamically derived and counted from live jobs and installers list
    */
   readonly installerOptions = computed(() => {
     const installers = this.store.installers();

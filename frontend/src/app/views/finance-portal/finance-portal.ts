@@ -16,7 +16,7 @@ import { InstallationJob } from '../../models/installation.model';
           <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
             <span>Accounts & Audit Ledger</span>
             <span aria-hidden="true">·</span>
-            <span>Shop Collections & Technician Site Mobilization</span>
+            <span>Shop Collections & Installer Site Mobilization</span>
             <span aria-hidden="true">·</span>
             <span class="text-amber-700 dark:text-amber-400 font-bold">Daily Reconciliation</span>
           </div>
@@ -61,7 +61,7 @@ import { InstallationJob } from '../../models/installation.model';
           <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Total Shop Collections</span>
           <div class="flex items-baseline gap-2">
             <span class="text-2xl sm:text-3xl font-black font-mono text-cyan-700 dark:text-cyan-400 tracking-tight tabular-nums">
-              ₵{{ store.totalShopCollections().toLocaleString() }}
+              GH₵{{ store.totalShopCollections().toLocaleString() }}
             </span>
           </div>
           <p class="text-[11px] text-slate-400 mt-2">Collected at counter by Shop Manager</p>
@@ -71,14 +71,14 @@ import { InstallationJob } from '../../models/installation.model';
           <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Site Funds Dispatched</span>
           <div class="flex items-baseline gap-2">
             <span class="text-2xl sm:text-3xl font-black font-mono text-amber-600 dark:text-amber-400 tracking-tight tabular-nums">
-              ₵{{ store.totalSiteFundsDispatched().toLocaleString() }}
+              GH₵{{ store.totalSiteFundsDispatched().toLocaleString() }}
             </span>
           </div>
-          <p class="text-[11px] text-slate-400 mt-2">Mobilization allowance for technicians</p>
+          <p class="text-[11px] text-slate-400 mt-2">Mobilization allowance for installers</p>
         </div>
 
         <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
-          <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Awaiting Tech Funds</span>
+          <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Awaiting Installer Funds</span>
           <div class="flex items-baseline gap-2">
             <span class="text-2xl sm:text-3xl font-black font-mono text-slate-900 dark:text-white tracking-tight tabular-nums">
               {{ store.pendingTechMobilizationJobs().length }}
@@ -92,7 +92,7 @@ import { InstallationJob } from '../../models/installation.model';
           <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Total Incentive Pool</span>
           <div class="flex items-baseline gap-2">
             <span class="text-2xl sm:text-3xl font-black font-mono text-emerald-700 dark:text-emerald-400 tracking-tight tabular-nums">
-              ₵{{ store.stats().totalBonusesAllocated.toLocaleString() }}
+              GH₵{{ store.stats().totalBonusesAllocated.toLocaleString() }}
             </span>
           </div>
           <p class="text-[11px] text-slate-400 mt-2">Installer performance payouts</p>
@@ -144,7 +144,7 @@ import { InstallationJob } from '../../models/installation.model';
                     </td>
 
                     <td class="py-3.5 px-4 font-mono font-bold text-cyan-700 dark:text-cyan-400 text-sm whitespace-nowrap">
-                      ₵{{ (job.shopBooking?.amountPaidAtShop || job.financials.doorPrice).toLocaleString() }}
+                      ₵{{ (job.shopBooking?.amountPaidAtShop ?? ((job.financials.installationFee || 0) + (job.financials.laborCost || 0))).toLocaleString() }}
                     </td>
 
                     <td class="py-3.5 px-4 whitespace-nowrap">
@@ -197,9 +197,9 @@ import { InstallationJob } from '../../models/installation.model';
           <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 class="text-sm font-bold text-slate-900 dark:text-white">Installer Site Mobilization & Transit Funds</h3>
-              <p class="text-xs text-slate-500 dark:text-slate-400">Accountant dispatches transport stipend & lock tooling allowance so technicians can visit client sites</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Accountant dispatches transport stipend & lock tooling allowance so installers can visit client sites</p>
             </div>
-            <span class="text-xs font-mono text-amber-600 font-bold">Standard Allowance: ₵250.00 / site</span>
+            <span class="text-xs font-mono text-amber-600 font-bold">Standard Allowance: GH₵250.00 / site</span>
           </div>
 
           <div class="overflow-x-auto">
@@ -207,7 +207,7 @@ import { InstallationJob } from '../../models/installation.model';
               <thead>
                 <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                   <th class="py-3 px-4">Installation Job</th>
-                  <th class="py-3 px-4">Assigned Technician</th>
+                  <th class="py-3 px-4">Assigned Installer</th>
                   <th class="py-3 px-4">Destination Site</th>
                   <th class="py-3 px-4">Stipend Purpose</th>
                   <th class="py-3 px-4">Disbursement Status</th>
@@ -244,7 +244,7 @@ import { InstallationJob } from '../../models/installation.model';
 
                       <td class="py-3.5 px-4">
                         <p class="text-slate-700 dark:text-slate-300 font-medium">{{ job.technicianSiteFunds.purpose }}</p>
-                        <span class="font-mono font-bold text-amber-600 dark:text-amber-400">₵{{ job.technicianSiteFunds.amount.toLocaleString() }}</span>
+                        <span class="font-mono font-bold text-amber-600 dark:text-amber-400">GH₵{{ job.technicianSiteFunds.amount.toLocaleString() }}</span>
                       </td>
 
                       <td class="py-3.5 px-4 whitespace-nowrap">
@@ -272,7 +272,7 @@ import { InstallationJob } from '../../models/installation.model';
                             class="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1 ml-auto shadow-2xs active:scale-95"
                           >
                             <mat-icon class="!text-xs">send</mat-icon>
-                            <span>Dispatch ₵{{ job.technicianSiteFunds.amount }}</span>
+                            <span>Dispatch GH₵{{ job.technicianSiteFunds.amount }}</span>
                           </button>
                         } @else {
                           <span class="text-xs text-emerald-600 dark:text-emerald-400 font-mono font-bold">Disbursed</span>
@@ -315,7 +315,7 @@ import { InstallationJob } from '../../models/installation.model';
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                 @for (job of store.jobs(); track job.id) {
-                  @let collected = job.shopBooking?.amountPaidAtShop || (job.financials.doorPrice + job.financials.installationFee);
+                  @let collected = job.shopBooking?.amountPaidAtShop ?? ((job.financials.installationFee || 0) + (job.financials.laborCost || 0));
                   @let mobilization = (job.technicianSiteFunds && job.technicianSiteFunds.status === 'dispatched') ? (job.technicianSiteFunds.amount || 0) : 0;
                   @let margin = collected - mobilization - job.financials.laborCost - (job.financials.bonusStatus === 'approved' ? job.financials.bonusAmount : 0);
                   <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
@@ -327,19 +327,19 @@ import { InstallationJob } from '../../models/installation.model';
                       {{ job.client.name }}
                     </td>
                     <td class="py-3 px-4 text-right font-mono font-bold text-cyan-700 dark:text-cyan-400">
-                      ₵{{ collected.toLocaleString() }}
+                      GH₵{{ collected.toLocaleString() }}
                     </td>
                     <td class="py-3 px-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
-                      ₵{{ mobilization.toLocaleString() }}
+                      GH₵{{ mobilization.toLocaleString() }}
                     </td>
                     <td class="py-3 px-4 text-right font-mono text-slate-600 dark:text-slate-400">
-                      ₵{{ job.financials.laborCost }}
+                      GH₵{{ job.financials.laborCost }}
                     </td>
                     <td class="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                      ₵{{ job.financials.bonusAmount }}
+                      GH₵{{ job.financials.bonusAmount }}
                     </td>
                     <td class="py-3 px-4 text-right font-mono font-black text-slate-900 dark:text-white">
-                      ₵{{ margin.toLocaleString() }}
+                      GH₵{{ margin.toLocaleString() }}
                     </td>
                   </tr>
                 }
@@ -363,8 +363,8 @@ import { InstallationJob } from '../../models/installation.model';
                   <mat-icon class="!text-sm">payments</mat-icon>
                 </div>
                 <div>
-                  <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Dispatch Technician Site Mobilization</h3>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">Order {{ job.id }} · Technician: {{ job.assignedInstallerName || 'Installer' }}</p>
+                  <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Dispatch Installer Site Mobilization</h3>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">Order {{ job.id }} · Installer: {{ job.assignedInstallerName || 'Installer' }}</p>
                 </div>
               </div>
               <button 
@@ -384,7 +384,7 @@ import { InstallationJob } from '../../models/installation.model';
               </div>
 
               <div>
-                <label for="fundAmountInput" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Stipend Amount (₵) *</label>
+                <label for="fundAmountInput" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Stipend Amount (GH₵) *</label>
                 <input 
                   id="fundAmountInput"
                   type="number" 
@@ -442,7 +442,7 @@ import { InstallationJob } from '../../models/installation.model';
                   class="px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
                 >
                   <mat-icon class="!text-sm">send</mat-icon>
-                  <span>Release Funds to Technician</span>
+                  <span>Release Funds to Installer</span>
                 </button>
               </div>
             </form>

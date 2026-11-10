@@ -3,6 +3,7 @@ import { SlicePipe } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
+import { AlertService } from '../../services/alert.service';
 import { SmsProviderType } from '../../models/installation.model';
 
 @Component({
@@ -356,6 +357,7 @@ import { SmsProviderType } from '../../models/installation.model';
 })
 export class ProfileSmsSettingsModal {
   readonly store = inject(InstallationStore);
+  private readonly alert = inject(AlertService);
   readonly closed = output<void>();
 
   readonly activeTab = signal<'phones' | 'gateway' | 'inbox'>('phones');
@@ -381,13 +383,20 @@ export class ProfileSmsSettingsModal {
   });
 
   savePhones() {
-    if (!this.phonesForm.valid) return;
+    if (!this.phonesForm.valid) {
+      this.alert.toastWarning('Incomplete Directory', 'Please specify all required role mobile numbers.');
+      return;
+    }
     this.store.updateUserPhones(this.phonesForm.getRawValue());
+    this.alert.toastSuccess('Directory Saved', 'Automated SMS recipient routing numbers updated.');
     this.closed.emit();
   }
 
   saveGateway() {
-    if (!this.gatewayForm.valid) return;
+    if (!this.gatewayForm.valid) {
+      this.alert.toastWarning('Incomplete Gateway Config', 'Please provide a valid Sender ID.');
+      return;
+    }
     const val = this.gatewayForm.getRawValue();
     this.store.updateSmsGatewayConfig({
       provider: val.provider,
@@ -399,6 +408,7 @@ export class ProfileSmsSettingsModal {
       twilioAuthToken: val.twilioAuthToken,
       simulationMode: val.simulationMode
     });
+    this.alert.toastSuccess('Gateway Saved', `SMS gateway updated to ${val.provider.toUpperCase()} (${val.senderId}).`);
     this.closed.emit();
   }
 
@@ -407,5 +417,6 @@ export class ProfileSmsSettingsModal {
     const phones = this.store.userPhones();
     const phone = (phones as unknown as Record<string, string>)[role] || phones.manager;
     this.store.sendTestSmsPing(phone, `DoorMaster Automated SMS Gateway: Verification test ping for ${role} successful. 200 OK.`);
+    this.alert.toastSuccess('Test SMS Sent', `Verification SMS dispatched to ${phone}.`);
   }
 }

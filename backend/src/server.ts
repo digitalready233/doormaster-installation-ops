@@ -44,6 +44,8 @@ import {
   getJobsFromDb,
   saveJobToDb,
   seedJobsIfEmpty,
+  seedAllBranches,
+  backfillJobShopReferences,
   getSmsLogsFromDb,
   logSmsToDb,
   saveInstallerTrackSession,
@@ -63,8 +65,24 @@ import {
   upsertLiveLocation,
   getAllLiveLocations,
   getLiveLocationByUserId,
-  setLiveLocationOffline
+  setLiveLocationOffline,
+  getClientsFromDb,
+  getClientByIdFromDb,
+  getJobByIdWithRelations,
+  deleteJobFromDb
 } from './jobs-service';
+
+import {
+  getTeamsWithMembers,
+  createTeamInDb,
+  updateTeamInDb,
+  deleteTeamInDb,
+  upsertTeamMemberInDb,
+  removeTeamMemberFromDb,
+  getRolesFromDb,
+  upsertRoleInDb,
+  deleteCustomRoleInDb
+} from './teams-service';
 
 const app = express();
 const port = process.env['PORT'] || 3001;
@@ -158,13 +176,30 @@ async function requireActiveUser(req: express.Request, res: express.Response, ne
  */
 function requireRole(roles: string[]) {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    await requireActiveUser(req, res, () => {
+    await requireActiveUser(req, res, async () => {
       const user = (req as any).user as UserRecord | undefined;
-      if (!user || !roles.includes(user.role)) {
+      if (!user) {
         res.status(403).json({ success: false, message: 'You do not have permission to perform this action.' });
         return;
       }
-      next();
+      if (roles.includes(user.role)) {
+        next();
+        return;
+      }
+      // Also honor custom RBAC roles that have been granted governance permissions
+      if (roles.includes('admin')) {
+        try {
+          const allRoles = await getRolesFromDb();
+          const matchedRole = allRoles.find(r => r.id === user.role);
+          if (matchedRole?.permissions?.canManageRoles) {
+            next();
+            return;
+          }
+        } catch {
+          // ignore lookup failure
+        }
+      }
+      res.status(403).json({ success: false, message: 'You do not have permission to perform this action.' });
     });
   };
 }
@@ -172,9 +207,11 @@ function requireRole(roles: string[]) {
 // Initialize MySQL database on startup asynchronously via Prisma
 (async () => {
   try {
+    await seedAllBranches();
     const initRes = await initDatabase();
     console.log('[Backend Server Startup]', initRes.message);
     await seedJobsIfEmpty();
+    await backfillJobShopReferences();
   } catch (err) {
     console.warn('[Backend Server Startup] DB notice:', (err as Error).message);
   }
@@ -223,10 +260,12 @@ app.get('/api/db/status', async (_req, res) => {
   }
 });
 
-app.post('/api/db/init', requireRole(['manager']), async (_req, res) => {
+app.post('/api/db/init', requireRole(['admin']), async (_req, res) => {
   try {
+    await seedAllBranches();
     const result = await initDatabase();
     await seedJobsIfEmpty();
+    await backfillJobShopReferences();
     res.json(result);
   } catch (error) {
     res.status(500).json({
@@ -299,13 +338,13 @@ app.get('/api/auth/me', requireAuth, async (req, res) => {
 app.post('/api/auth/register', registerRateLimiter, async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
-    const { name, email, password, role, phone, avatarUrl } = req.body;
+    const { name, email, password, role, phone, avatarUrl, shopId } = req.body;
     if (!name || !email || !role) {
       res.status(400).json({ success: false, message: 'Name, email, and role are required' });
       return;
     }
 
-    const regRes = await registerUser({ name, email, password, role, phone, avatarUrl });
+    const regRes = await registerUser({ name, email, password, role, phone, avatarUrl, shopId });
     if (!regRes.success) {
       res.status(400).json(regRes);
       return;
@@ -338,9 +377,9 @@ app.get(['/api/auth/users', '/api/users'], requireActiveUser, async (_req, res) 
   }
 });
 
-app.post(['/api/auth/users', '/api/users'], requireRole(['manager']), async (req, res) => {
+app.post(['/api/auth/users', '/api/users'], requireRole(['admin', 'manager']), async (req, res) => {
   try {
-    const { name, email, password, role, phone, avatarUrl, status } = req.body;
+    const { name, email, password, role, phone, avatarUrl, status, shopId, teamId, teamRole, teamPosition } = req.body;
     if (!name || !email || !role) {
       res.status(400).json({ success: false, message: 'Name, email, and role are required' });
       return;
@@ -354,6 +393,10 @@ app.post(['/api/auth/users', '/api/users'], requireRole(['manager']), async (req
       phone,
       avatarUrl,
       status: status || 'active',
+      shopId,
+      teamId,
+      teamRole,
+      teamPosition,
     });
 
     if (!result.success) {
@@ -374,8 +417,19 @@ app.post(['/api/auth/users', '/api/users'], requireRole(['manager']), async (req
 app.patch(['/api/auth/users/:id', '/api/users/:id'], async (req, res) => {
   try {
     const id = String(req.params.id);
-    const { name, email, phone, avatarUrl, role, status } = req.body;
-    const result = await updateUserProfile(id, { name, email, phone, avatarUrl, role, status });
+    const { name, email, phone, avatarUrl, role, status, shopId, teamId, teamRole, teamPosition } = req.body;
+    const result = await updateUserProfile(id, {
+      name,
+      email,
+      phone,
+      avatarUrl,
+      role,
+      status,
+      shopId,
+      teamId,
+      teamRole,
+      teamPosition,
+    });
     if (!result.success) {
       res.status(400).json(result);
       return;
@@ -391,7 +445,7 @@ app.patch(['/api/auth/users/:id', '/api/users/:id'], async (req, res) => {
   }
 });
 
-app.patch(['/api/auth/users/:id/status', '/api/users/:id/status'], requireRole(['manager']), async (req, res) => {
+app.patch(['/api/auth/users/:id/status', '/api/users/:id/status'], requireRole(['admin']), async (req, res) => {
   try {
     const id = String(req.params.id);
     const { status } = req.body;
@@ -416,7 +470,7 @@ app.patch(['/api/auth/users/:id/status', '/api/users/:id/status'], requireRole([
   }
 });
 
-app.delete(['/api/auth/users/:id', '/api/users/:id'], requireRole(['manager']), async (req, res) => {
+app.delete(['/api/auth/users/:id', '/api/users/:id'], requireRole(['admin']), async (req, res) => {
   try {
     const id = String(req.params.id);
     const result = await deleteUser(id);
@@ -431,6 +485,241 @@ app.delete(['/api/auth/users/:id', '/api/users/:id'], requireRole(['manager']), 
       success: false,
       message: 'Failed deleting user',
       error: (error as Error).message
+    });
+  }
+});
+
+/**
+ * ============================================================================
+ * INSTALLATION TEAMS, MEMBERS & POSITIONS + ROLE DEFINITIONS SYNC ENDPOINTS
+ * ============================================================================
+ */
+
+app.get('/api/teams', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const teams = await getTeamsWithMembers();
+    res.json({
+      success: true,
+      count: teams.length,
+      teams,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve installation teams',
+      error: (error as Error).message,
+    });
+  }
+});
+
+app.post('/api/teams', async (req, res) => {
+  try {
+    const { name, code, description, specialties, positions, color, status, members } = req.body;
+    const result = await createTeamInDb({
+      name,
+      code,
+      description,
+      specialties,
+      positions,
+      color,
+      status,
+      members,
+    });
+    if (!result.success) {
+      res.status(400).json(result);
+      return;
+    }
+    res.status(201).json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed creating team',
+      error: (error as Error).message,
+    });
+  }
+});
+
+app.patch('/api/teams/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const { name, code, description, specialties, positions, color, status, leadId } = req.body;
+    const result = await updateTeamInDb(id, {
+      name,
+      code,
+      description,
+      specialties,
+      positions,
+      color,
+      status,
+      leadId,
+    });
+    if (!result.success) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed updating team',
+      error: (error as Error).message,
+    });
+  }
+});
+
+app.delete('/api/teams/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const result = await deleteTeamInDb(id);
+    if (!result.success) {
+      res.status(404).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed deleting team',
+      error: (error as Error).message,
+    });
+  }
+});
+
+app.post('/api/teams/:id/members', async (req, res) => {
+  try {
+    const teamId = String(req.params.id);
+    const { userId, position, teamRole } = req.body;
+    if (!userId) {
+      res.status(400).json({ success: false, message: 'userId is required to add a team member.' });
+      return;
+    }
+    const result = await upsertTeamMemberInDb(teamId, {
+      userId,
+      position,
+      teamRole,
+    });
+    if (!result.success) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed adding member to team',
+      error: (error as Error).message,
+    });
+  }
+});
+
+app.patch('/api/teams/:id/members/:userId', async (req, res) => {
+  try {
+    const teamId = String(req.params.id);
+    const userId = String(req.params.userId);
+    const { position, teamRole } = req.body;
+    const result = await upsertTeamMemberInDb(teamId, {
+      userId,
+      position,
+      teamRole,
+    });
+    if (!result.success) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed updating team member position',
+      error: (error as Error).message,
+    });
+  }
+});
+
+app.delete('/api/teams/:id/members/:userId', async (req, res) => {
+  try {
+    const teamId = String(req.params.id);
+    const userId = String(req.params.userId);
+    const result = await removeTeamMemberFromDb(teamId, userId);
+    if (!result.success) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed removing member from team',
+      error: (error as Error).message,
+    });
+  }
+});
+
+app.get('/api/roles', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const roles = await getRolesFromDb();
+    res.json({
+      success: true,
+      count: roles.length,
+      roles,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed retrieving role definitions',
+      error: (error as Error).message,
+    });
+  }
+});
+
+app.post('/api/roles', async (req, res) => {
+  try {
+    const roleDef = req.body;
+    if (!roleDef || !roleDef.id || !roleDef.name) {
+      res.status(400).json({ success: false, message: 'Role id and name are required.' });
+      return;
+    }
+    const result = await upsertRoleInDb(roleDef);
+    res.status(201).json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed creating custom role',
+      error: (error as Error).message,
+    });
+  }
+});
+
+app.patch('/api/roles/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const result = await upsertRoleInDb({ ...req.body, id });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed updating role definition',
+      error: (error as Error).message,
+    });
+  }
+});
+
+app.delete('/api/roles/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const result = await deleteCustomRoleInDb(id);
+    if (!result.success) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed deleting custom role',
+      error: (error as Error).message,
     });
   }
 });
@@ -490,7 +779,7 @@ app.post('/api/doors/scrape-all', requireActiveUser, async (req, res) => {
       success: true,
       totalDoors: result.totalDoors,
       totalCategories: result.totalCategories,
-      message: `Successfully scraped ${result.totalDoors} doors across ${result.totalCategories} categories from pages ${startPage} to ${endPage} and saved to MySQL via Prisma.`
+      message: `Successfully scraped ${result.totalDoors} doors across ${result.totalCategories} categories from pages ${startPage} to ${endPage}.`
     });
   } catch (error) {
     res.status(500).json({
@@ -524,7 +813,7 @@ app.post('/api/doors', requireActiveUser, async (req, res) => {
     res.status(201).json({
       success: true,
       door: newDoor,
-      message: 'Door added to catalog and MySQL database successfully via Prisma'
+      message: `Door "${newDoor.name}" (${newDoor.modelCode}) added to catalog successfully.`
     });
   } catch (error) {
     res.status(400).json({
@@ -547,7 +836,7 @@ app.patch('/api/doors/:id/stock', requireActiveUser, async (req, res) => {
     res.json({
       success: true,
       door: updated,
-      message: `Stock updated for door ${id} in MySQL database`
+      message: `Door specifications and stock updated successfully.`
     });
   } catch (error) {
     res.status(400).json({
@@ -568,7 +857,7 @@ app.delete('/api/doors/:id', requireActiveUser, async (req, res) => {
     }
     res.json({
       success: true,
-      message: `Door ${id} removed from MySQL catalog`
+      message: `Door ${id} removed from catalog successfully.`
     });
   } catch (error) {
     res.status(500).json({
@@ -585,12 +874,16 @@ app.delete('/api/doors/:id', requireActiveUser, async (req, res) => {
  * ============================================================================
  */
 
-app.get('/api/jobs', async (_req, res) => {
+app.get('/api/jobs', async (req, res) => {
   try {
-    const jobs = await getJobsFromDb();
+    const queryShopId = typeof req.query['shopId'] === 'string' ? req.query['shopId'].trim() : '';
+    const filterShopId: string | undefined = queryShopId && queryShopId !== 'all' ? queryShopId : undefined;
+
+    const jobs = await getJobsFromDb(filterShopId);
     res.json({
       success: true,
       count: jobs.length,
+      shopId: filterShopId || null,
       jobs
     });
   } catch (error) {
@@ -602,9 +895,19 @@ app.get('/api/jobs', async (_req, res) => {
   }
 });
 
-app.post('/api/jobs', requireActiveUser, async (req, res) => {
+app.post('/api/jobs', async (req, res) => {
   try {
-    const job = await saveJobToDb(req.body);
+    const token = bearerToken(req);
+    const tokenPayload = token ? verifyToken(token) : null;
+    const user = tokenPayload ? await getUserById(tokenPayload.sub) : undefined;
+
+    const payload = {
+      ...req.body,
+      shopId: req.body?.shopId || user?.shopId || undefined,
+      createdByUserId: req.body?.createdByUserId || user?.id || undefined,
+    };
+
+    const job = await saveJobToDb(payload);
     if (!job) {
       res.status(400).json({ success: false, message: 'Failed to save job' });
       return;
@@ -612,12 +915,90 @@ app.post('/api/jobs', requireActiveUser, async (req, res) => {
     res.status(201).json({
       success: true,
       job,
-      message: 'Installation job persisted to MySQL via Prisma'
+      message: `Installation job ${job.id} saved successfully.`
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       message: 'Failed to save job to database',
+      error: (error as Error).message
+    });
+  }
+});
+
+app.delete('/api/jobs/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await deleteJobFromDb(id);
+    if (!deleted) {
+      res.status(404).json({ success: false, message: `Job ${id} not found or could not be deleted.` });
+      return;
+    }
+    res.json({
+      success: true,
+      message: `Installation job ${id} deleted successfully.`
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete job',
+      error: (error as Error).message
+    });
+  }
+});
+
+/**
+ * ============================================================================
+ * RELATIONAL CLIENTS & JOB ENDPOINTS (Normalized Architecture & Zero Redundancy)
+ * ============================================================================
+ */
+
+app.get('/api/clients', async (_req, res) => {
+  try {
+    const clients = await getClientsFromDb();
+    res.json({
+      success: true,
+      count: clients.length,
+      clients
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve normalized clients',
+      error: (error as Error).message
+    });
+  }
+});
+
+app.get('/api/clients/:id', async (req, res) => {
+  try {
+    const client = await getClientByIdFromDb(req.params.id);
+    if (!client) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
+    res.json({ success: true, client });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve client',
+      error: (error as Error).message
+    });
+  }
+});
+
+app.get('/api/jobs/:id/relational', async (req, res) => {
+  try {
+    const job = await getJobByIdWithRelations(req.params.id);
+    if (!job) {
+      res.status(404).json({ success: false, message: 'Job not found' });
+      return;
+    }
+    res.json({ success: true, job });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve relational job details',
       error: (error as Error).message
     });
   }
@@ -665,7 +1046,8 @@ app.post('/api/sms/log', requireActiveUser, async (req, res) => {
 app.get('/api/notifications', async (req, res) => {
   try {
     const role = req.query['role'] as string | undefined;
-    const notifications = await getNotificationsFromDb(role);
+    const userId = req.query['userId'] as string | undefined;
+    const notifications = await getNotificationsFromDb(role, userId);
     res.json({
       success: true,
       count: notifications.length,
@@ -680,7 +1062,7 @@ app.get('/api/notifications', async (req, res) => {
   }
 });
 
-app.post('/api/notifications', requireActiveUser, async (req, res) => {
+app.post('/api/notifications', async (req, res) => {
   try {
     const notif = await saveNotificationToDb(req.body);
     if (!notif) {
@@ -701,7 +1083,7 @@ app.post('/api/notifications', requireActiveUser, async (req, res) => {
   }
 });
 
-app.patch('/api/notifications/:id/read', requireActiveUser, async (req, res) => {
+app.patch('/api/notifications/:id/read', async (req, res) => {
   try {
     const id = String(req.params.id);
     const success = await markNotificationReadInDb(id);
@@ -711,7 +1093,7 @@ app.patch('/api/notifications/:id/read', requireActiveUser, async (req, res) => 
   }
 });
 
-app.patch('/api/notifications/mark-all-read', requireActiveUser, async (req, res) => {
+app.patch('/api/notifications/mark-all-read', async (req, res) => {
   try {
     const role = (req.body && req.body.role) || (req.query['role'] as string) || 'all';
     const success = await markAllNotificationsReadInDb(role);
@@ -770,7 +1152,7 @@ app.post('/api/shop-location', requireActiveUser, async (req, res) => {
       success: true,
       location,
       shopLocation: location,
-      message: 'Shop location settings saved to MySQL database via Prisma'
+      message: `Shop location settings for ${location.shopName} saved successfully.`
     });
   } catch (error) {
     res.status(500).json({
@@ -791,7 +1173,7 @@ app.put('/api/shop-location', requireActiveUser, async (req, res) => {
       success: true,
       location,
       shopLocation: location,
-      message: 'Shop location settings updated in MySQL database via Prisma'
+      message: `Shop location settings for ${location.shopName} updated successfully.`
     });
   } catch (error) {
     res.status(500).json({
@@ -872,7 +1254,7 @@ app.post('/api/tracking/dispatch', requireActiveUser, async (req, res) => {
     res.status(201).json({
       success: true,
       track,
-      message: 'Dispatch rider tracking updated in MySQL via Prisma'
+      message: 'Dispatch tracking updated successfully.'
     });
   } catch (error) {
     res.status(500).json({
@@ -911,7 +1293,7 @@ app.post('/api/inquiries', async (req, res) => {
     res.status(201).json({
       success: true,
       inquiry,
-      message: 'Inquiry saved to MySQL database via Prisma'
+      message: 'Project inquiry submitted successfully.'
     });
   } catch (error) {
     res.status(500).json({
@@ -933,7 +1315,7 @@ app.post('/api/signoff', requireActiveUser, async (req, res) => {
     res.status(201).json({
       success: true,
       signoff,
-      message: 'Customer signoff and signature saved to MySQL via Prisma'
+      message: 'Customer sign-off and digital signature submitted successfully.'
     });
   } catch (error) {
     res.status(500).json({

@@ -385,14 +385,8 @@ export interface RoleOption {
           </div>
 
           <!-- Footer Metadata -->
-          <div class="mt-8 pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-500 font-mono">
-            <div class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full" [class]="store.dbStatus()?.connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'"></span>
-              <span>{{ store.dbStatus()?.connected ? 'MySQL Cloud Engine Connected' : 'Atelier Local Simulation Engine' }}</span>
-            </div>
-            <div>
-              <span>DoorMaster Systems &copy; 2026</span>
-            </div>
+          <div class="mt-8 pt-4 border-t border-slate-800/80 flex items-center justify-center text-[11px] text-slate-500 font-mono">
+            <span>DoorMaster Systems &copy; 2026</span>
           </div>
         </div>
       </div>
@@ -415,9 +409,16 @@ export class SignUp {
 
   readonly roleOptions: RoleOption[] = [
     {
+      id: 'admin',
+      title: 'System Administrator',
+      icon: 'admin_panel_settings',
+      badge: 'Super Admin',
+      description: 'System governance, role authorizations & full security'
+    },
+    {
       id: 'manager',
       title: 'Operations Manager',
-      icon: 'admin_panel_settings',
+      icon: 'shield_person',
       badge: 'HQ Oversight',
       description: 'Fleet radar, crew dispatch, bonus approvals'
     },

@@ -1,4 +1,5 @@
 export type RoleType = 
+  | 'admin'
   | 'account_officer' 
   | 'manager' 
   | 'client' 
@@ -26,7 +27,75 @@ export interface RoleDefinition {
     canViewFinancials: boolean;
     canManageRoles: boolean;
   };
+  extraFeatures?: string[]; // Extra configurable capabilities
 }
+
+export interface ExtraFeatureItem {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: 'analytics' | 'security' | 'operations' | 'communications' | 'custom';
+}
+
+export const SYSTEM_EXTRA_FEATURES: ExtraFeatureItem[] = [
+  {
+    id: 'export_reports',
+    name: 'Export Financial & Order Reports (CSV/Excel)',
+    description: 'Download raw accounting logs, technician payroll breakdowns, and installation CSV exports.',
+    icon: 'file_download',
+    category: 'analytics'
+  },
+  {
+    id: 'audit_logs',
+    name: 'Audit Logs & User Access Telemetry',
+    description: 'Inspect live login trails, IP addresses, credential changes, and system audit history.',
+    icon: 'receipt_long',
+    category: 'security'
+  },
+  {
+    id: 'sms_gateway',
+    name: 'SMS Gateway Credentials & Dispatcher',
+    description: 'Configure provider API tokens, sender ID, and automated client SMS notification rules.',
+    icon: 'sms',
+    category: 'communications'
+  },
+  {
+    id: 'branch_registry',
+    name: 'Workshop Branch Registry & GPS Coordinates',
+    description: 'Manage store addresses, OpenStreetMap GPS coordinates, and regional workshop operating hours.',
+    icon: 'pin_drop',
+    category: 'operations'
+  },
+  {
+    id: 'catalog_scraper',
+    name: 'Automated Catalog Scraper & Importer',
+    description: 'Trigger live web scraping and inventory synchronization directly from the DoorMaster shop catalog.',
+    icon: 'cloud_download',
+    category: 'operations'
+  },
+  {
+    id: 'fleet_broadcast',
+    name: 'Emergency Fleet Broadcast Alerts',
+    description: 'Send high-priority notification broadcasts and audio chimes to on-duty flatbed drivers and techs.',
+    icon: 'campaign',
+    category: 'communications'
+  },
+  {
+    id: 'quality_override',
+    name: 'Quality Inspection & Tolerance Override',
+    description: 'Authorize master technical sign-off and dimension tolerance clearance on custom luxury doors.',
+    icon: 'verified',
+    category: 'security'
+  },
+  {
+    id: 'multi_branch',
+    name: 'Global Multi-Branch Access',
+    description: 'Access jobs, bookings, and installer queues across all 15 regional ateliers without branch locking.',
+    icon: 'share_location',
+    category: 'operations'
+  }
+];
 
 export type DoorCategory = 
   | 'entrance_pivot' 
@@ -93,6 +162,7 @@ export type JobStatus =
 
 export interface ShopBookingDetails {
   bookedByShopManager: string; // e.g. "Shop Master - Kwame Mensah"
+  shopId?: string; // Reference ID to shop_locations.id (e.g. "dm-branch-central")
   shopBranch: string; // e.g. "DoorMaster Flagship Showroom - Accra Central"
   branchCode?: string;
   bookingTimestamp: string;
@@ -140,13 +210,21 @@ export interface TechnicianSiteFunds {
 export interface AssignedInstallerTeamMember {
   id: string;
   name: string;
+  email?: string;
   phone?: string;
   role?: 'lead' | 'assistant';
+  position?: string;
   avatar?: string;
   avgRating?: number;
   teamId?: string;
   teamName?: string;
   isTeamLead?: boolean;
+  status?: string;
+  assignedAt?: string;
+  deadlineAt?: string;
+  respondedAt?: string;
+  autoAccepted?: boolean;
+  rejectReason?: string;
 }
 
 export interface InstallerTeam {
@@ -160,8 +238,12 @@ export interface InstallerTeam {
   memberIds: string[];
   members: AssignedInstallerTeamMember[];
   specialties: string[];
+  positions?: string[];
+  color?: string;
   description: string;
-  status: 'available' | 'assigned' | 'busy_on_site';
+  status: 'available' | 'assigned' | 'busy_on_site' | string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface LogisticsTruck {
@@ -192,6 +274,7 @@ export interface DispatcherProfile {
   phone: string;
   email: string;
   avatarUrl?: string;
+  shopId?: string;
   branchCode?: string;
   branchName?: string;
   assignedTruck: {
@@ -247,6 +330,31 @@ export interface HardwareChecklistItem {
   completedAt?: string;
 }
 
+export interface ClientRecord {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  siteAddress: string;
+  accessInstructions?: string;
+  lat: number;
+  lng: number;
+  createdAt?: string;
+  updatedAt?: string;
+  jobsCount?: number;
+  totalSpend?: number;
+  jobs?: {
+    id: string;
+    jobNumber: string;
+    doorName: string;
+    status: string;
+    depositAmount: number;
+    balanceDue: number;
+    scheduledTime?: string;
+    createdAt: string;
+  }[];
+}
+
 export interface JobDoorItem {
   id: string;
   doorModel: string;
@@ -263,6 +371,7 @@ export interface JobDoorItem {
 export interface InstallationJob {
   id: string; // e.g. "DM-2026-104"
   title: string;
+  doorId?: string; // Foreign Key to doors catalog
   doorModel: string;
   doorCategory: DoorCategory;
   doors?: JobDoorItem[]; // Multi-door items on work order
@@ -270,7 +379,11 @@ export interface InstallationJob {
   dimensions: string; // "2400mm × 1200mm × 55mm"
   finish: string; // "Smoked Oak, Matte Bronze PVD hardware"
   hardwareSpecs: string; // "DormaKaba Heavy Duty Pivot, 3-point magnetic mortise lock"
+  shopId?: string; // Reference ID to shop_locations.id where created
+  shopBranchCode?: string; // e.g. "DM-GH-OBY"
   shopBranch: string; // "DoorMaster Downtown Atelier"
+  createdByUserId?: string;
+  clientId?: string; // Foreign Key to clients table
   
   // Client & Site Owner details
   client: {
@@ -322,6 +435,7 @@ export interface InstallationJob {
   installerAssignedAt?: string;
   installerDeadlineAt?: string; // 10-minute auto-acceptance deadline
   installerAutoAccepted?: boolean;
+  rejectedByInstallerName?: string;
 
   operationsApproved?: boolean;
   operationsApprovedAt?: string;
@@ -415,6 +529,7 @@ export interface InstallerProfile {
   teamName?: string;
   isTeamLead?: boolean;
   teamRole?: 'lead' | 'assistant';
+  teamPosition?: string;
   metrics: {
     completedJobs: number;
     onTimeRate: number; // percentage, e.g. 98
@@ -512,6 +627,7 @@ export interface SmsLogEntry {
 }
 
 export interface UserPhoneDirectory {
+  admin?: string;
   manager: string;
   shop_manager: string;
   dispatcher: string;
@@ -542,6 +658,10 @@ export interface ApiAuthUser {
   email: string;
   role: RoleType;
   phone: string;
+  shopId?: string | null;
+  teamId?: string | null;
+  teamRole?: string | null;
+  teamPosition?: string | null;
   status?: string;
   avatarUrl?: string;
   createdAt?: string;
@@ -555,6 +675,10 @@ export interface AppUser {
   email: string;
   role: RoleType | string;
   phone: string;
+  shopId?: string | null;
+  teamId?: string | null;
+  teamRole?: 'lead' | 'assistant' | string | null;
+  teamPosition?: string | null;
   status: UserAccountStatus | string;
   avatarUrl?: string;
   createdAt?: string;
@@ -569,6 +693,7 @@ export interface ImpersonationSession {
     email: string;
     role: RoleType | string;
     phone?: string;
+    shopId?: string | null;
     avatarUrl?: string;
   };
   originalRole: RoleType;

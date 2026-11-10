@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule, SlicePipe } from '@angular/common';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -30,13 +30,14 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
             </span>
           </div>
           <h1 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-            <span>Settings Hub</span>
-            <span class="text-xs uppercase font-mono font-bold px-2.5 py-0.5 rounded-full bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-800">
-              MySQL & SMS Sync
-            </span>
+            <span>{{ store.currentRole() === 'shop_manager' ? (store.managerBranch()?.shopName || 'My Shop') + ' Settings' : 'Settings Hub' }}</span>
           </h1>
           <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
-            Manage your workshop branch location, GPS coordinates stored in MySQL, role-based recipient mobile phones, and automated SMS gateway credentials.
+            @if (store.currentRole() === 'shop_manager') {
+              Manage your assigned shop branch location, GPS coordinates, operating hours, and SMS alerts exclusively for {{ store.managerBranch()?.shopName || 'your shop' }}.
+            } @else {
+              Manage your workshop branch location, GPS coordinates stored in system registry, role-based recipient mobile phones, and automated SMS gateway credentials.
+            }
           </p>
         </div>
 
@@ -46,7 +47,7 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <div class="text-[11px] font-mono">
               <span class="text-slate-400">Shop: </span>
-              <strong class="text-slate-800 dark:text-slate-200">{{ store.shopLocation().branchCode }}</strong>
+              <strong class="text-slate-800 dark:text-slate-200">{{ (store.currentRole() === 'shop_manager' ? store.managerBranch()?.branchCode : store.shopLocation().branchCode) || 'UNASSIGNED' }}</strong>
             </div>
           </div>
 
@@ -71,34 +72,35 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
             : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'"
         >
           <mat-icon class="!text-sm">storefront</mat-icon>
-          <span>Shop Location & Workshop</span>
-          <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-900/40 text-cyan-200 font-normal">MySQL DB</span>
+          <span>{{ store.currentRole() === 'shop_manager' ? 'My Shop Location' : 'Shop Location & Workshop' }}</span>
         </button>
 
-        <button
-          type="button"
-          (click)="activeTab.set('phones')"
-          class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
-          [class]="activeTab() === 'phones' 
-            ? 'bg-cyan-700 text-white shadow-sm' 
-            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'"
-        >
-          <mat-icon class="!text-sm">phone_iphone</mat-icon>
-          <span>SMS & Phone Directory</span>
-          <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-900/40 text-cyan-200 font-normal">6 Roles</span>
-        </button>
+        @if (store.currentRole() !== 'shop_manager') {
+          <button
+            type="button"
+            (click)="activeTab.set('phones')"
+            class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
+            [class]="activeTab() === 'phones' 
+              ? 'bg-cyan-700 text-white shadow-sm' 
+              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'"
+          >
+            <mat-icon class="!text-sm">phone_iphone</mat-icon>
+            <span>SMS & Phone Directory</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-900/40 text-cyan-200 font-normal">6 Roles</span>
+          </button>
 
-        <button
-          type="button"
-          (click)="activeTab.set('gateway')"
-          class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
-          [class]="activeTab() === 'gateway' 
-            ? 'bg-cyan-700 text-white shadow-sm' 
-            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'"
-        >
-          <mat-icon class="!text-sm">settings_cell</mat-icon>
-          <span>SMS Gateway Credentials</span>
-        </button>
+          <button
+            type="button"
+            (click)="activeTab.set('gateway')"
+            class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
+            [class]="activeTab() === 'gateway' 
+              ? 'bg-cyan-700 text-white shadow-sm' 
+              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'"
+          >
+            <mat-icon class="!text-sm">settings_cell</mat-icon>
+            <span>SMS Gateway Credentials</span>
+          </button>
+        }
 
         <button
           type="button"
@@ -109,9 +111,9 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
             : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'"
         >
           <mat-icon class="!text-sm">chat</mat-icon>
-          <span>Live SMS Logs</span>
+          <span>{{ store.currentRole() === 'shop_manager' ? 'My Shop SMS Logs' : 'Live SMS Logs' }}</span>
           <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-900/40 text-cyan-200 font-normal">
-            {{ store.smsLogs().length }}
+            {{ store.roleSmsLogs().length }}
           </span>
         </button>
 
@@ -141,19 +143,16 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
         </div>
       }
 
-      <!-- TAB 1: SHOP LOCATION & WORKSHOP SETTINGS (STORED IN MYSQL DB) -->
+      <!-- TAB 1: SHOP LOCATION & WORKSHOP SETTINGS -->
       @if (activeTab() === 'shop') {
         <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-7 shadow-xs space-y-6">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
             <div>
               <h2 class="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <span>Workshop Branch Location Settings</span>
-                <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 font-bold">
-                  MySQL Table: shop_locations
-                </span>
               </h2>
               <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Saved in MySQL database and automatically linked to order booking counter, driver dispatch, and OpenStreetMap radar.
+                Saved in database and automatically linked to order booking counter, driver dispatch, and OpenStreetMap radar.
               </p>
             </div>
 
@@ -162,35 +161,37 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
             </div>
           </div>
 
-          <!-- All 14 Branches Directory Quick Select -->
-          <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-2.5">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5 font-mono">
-                <mat-icon class="!text-sm text-cyan-600">storefront</mat-icon>
-                <span>DoorMaster 14 Branches Directory (Click to load & configure)</span>
-              </span>
-              <span class="text-[10px] font-mono text-cyan-700 dark:text-cyan-400 font-bold">
-                {{ store.branches().length }} Branches Active
-              </span>
+          <!-- All Branches Directory Quick Select (Admin / Operations Manager) -->
+          @if (store.currentRole() !== 'shop_manager') {
+            <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                  <mat-icon class="!text-sm text-cyan-600">storefront</mat-icon>
+                  <span>DoorMaster Branches Directory (Click to load & configure)</span>
+                </span>
+                <span class="text-[10px] font-mono text-cyan-700 dark:text-cyan-400 font-bold">
+                  {{ store.branches().length }} Branches Active
+                </span>
+              </div>
+              
+              <div class="flex flex-wrap items-center gap-1.5 max-h-36 overflow-y-auto pr-1">
+                @for (b of store.branches(); track b.branchCode) {
+                  <button
+                    type="button"
+                    (click)="selectBranchPreset(b)"
+                    class="px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all cursor-pointer flex items-center gap-1"
+                    [class]="store.shopLocation().branchCode === b.branchCode 
+                      ? 'bg-cyan-700 text-white border-cyan-700 shadow-2xs font-bold' 
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'"
+                  >
+                    <span>🏪</span>
+                    <span>{{ b.shopName.replace('DoorMaster ', '') }}</span>
+                    <span class="text-[9px] opacity-75 font-mono">({{ b.branchCode }})</span>
+                  </button>
+                }
+              </div>
             </div>
-            
-            <div class="flex flex-wrap items-center gap-1.5 max-h-36 overflow-y-auto pr-1">
-              @for (b of store.branches(); track b.branchCode) {
-                <button
-                  type="button"
-                  (click)="selectBranchPreset(b)"
-                  class="px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all cursor-pointer flex items-center gap-1"
-                  [class]="store.shopLocation().branchCode === b.branchCode 
-                    ? 'bg-cyan-700 text-white border-cyan-700 shadow-2xs font-bold' 
-                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'"
-                >
-                  <span>🏪</span>
-                  <span>{{ b.shopName.replace('DoorMaster ', '') }}</span>
-                  <span class="text-[9px] opacity-75 font-mono">({{ b.branchCode }})</span>
-                </button>
-              }
-            </div>
-          </div>
+          }
 
           <form [formGroup]="shopLocationForm" (ngSubmit)="saveShopLocation()" class="space-y-6 text-xs">
             
@@ -209,15 +210,16 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
                     placeholder="e.g. DoorMaster Flagship Workshop - Atelier A" 
                     class="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 font-semibold"
                   />
-                  <span class="text-[10px] text-slate-400">Used as the originating workshop name across all customer quotes & booking forms</span>
+                  <span class="text-[10px] text-slate-400">Used as the originating workshop name across your shop's quotes & booking forms</span>
                 </div>
                 <div class="space-y-1">
                   <label class="font-bold text-slate-700 dark:text-slate-300">Branch Code *</label>
                   <input 
                     type="text" 
                     formControlName="branchCode" 
+                    [readonly]="store.currentRole() === 'shop_manager'"
                     placeholder="e.g. DM-ACC-01" 
-                    class="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono font-bold"
+                    class="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono font-bold read-only:opacity-70"
                   />
                   <span class="text-[10px] text-slate-400">Internal code (e.g. DM-ACC-01)</span>
                 </div>
@@ -299,47 +301,49 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
                 </div>
               </div>
 
-              <!-- Quick Presets -->
-              <div class="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-2">
-                <span class="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Quick Greater Accra Hub Presets:</span>
-                <div class="flex flex-wrap gap-2">
-                  <button 
-                    type="button" 
-                    (click)="setCoordinates(5.6231, -0.1582, 'Plot 48, Spintex Road Industrial Area')" 
-                    class="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:border-cyan-500 transition-colors cursor-pointer"
-                  >
-                    🏭 Spintex Atelier
-                  </button>
-                  <button 
-                    type="button" 
-                    (click)="setCoordinates(5.5560, -0.2012, 'High Street Boulevard, Central Business District')" 
-                    class="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:border-cyan-500 transition-colors cursor-pointer"
-                  >
-                    🏛️ Accra Central
-                  </button>
-                  <button 
-                    type="button" 
-                    (click)="setCoordinates(5.6380, -0.1550, 'Boundary Road, East Legon')" 
-                    class="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:border-cyan-500 transition-colors cursor-pointer"
-                  >
-                    📍 East Legon
-                  </button>
-                  <button 
-                    type="button" 
-                    (click)="setCoordinates(5.6698, -0.0166, 'Harbor Commercial Gateway, Tema')" 
-                    class="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:border-cyan-500 transition-colors cursor-pointer"
-                  >
-                    🚢 Tema Harbor
-                  </button>
-                  <button 
-                    type="button" 
-                    (click)="setCoordinates(5.5840, -0.1780, 'Rangoon Lane, Cantonments Diplomatic Zone')" 
-                    class="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:border-cyan-500 transition-colors cursor-pointer"
-                  >
-                    📍 Cantonments
-                  </button>
+              <!-- Quick Presets (Admin / Manager only) -->
+              @if (store.currentRole() !== 'shop_manager') {
+                <div class="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-2">
+                  <span class="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Quick Greater Accra Hub Presets:</span>
+                  <div class="flex flex-wrap gap-2">
+                    <button 
+                      type="button" 
+                      (click)="setCoordinates(5.6231, -0.1582, 'Plot 48, Spintex Road Industrial Area')" 
+                      class="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:border-cyan-500 transition-colors cursor-pointer"
+                    >
+                      🏭 Spintex Atelier
+                    </button>
+                    <button 
+                      type="button" 
+                      (click)="setCoordinates(5.5560, -0.2012, 'High Street Boulevard, Central Business District')" 
+                      class="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:border-cyan-500 transition-colors cursor-pointer"
+                    >
+                      🏛️ Accra Central
+                    </button>
+                    <button 
+                      type="button" 
+                      (click)="setCoordinates(5.6380, -0.1550, 'Boundary Road, East Legon')" 
+                      class="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:border-cyan-500 transition-colors cursor-pointer"
+                    >
+                      📍 East Legon
+                    </button>
+                    <button 
+                      type="button" 
+                      (click)="setCoordinates(5.6698, -0.0166, 'Harbor Commercial Gateway, Tema')" 
+                      class="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:border-cyan-500 transition-colors cursor-pointer"
+                    >
+                      🚢 Tema Harbor
+                    </button>
+                    <button 
+                      type="button" 
+                      (click)="setCoordinates(5.5840, -0.1780, 'Rangoon Lane, Cantonments Diplomatic Zone')" 
+                      class="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:border-cyan-500 transition-colors cursor-pointer"
+                    >
+                      📍 Cantonments
+                    </button>
+                  </div>
                 </div>
-              </div>
+              }
             </div>
 
             <!-- Workshop Operations & Contact Details -->
@@ -406,12 +410,7 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
             </div>
 
             <!-- Submit Action -->
-            <div class="pt-5 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div class="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                <mat-icon class="!text-sm text-emerald-600">database</mat-icon>
-                <span>Persisted in MySQL table <code class="font-mono text-cyan-600 dark:text-cyan-400">shop_locations</code></span>
-              </div>
-
+            <div class="pt-5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">
               <button 
                 type="submit" 
                 [disabled]="!shopLocationForm.valid || isSavingShopLocation()"
@@ -529,7 +528,7 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
                   class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 font-mono text-slate-900 dark:text-white font-medium"
                   placeholder="+233 24 100 0005"
                 />
-                <span class="text-[10px] text-slate-400 block">Receives counter deposit verifications & technician bonus release requests</span>
+                <span class="text-[10px] text-slate-400 block">Receives counter deposit verifications & technician disbursement release requests</span>
               </div>
 
             </div>
@@ -682,13 +681,17 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
             <div>
               <h2 class="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                <span>SMS Dispatch Telemetry & Live Inbox</span>
+                <span>{{ store.currentRole() === 'shop_manager' ? (store.managerBranch()?.shopName || 'Shop') + ' — SMS Logs' : 'SMS Dispatch Telemetry & Live Inbox' }}</span>
                 <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">
-                  {{ store.smsLogs().length }} messages sent
+                  {{ store.roleSmsLogs().length }} messages sent
                 </span>
               </h2>
               <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Every transaction, booking, installer assignment, and driver transit status triggers an audit-logged SMS.
+                @if (store.currentRole() === 'shop_manager') {
+                  Showing strictly SMS dispatches created by or sent to {{ store.managerBranch()?.shopName || 'your shop branch' }}.
+                } @else {
+                  Every transaction, booking, installer assignment, and driver transit status triggers an audit-logged SMS.
+                }
               </p>
             </div>
 
@@ -702,15 +705,15 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
             </button>
           </div>
 
-          @if (store.smsLogs().length === 0) {
+          @if (store.roleSmsLogs().length === 0) {
             <div class="p-12 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-center text-slate-400">
               <mat-icon class="!text-4xl mb-2 text-slate-300 dark:text-slate-600">sms</mat-icon>
-              <p class="font-bold text-sm">No SMS messages logged yet.</p>
-              <p class="text-xs mt-1">Booking an installation or assigning a driver will log automated messages here.</p>
+              <p class="font-bold text-sm">No SMS messages logged for this shop yet.</p>
+              <p class="text-xs mt-1">Booking an installation or assigning a driver for your shop will log automated messages here.</p>
             </div>
           } @else {
             <div class="space-y-3 max-h-[600px] overflow-y-auto pr-1">
-              @for (sms of store.smsLogs(); track sms.id) {
+              @for (sms of store.roleSmsLogs(); track sms.id) {
                 <div class="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2 font-mono text-xs">
                   <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
                     <div class="flex items-center gap-2">
@@ -852,6 +855,35 @@ export class Settings {
     simulationMode: new FormControl<boolean>(this.store.smsGatewayConfig().simulationMode, { nonNullable: true })
   });
 
+  constructor() {
+    effect(() => {
+      const role = this.store.currentRole();
+      if (role === 'shop_manager') {
+        const curTab = this.activeTab();
+        if (curTab === 'phones' || curTab === 'gateway') {
+          this.activeTab.set('shop');
+        }
+        const ownBranch = this.store.managerBranch();
+        if (ownBranch) {
+          this.shopLocationForm.patchValue({
+            shopName: ownBranch.shopName,
+            branchCode: ownBranch.branchCode,
+            address: ownBranch.landmark || ownBranch.address,
+            city: ownBranch.city,
+            region: ownBranch.region,
+            phone: ownBranch.phone,
+            email: ownBranch.email,
+            managerName: ownBranch.managerName,
+            dispatchRadiusKm: ownBranch.dispatchRadiusKm,
+            operatingHours: ownBranch.operatingHours,
+            latitude: ownBranch.latitude,
+            longitude: ownBranch.longitude
+          }, { emitEvent: false });
+        }
+      }
+    });
+  }
+
   selectBranchPreset(b: any) {
     this.shopLocationForm.patchValue({
       shopName: b.shopName,
@@ -868,7 +900,6 @@ export class Settings {
       longitude: b.longitude
     });
     this.store.setActiveBranch(b);
-    this.alert.toastInfo('Branch Loaded', `Loaded configuration for ${b.shopName}`);
   }
 
   setCoordinates(lat: number, lng: number, addressPreset?: string) {
@@ -891,7 +922,6 @@ export class Settings {
           });
           const msg = `Device GPS detected: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
           this.feedbackMessage.set(msg);
-          this.alert.toastInfo('GPS Detected', msg);
         },
         (err) => {
           console.warn('Geolocation failed:', err);
@@ -929,8 +959,9 @@ export class Settings {
 
       this.isSavingShopLocation.set(false);
       if (result.success) {
-        this.feedbackMessage.set(result.message || 'Workshop branch location settings saved to MySQL database.');
-        this.alert.success('Your work has been saved', 'Workshop branch location and GPS telemetry saved to MySQL database.');
+        const msg = result.message || 'Workshop branch location settings saved successfully.';
+        this.feedbackMessage.set(msg);
+        this.alert.success('Location Settings Saved', msg);
       } else {
         this.alert.error('Save Failed', result.message || 'Could not update workshop location.');
       }
@@ -973,6 +1004,15 @@ export class Settings {
   sendTestSms() {
     const role = this.store.currentRole();
     const phones = this.store.userPhones();
+    if (role === 'shop_manager') {
+      const ownBranch = this.store.managerBranch();
+      const phone = this.store.currentUser().phone || ownBranch?.phone?.split('/')[0]?.trim() || phones.shop_manager;
+      const shopLabel = ownBranch?.shopName || 'Shop Branch';
+      this.store.sendTestSmsPing(phone, `DoorMaster Automated SMS Gateway: Verification test ping for ${shopLabel} (${ownBranch?.branchCode || role}) successful. 200 OK.`);
+      this.feedbackMessage.set(`Test SMS ping dispatched to ${phone}. Check the My Shop SMS Logs tab.`);
+      this.alert.toastSuccess('Test SMS Dispatched', `Verification test SMS dispatched to ${phone}.`);
+      return;
+    }
     const phone = (phones as unknown as Record<string, string>)[role] || phones.manager;
     this.store.sendTestSmsPing(phone, `DoorMaster Automated SMS Gateway: Verification test ping for ${role} successful. 200 OK.`);
     this.feedbackMessage.set(`Test SMS ping dispatched to ${phone}. Check the Live SMS Logs tab.`);

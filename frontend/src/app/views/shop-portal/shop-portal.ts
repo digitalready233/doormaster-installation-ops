@@ -4,8 +4,7 @@ import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } 
 import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
 import { AlertService } from '../../services/alert.service';
-import { DoorCategory, InstallationJob, JobDoorItem, ShopLocationSettings } from '../../models/installation.model';
-import { OsmLiveMap } from '../../components/osm-live-map/osm-live-map';
+import { AssignedInstallerTeamMember, DoorCategory, InstallationJob, JobDoorItem, ShopLocationSettings } from '../../models/installation.model';
 import { ClientLocationMap, ClientLocationResult } from '../../components/client-location-map/client-location-map';
 
 export interface ShopDoorItem extends JobDoorItem {
@@ -19,71 +18,19 @@ export type SortDirection = 'asc' | 'desc';
 @Component({
   selector: 'app-shop-portal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, ReactiveFormsModule, FormsModule, OsmLiveMap, ClientLocationMap],
+  imports: [CommonModule, MatIconModule, ReactiveFormsModule, FormsModule, ClientLocationMap],
   template: `
     <div class="space-y-6">
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
-        <div>
-          <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
-            <span>DoorMaster Workshops & Logistics</span>
-            <span aria-hidden="true">·</span>
-            <span>Shop Counter & Installation Scheduling</span>
-            <span aria-hidden="true">·</span>
-            <button 
-              type="button" 
-              (click)="openLocationSettingsModal()" 
-              class="inline-flex items-center gap-1.5 text-[11px] font-bold text-cyan-800 dark:text-cyan-300 hover:text-cyan-900 dark:hover:text-cyan-200 bg-cyan-50 dark:bg-cyan-950/70 px-2.5 py-0.5 rounded-lg border border-cyan-200 dark:border-cyan-800 transition-all shadow-xs cursor-pointer"
-              title="Click to view & edit store workshop location in MySQL database"
-            >
-              <mat-icon class="!text-xs !w-3.5 !h-3.5 text-cyan-600 dark:text-cyan-400">storefront</mat-icon>
-              <span>{{ store.shopLocation().shopName }}</span>
-              <span class="text-slate-400 font-normal">({{ store.shopLocation().city }})</span>
-            </button>
-          </div>
-          <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Master Shop Manager Desk</h1>
-          <!-- Active Branch Switcher (All 14 DoorMaster Branches) -->
-          <div class="mt-2 flex items-center gap-2 flex-wrap">
-            <span class="text-[11px] font-bold text-slate-500 uppercase font-mono">Branch Station:</span>
-            <select
-              [ngModel]="store.shopLocation().branchCode"
-              (ngModelChange)="onBranchChange($event)"
-              class="px-2.5 py-1 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:border-cyan-500 shadow-2xs"
-              title="Switch active branch station"
-            >
-              @for (b of store.branches(); track b.branchCode) {
-                <option [value]="b.branchCode">
-                  🏪 {{ b.shopName }} ({{ b.branchCode }} · {{ b.region }})
-                </option>
-              }
-            </select>
-            <span class="text-[10px] text-slate-400 font-mono">
-              Manager: <strong class="text-slate-700 dark:text-slate-300">{{ store.shopLocation().managerName }}</strong> · 
-              <a [href]="'tel:' + store.shopLocation().phone.split('/')[0].trim()" class="text-cyan-600 dark:text-cyan-400 underline font-semibold">{{ store.shopLocation().phone }}</a>
-            </span>
-          </div>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <button 
-            type="button"
-            (click)="settingsOpened.emit()"
-            class="px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 rounded-xl transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
-            title="Configure shop workshop location, GPS, radius and branch details in System Settings"
-          >
-            <mat-icon class="!text-sm !w-4 !h-4 text-cyan-600 dark:text-cyan-400">place</mat-icon>
-            <span>Shop Location Settings</span>
-          </button>
-
-          <button 
-            type="button"
-            (click)="openScheduleModal()"
-            class="px-4 py-2 text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-600 dark:hover:bg-cyan-500 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
-          >
-            <mat-icon class="!text-sm !w-4 !h-4">calendar_month</mat-icon>
-            <span>Book Installation & Record Payment</span>
-          </button>
-        </div>
+        <button 
+          type="button"
+          (click)="newJobOpened.emit()"
+          class="sm:ml-auto px-4 py-2 text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-600 dark:hover:bg-cyan-500 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+        >
+          <mat-icon class="!text-sm !w-4 !h-4">calendar_month</mat-icon>
+          <span>Book Installation & Record Payment</span>
+        </button>
       </div>
 
       <!-- Workshop Inventory & Assembly Summary -->
@@ -103,7 +50,7 @@ export type SortDirection = 'asc' | 'desc';
           <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Counter Collections</span>
           <div class="flex items-baseline gap-2">
             <span class="text-2xl font-extrabold font-mono text-cyan-700 dark:text-cyan-400 tracking-tight tabular-nums">
-              ₵{{ store.totalShopCollections().toLocaleString() }}
+              GH₵{{ shopScopedCollections().toLocaleString() }}
             </span>
           </div>
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-2">Recorded at shop counter</p>
@@ -124,25 +71,25 @@ export type SortDirection = 'asc' | 'desc';
           <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Installed & Verified</span>
           <div class="flex items-baseline gap-2">
             <span class="text-3xl font-extrabold font-mono text-emerald-700 dark:text-emerald-400 tracking-tight tabular-nums">
-              {{ store.stats().completed }}
+              {{ completedAtShopCount() }}
             </span>
           </div>
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-2">Archived in workshop ledger</p>
         </div>
       </div>
 
-      <!-- Action Required: Jobs with Assigned Installer Awaiting Store Driver -->
-      @if (jobsAwaitingDriver().length > 0) {
+      <!-- Action Required: Shop Orders Awaiting Store Dispatcher (Shop Manager Portal Only) -->
+      @if (store.canCurrentRoleSelectDispatcher() && jobsAwaitingDriver().length > 0) {
         <div class="bg-cyan-950/20 dark:bg-cyan-950/40 border border-cyan-400 dark:border-cyan-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div class="flex items-center gap-2">
               <span class="w-3 h-3 rounded-full bg-cyan-500 animate-ping"></span>
               <h3 class="text-sm font-extrabold text-cyan-900 dark:text-cyan-200 uppercase tracking-wider">
-                Action Required: Installer Assigned · Assign Store Dispatch Driver ({{ jobsAwaitingDriver().length }})
+                Action Required: Shop Orders Awaiting Store Dispatcher ({{ jobsAwaitingDriver().length }})
               </h3>
             </div>
             <span class="text-xs text-cyan-800 dark:text-cyan-300 font-mono">
-              Operations assigned technician · Assign an available store driver to dispatch door
+              Select an available store dispatcher to deliver the door and hardware to site
             </span>
           </div>
 
@@ -155,19 +102,21 @@ export type SortDirection = 'asc' | 'desc';
                     <h4 class="font-bold text-slate-900 dark:text-white text-sm">{{ job.doorModel }}</h4>
                     <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ job.dimensions }} · {{ job.finish }}</p>
                   </div>
-                  <span class="text-[10px] uppercase font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
-                    Installer Assigned
+                  <span class="text-[10px] uppercase font-bold bg-cyan-100 dark:bg-cyan-950/70 text-cyan-800 dark:text-cyan-300 px-2 py-0.5 rounded border border-cyan-200 dark:border-cyan-800">
+                    Dispatcher Pending
                   </span>
                 </div>
 
                 <div class="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span class="text-[10px] text-slate-400 uppercase font-bold block">Assigned Installer:</span>
-                    <p class="font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                      <mat-icon class="!text-xs">handyman</mat-icon>
-                      <span>{{ job.assignedInstallerName || 'Installer' }}</span>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold block">Installation Schedule:</span>
+                    <p class="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                      <mat-icon class="!text-xs text-cyan-600 dark:text-cyan-400">event</mat-icon>
+                      <span>{{ job.scheduledDate }}</span>
                     </p>
-                    <p class="text-[11px] text-slate-500 font-mono mt-0.5">Date: {{ job.scheduledDate }}</p>
+                    <p class="text-[11px] text-slate-500 font-mono mt-0.5">
+                      {{ job.assignedInstallerName ? 'Tech: ' + job.assignedInstallerName : 'Tech: Operations Queue' }}
+                    </p>
                   </div>
 
                   <div>
@@ -183,15 +132,12 @@ export type SortDirection = 'asc' | 'desc';
                 <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">
                   <button 
                     type="button"
-                    [disabled]="!job.assignedInstallerId"
                     (click)="openAssignDriverModal(job)"
-                    [title]="!job.assignedInstallerId ? 'Assign dispatch is disabled until an installer is assigned by Operations Manager' : 'Assign Store Driver & Dispatch'"
-                    [class]="!job.assignedInstallerId
-                      ? 'px-3.5 py-1.5 bg-slate-200 dark:bg-slate-800 text-slate-400 font-bold text-xs rounded-xl cursor-not-allowed opacity-60 flex items-center gap-1.5 shadow-none'
-                      : 'px-3.5 py-1.5 bg-cyan-700 hover:bg-cyan-800 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95 cursor-pointer'"
+                    title="Select Dispatcher"
+                    class="px-3.5 py-1.5 bg-cyan-700 hover:bg-cyan-800 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95 cursor-pointer"
                   >
-                    <mat-icon class="!text-xs">{{ !job.assignedInstallerId ? 'lock' : 'local_shipping' }}</mat-icon>
-                    <span>{{ !job.assignedInstallerId ? 'Dispatch Disabled (Pending Installer)' : 'Assign Store Driver & Dispatch' }}</span>
+                    <mat-icon class="!text-xs">local_shipping</mat-icon>
+                    <span>Select Dispatcher</span>
                   </button>
                 </div>
               </div>
@@ -205,12 +151,16 @@ export type SortDirection = 'asc' | 'desc';
         <!-- Table Top Header -->
         <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Shop Installation Bookings & Payment Registry</h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Scheduled by Shop Manager with client counter payments audited by Accounts</p>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">
+              {{ isShopLocked() ? activeShop().shopName + ' — Bookings & Payment Registry' : 'Shop Installation Bookings & Payment Registry' }}
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              {{ isShopLocked() ? 'Orders created at and scoped exclusively to ' + activeShop().shopName + ' (' + activeShop().branchCode + ')' : 'Scheduled by Shop Manager with client counter payments audited by Accounts' }}
+            </p>
           </div>
           <div class="flex items-center gap-2">
             <span class="text-xs font-mono px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold">
-              {{ sortedJobs().length }} of {{ store.jobs().length }} Orders
+              {{ sortedJobs().length }} of {{ shopScopedJobs().length }} Orders
             </span>
           </div>
         </div>
@@ -286,17 +236,19 @@ export type SortDirection = 'asc' | 'desc';
             </div>
           </div>
 
-          <!-- Page Size (Sorting in 10, 50, 100) -->
+          <!-- Page Size (5, 10, 25, 50, 100) -->
           <div class="flex items-center gap-2 text-xs">
             <span class="text-slate-500 dark:text-slate-400 font-medium">Page Size:</span>
             <select
-              [ngModel]="pageSize()"
-              (ngModelChange)="onPageSizeChange($event)"
+              [value]="pageSize()"
+              (change)="onPageSizeChange($any($event.target).value)"
               class="px-2.5 py-1 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:border-cyan-500 shadow-2xs"
             >
-              <option [value]="10">10</option>
-              <option [value]="50">50</option>
-              <option [value]="100">100</option>
+              <option value="5" [selected]="pageSize() === 5">5</option>
+              <option value="10" [selected]="pageSize() === 10">10</option>
+              <option value="25" [selected]="pageSize() === 25">25</option>
+              <option value="50" [selected]="pageSize() === 50">50</option>
+              <option value="100" [selected]="pageSize() === 100">100</option>
             </select>
           </div>
         </div>
@@ -314,6 +266,14 @@ export type SortDirection = 'asc' | 'desc';
                     </mat-icon>
                   </div>
                 </th>
+                <th class="py-2.5 px-3 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors" (click)="toggleSort('client')">
+                  <div class="flex items-center gap-1">
+                    <span>Client</span>
+                    <mat-icon class="!text-xs !w-3 !h-3 text-slate-400">
+                      {{ sortField() === 'client' ? (sortDirection() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}
+                    </mat-icon>
+                  </div>
+                </th>
                 <th class="py-2.5 px-3 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors" (click)="toggleSort('date')">
                   <div class="flex items-center gap-1">
                     <span>Date</span>
@@ -322,19 +282,14 @@ export type SortDirection = 'asc' | 'desc';
                     </mat-icon>
                   </div>
                 </th>
+                @if (store.currentRole() !== 'shop_manager') {
+                  <th class="py-2.5 px-3">Shop Ref</th>
+                }
                 <th class="py-2.5 px-3 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors" (click)="toggleSort('door')">
                   <div class="flex items-center gap-1">
                     <span>Door Model</span>
                     <mat-icon class="!text-xs !w-3 !h-3 text-slate-400">
                       {{ sortField() === 'door' ? (sortDirection() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}
-                    </mat-icon>
-                  </div>
-                </th>
-                <th class="py-2.5 px-3 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors" (click)="toggleSort('client')">
-                  <div class="flex items-center gap-1">
-                    <span>Client</span>
-                    <mat-icon class="!text-xs !w-3 !h-3 text-slate-400">
-                      {{ sortField() === 'client' ? (sortDirection() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}
                     </mat-icon>
                   </div>
                 </th>
@@ -367,22 +322,36 @@ export type SortDirection = 'asc' | 'desc';
                     <span class="font-mono font-bold text-slate-900 dark:text-white">{{ job.id }}</span>
                   </td>
 
+                  <!-- Single line Client (Right after Order ID) -->
+                  <td class="py-2.5 px-3 whitespace-nowrap">
+                    <span class="font-medium text-slate-900 dark:text-white truncate max-w-[140px] inline-block align-middle" [title]="job.client.name + ' (' + job.client.phone + ')'">
+                      {{ job.client.name }}
+                    </span>
+                  </td>
+
                   <!-- Single line Date -->
                   <td class="py-2.5 px-3 whitespace-nowrap font-mono text-slate-500 dark:text-slate-400 text-[11px]">
                     {{ (job.shopBooking?.bookingTimestamp || job.createdAt || job.scheduledDate) | date:'mediumDate' }}
                   </td>
 
+                  <!-- Shop Reference Badge (Hidden on Shop Manager portal) -->
+                  @if (store.currentRole() !== 'shop_manager') {
+                    <td class="py-2.5 px-3 whitespace-nowrap">
+                      @let jobBranch = store.getJobBranch(job);
+                      <span
+                        class="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-cyan-800 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-200 dark:border-cyan-800 max-w-[140px] truncate"
+                        [title]="(jobBranch?.shopName || job.shopBranch) + ' (Ref: ' + (job.shopId || jobBranch?.id || 'dm-branch-central') + ')'"
+                      >
+                        <mat-icon class="!text-[11px] !w-3 !h-3 shrink-0">storefront</mat-icon>
+                        <span class="truncate">{{ job.shopBranchCode || jobBranch?.branchCode || job.shopBranch }}</span>
+                      </span>
+                    </td>
+                  }
+
                   <!-- Single line Door Model -->
                   <td class="py-2.5 px-3 whitespace-nowrap">
                     <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[200px] inline-block align-middle" [title]="job.doorModel">
                       {{ job.doorModel }}
-                    </span>
-                  </td>
-
-                  <!-- Single line Client -->
-                  <td class="py-2.5 px-3 whitespace-nowrap">
-                    <span class="font-medium text-slate-900 dark:text-white truncate max-w-[130px] inline-block align-middle" [title]="job.client.name + ' (' + job.client.phone + ')'">
-                      {{ job.client.name }}
                     </span>
                   </td>
 
@@ -396,7 +365,7 @@ export type SortDirection = 'asc' | 'desc';
                   <!-- Single line Payment -->
                   <td class="py-2.5 px-3 whitespace-nowrap">
                     <span class="font-bold font-mono text-cyan-700 dark:text-cyan-400 text-xs">
-                      ₵{{ (job.shopBooking?.amountPaidAtShop || 0).toLocaleString() }}
+                      GH₵{{ (job.shopBooking?.amountPaidAtShop || 0).toLocaleString() }}
                     </span>
                   </td>
 
@@ -417,27 +386,86 @@ export type SortDirection = 'asc' | 'desc';
                     }
                   </td>
 
-                  <!-- Single line Lifecycle Status -->
+                  <!-- Single line Lifecycle Status + Synced Installer Team Status + Dispatcher Status -->
                   <td class="py-2.5 px-3 whitespace-nowrap">
-                    <span
-                      class="text-[10px] font-bold px-2 py-0.5 rounded capitalize inline-block"
-                      [class]="getStatusBadgeClass(job.status)"
-                    >
-                      {{ job.status.replace('_', ' ') }}
-                    </span>
+                    <div class="flex flex-col items-start gap-1">
+                      <span
+                        class="text-[10px] font-bold px-2 py-0.5 rounded capitalize inline-block"
+                        [class]="getStatusBadgeClass(job.status)"
+                      >
+                        {{ job.status.replace('_', ' ') }}
+                      </span>
+                      @if (job.assignedInstallers && job.assignedInstallers.length > 0) {
+                        <div class="flex flex-col gap-0.5">
+                          @for (inst of job.assignedInstallers; track inst.id) {
+                            <span
+                              class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border"
+                              [class]="getInstallerMemberBadgeClass(job, inst)"
+                            >
+                              <mat-icon class="!text-[10px] !w-2.5 !h-2.5">{{ getInstallerMemberIcon(job, inst) }}</mat-icon>
+                              <span>{{ inst.name.split(' ')[0] }}: {{ getInstallerMemberStatusLabel(job, inst) }}</span>
+                            </span>
+                          }
+                        </div>
+                      } @else if (job.assignedInstallerName) {
+                        <span
+                          class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border"
+                          [class]="job.installerAssignmentStatus === 'accepted'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                            : (job.installerAssignmentStatus === 'rejected'
+                              ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                              : 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800')"
+                        >
+                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5">{{ job.installerAssignmentStatus === 'accepted' ? 'check_circle' : (job.installerAssignmentStatus === 'rejected' ? 'cancel' : 'schedule') }}</mat-icon>
+                          <span>{{ job.assignedInstallerName }} · {{ job.installerAssignmentStatus === 'accepted' ? (job.installerAutoAccepted ? 'Auto-Accepted' : 'Accepted') : (job.installerAssignmentStatus === 'rejected' ? 'Declined' : '10m Pending') }}</span>
+                        </span>
+                      } @else if (job.installerAssignmentStatus === 'rejected') {
+                        <span class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5">cancel</mat-icon>
+                          <span>{{ job.rejectedByInstallerName ? job.rejectedByInstallerName + ': Declined' : 'Declined · Ops Reassigning' }}</span>
+                        </span>
+                      }
+
+                      <!-- Dispatcher Status Info -->
+                      @if (job.dispatcherName || job.dispatcherId) {
+                        <span
+                          class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border-teal-200 dark:border-teal-800"
+                        >
+                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5">local_shipping</mat-icon>
+                          <span>Driver: {{ job.dispatcherName || 'Assigned' }} ({{ job.logisticsTruck?.truckPlate || 'Dispatched' }})</span>
+                        </span>
+                      } @else if (store.hasJobAcceptedInstallers(job)) {
+                        <span
+                          class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border bg-cyan-50 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800"
+                        >
+                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5">local_shipping</mat-icon>
+                          <span>Driver: Pending Assignment</span>
+                        </span>
+                      } @else {
+                        <span
+                          class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+                        >
+                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5">lock_clock</mat-icon>
+                          <span>Driver: Locked (Needs Installer)</span>
+                        </span>
+                      }
+                    </div>
                   </td>
 
                   <!-- Action button icon to view details -->
                   <td class="py-2.5 px-3 whitespace-nowrap text-right">
                     <div class="inline-flex items-center justify-end gap-1">
-                      @if (job.status === 'assigned') {
+                      @if (store.canCurrentRoleSelectDispatcher() && !job.dispatcherId && job.status !== 'completed' && job.status !== 'bonus_awarded' && job.status !== 'dispatched' && job.status !== 'delivered_on_site' && job.status !== 'on_site' && job.status !== 'installed_pending_signoff') {
                         <button
                           type="button"
-                          (click)="openAssignDriverModal(job)"
-                          title="Assign Driver"
-                          class="p-1.5 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/60 rounded-lg transition-colors cursor-pointer"
+                          [disabled]="!store.hasJobAcceptedInstallers(job)"
+                          (click)="store.hasJobAcceptedInstallers(job) ? openAssignDriverModal(job) : null"
+                          [title]="store.hasJobAcceptedInstallers(job) ? 'Select Dispatcher' : 'Dispatch Driver locked: Awaiting installer acceptance from Operations Manager'"
+                          [class]="store.hasJobAcceptedInstallers(job)
+                            ? 'p-1.5 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/60 rounded-lg transition-colors cursor-pointer'
+                            : 'p-1.5 text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-40'"
                         >
-                          <mat-icon class="!text-base !w-4 !h-4">local_shipping</mat-icon>
+                          <mat-icon class="!text-base !w-4 !h-4">{{ store.hasJobAcceptedInstallers(job) ? 'local_shipping' : 'lock' }}</mat-icon>
                         </button>
                       }
                       <button
@@ -453,7 +481,7 @@ export type SortDirection = 'asc' | 'desc';
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="9" class="py-8 text-center text-slate-400 dark:text-slate-500 text-xs">
+                  <td [attr.colspan]="store.currentRole() === 'shop_manager' ? 9 : 10" class="py-8 text-center text-slate-400 dark:text-slate-500 text-xs">
                     <mat-icon class="!text-2xl text-slate-300 dark:text-slate-600 mb-1">inbox</mat-icon>
                     <p class="font-medium">No installation orders match the selected filters.</p>
                   </td>
@@ -492,26 +520,6 @@ export type SortDirection = 'asc' | 'desc';
             </button>
           </div>
         </div>
-      </div>
-
-      <!-- Shop Branch Scoped OpenStreetMap Live Transit Radar -->
-      <div class="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-              <mat-icon class="!text-sm text-cyan-600">navigation</mat-icon>
-              <span>Shop Branch Live Transit Radar (OpenStreetMap)</span>
-            </h3>
-            <p class="text-xs text-slate-500">Live vehicle motion & route tracking scoped strictly to orders originating from this workshop</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-[10px] uppercase font-bold text-slate-400">Filtering Workshop:</span>
-            <span class="text-xs font-mono font-bold text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950 px-2.5 py-1 rounded-lg border border-cyan-200 dark:border-cyan-800">
-              {{ currentBranch() }}
-            </span>
-          </div>
-        </div>
-        <app-osm-live-map [mode]="'shop-scoped'" [shopBranchFilter]="currentBranch()"></app-osm-live-map>
       </div>
 
       <!-- =================================================================== -->
@@ -554,7 +562,7 @@ export type SortDirection = 'asc' | 'desc';
                   </span>
                   <div class="flex items-center gap-2">
                     <span class="text-xs font-mono font-bold text-cyan-700 dark:text-cyan-400">
-                      Total: ₵{{ totalShopDoorsPrice().toLocaleString() }}
+                      Total: GH₵{{ totalShopDoorsPrice().toLocaleString() }}
                     </span>
                     <button 
                       type="button" 
@@ -624,7 +632,7 @@ export type SortDirection = 'asc' | 'desc';
                           </div>
 
                           <span class="text-xs font-mono font-black text-cyan-700 dark:text-cyan-400 min-w-[70px] text-right">
-                            ₵{{ (door.unitPrice * door.quantity).toLocaleString() }}
+                            GH₵{{ (door.unitPrice * door.quantity).toLocaleString() }}
                           </span>
 
                           <!-- Desktop actions -->
@@ -663,7 +671,7 @@ export type SortDirection = 'asc' | 'desc';
                               <option value="">-- Select catalog template --</option>
                               @for (catDoor of store.doors(); track catDoor.id) {
                                 <option [value]="catDoor.id" [selected]="catDoor.id === door.catalogDoorId">
-                                  {{ catDoor.name }} ({{ catDoor.modelCode }}) - {{ catDoor.formattedPrice || ('₵' + catDoor.unitPrice) }} • {{ catDoor.category }}
+                                  {{ catDoor.name }} ({{ catDoor.modelCode }}) - {{ catDoor.formattedPrice || ('GH₵' + catDoor.unitPrice) }} • {{ catDoor.category }}
                                 </option>
                               }
                             </select>
@@ -751,7 +759,7 @@ export type SortDirection = 'asc' | 'desc';
                               />
                             </div>
                             <div>
-                              <label class="block font-bold text-slate-700 dark:text-slate-300 mb-0.5 text-[10px] uppercase">Unit Price (₵)</label>
+                              <label class="block font-bold text-slate-700 dark:text-slate-300 mb-0.5 text-[10px] uppercase">Unit Price (GH₵)</label>
                               <input 
                                 type="number"
                                 [ngModel]="door.unitPrice"
@@ -767,20 +775,32 @@ export type SortDirection = 'asc' | 'desc';
                   }
                 </div>
 
-                <!-- Shop Branch -->
+                <!-- Shop Branch (Locked to Assigned Shop when User is Shop-Assigned) -->
                 <div>
                   <label for="shopBranch" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Dispatching Shop Branch</label>
-                  <select 
-                    id="shopBranch"
-                    formControlName="shopBranch"
-                    class="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium text-xs cursor-pointer"
-                  >
-                    @for (b of store.branches(); track b.branchCode) {
-                      <option [value]="b.shopName">
-                        🏪 {{ b.shopName }} ({{ b.branchCode }} · {{ b.landmark || b.city }})
-                      </option>
-                    }
-                  </select>
+                  @if (isShopLocked()) {
+                    <div class="w-full px-3 py-2 border border-cyan-200 dark:border-cyan-800 rounded-xl bg-cyan-50/60 dark:bg-cyan-950/40 text-cyan-900 dark:text-cyan-200 font-bold text-xs flex items-center justify-between gap-2">
+                      <span class="flex items-center gap-1.5 truncate">
+                        <mat-icon class="!text-sm !w-4 !h-4 text-cyan-600 dark:text-cyan-400">storefront</mat-icon>
+                        <span class="truncate">{{ activeShop().shopName }} ({{ activeShop().branchCode }} · {{ activeShop().city }})</span>
+                      </span>
+                      <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-100 dark:bg-cyan-900/60 text-cyan-800 dark:text-cyan-300 shrink-0">
+                        Ref: {{ activeShop().id }}
+                      </span>
+                    </div>
+                  } @else {
+                    <select 
+                      id="shopBranch"
+                      formControlName="shopId"
+                      class="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium text-xs cursor-pointer"
+                    >
+                      @for (b of store.branches(); track b.branchCode) {
+                        <option [value]="b.id">
+                          🏪 {{ b.shopName }} ({{ b.branchCode }} · {{ b.landmark || b.city }})
+                        </option>
+                      }
+                    </select>
+                  }
                 </div>
               </div>
 
@@ -906,7 +926,7 @@ export type SortDirection = 'asc' | 'desc';
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700">
                   <div>
-                    <label for="amountPaidInput" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Insatallation Cost (₵) *</label>
+                    <label for="amountPaidInput" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Installation Cost (GH₵) *</label>
                     <input 
                       id="amountPaidInput"
                       type="number" 
@@ -949,7 +969,7 @@ export type SortDirection = 'asc' | 'desc';
                   <span class="font-bold text-slate-900 dark:text-white">{{ totalShopDoorsCount() }} Units</span>
                   <span>·</span>
                   <span class="text-cyan-700 dark:text-cyan-400 font-bold">
-                    ₵{{ totalShopDoorsPrice().toLocaleString() }} Total
+                    GH₵{{ totalShopDoorsPrice().toLocaleString() }} Total
                   </span>
                 </div>
 
@@ -990,7 +1010,7 @@ export type SortDirection = 'asc' | 'desc';
                   <mat-icon class="!text-sm">local_shipping</mat-icon>
                 </div>
                 <div>
-                  <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Assign Store Dispatch Driver</h3>
+                  <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Select Store Dispatcher</h3>
                   <p class="text-xs text-slate-500 dark:text-slate-400">Order {{ job.id }} · {{ job.doorModel }}</p>
                 </div>
               </div>
@@ -1024,7 +1044,7 @@ export type SortDirection = 'asc' | 'desc';
                     <span class="text-[10px] text-slate-400 uppercase font-bold block">Assigned Installer:</span>
                     <p class="font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
                       <mat-icon class="!text-xs">handyman</mat-icon>
-                      <span>{{ job.assignedInstallerName || 'Technician' }}</span>
+                      <span>{{ job.assignedInstallerName || 'Installer' }}</span>
                     </p>
                     <span class="text-[10px] text-slate-500 block mt-0.5">Scheduled: {{ job.scheduledDate }}</span>
                   </div>
@@ -1034,7 +1054,7 @@ export type SortDirection = 'asc' | 'desc';
               <!-- Driver Selection -->
               <div class="space-y-2">
                 <label for="driverSelect" class="block font-bold text-slate-700 dark:text-slate-300">
-                  Select Dispatch Driver Available to Store *
+                  Select Dispatcher Available to Store *
                 </label>
                 <select 
                   id="driverSelect"
@@ -1042,7 +1062,7 @@ export type SortDirection = 'asc' | 'desc';
                   (change)="onDriverSelected($event)"
                   class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold"
                 >
-                  @for (d of store.dispatchers(); track d.id) {
+                  @for (d of availableStoreDispatchers(); track d.id) {
                     <option [value]="d.id">
                       {{ d.name }} · {{ d.assignedTruck.plate }} ({{ d.assignedTruck.model }}) - {{ d.status.toUpperCase() }}
                     </option>
@@ -1106,7 +1126,7 @@ export type SortDirection = 'asc' | 'desc';
                     class="px-5 py-2 bg-cyan-700 hover:bg-cyan-800 disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer"
                   >
                     <mat-icon class="!text-sm">local_shipping</mat-icon>
-                    <span>Dispatch Door from Store</span>
+                    <span>Select Dispatcher</span>
                   </button>
                 </div>
               </div>
@@ -1116,7 +1136,7 @@ export type SortDirection = 'asc' | 'desc';
       }
 
       <!-- =================================================================== -->
-      <!-- MODAL: SHOP LOCATION & WORKSHOP SETTINGS (STORED IN MYSQL DB)       -->
+      <!-- MODAL: SHOP LOCATION & WORKSHOP SETTINGS                            -->
       <!-- =================================================================== -->
       @if (showLocationSettingsModal()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
@@ -1130,9 +1150,6 @@ export type SortDirection = 'asc' | 'desc';
                 <div>
                   <h2 class="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
                     <span>Shop Location & Workshop Settings</span>
-                    <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 font-bold">
-                      MySQL DB
-                    </span>
                   </h2>
                   <p class="text-xs text-slate-500">Configure store origin, address, GPS coordinates and dispatch logistics radius</p>
                 </div>
@@ -1366,33 +1383,27 @@ export type SortDirection = 'asc' | 'desc';
               </div>
 
               <!-- Sticky Modal Actions Footer -->
-              <div class="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div class="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                  <mat-icon class="!text-xs text-emerald-600">database</mat-icon>
-                  <span>Persisted in MySQL table <code class="font-mono text-cyan-600 dark:text-cyan-400">shop_locations</code></span>
-                </div>
-                <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-                  <button 
-                    type="button" 
-                    (click)="closeLocationSettingsModal()"
-                    class="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    [disabled]="!locationSettingsForm.valid || isSavingLocationSettings()"
-                    class="px-5 py-2 bg-cyan-700 hover:bg-cyan-800 disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer"
-                  >
-                    @if (isSavingLocationSettings()) {
-                      <mat-icon class="!text-sm animate-spin">refresh</mat-icon>
-                      <span>Saving to DB...</span>
-                    } @else {
-                      <mat-icon class="!text-sm">save</mat-icon>
-                      <span>Save Location to Database</span>
-                    }
-                  </button>
-                </div>
+              <div class="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+                <button 
+                  type="button" 
+                  (click)="closeLocationSettingsModal()"
+                  class="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  [disabled]="!locationSettingsForm.valid || isSavingLocationSettings()"
+                  class="px-5 py-2 bg-cyan-700 hover:bg-cyan-800 disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                >
+                  @if (isSavingLocationSettings()) {
+                    <mat-icon class="!text-sm animate-spin">refresh</mat-icon>
+                    <span>Saving Location...</span>
+                  } @else {
+                    <mat-icon class="!text-sm">save</mat-icon>
+                    <span>Save Location</span>
+                  }
+                </button>
               </div>
             </form>
           </div>
@@ -1417,6 +1428,7 @@ export class ShopPortal {
     dimensions: new FormControl<string>('2100 × 900 × 45mm', { nonNullable: true, validators: [Validators.required] }),
     finish: new FormControl<string>('Walnut Natural Wood Grain', { nonNullable: true }),
     hardwareSpecs: new FormControl<string>('Heavy-Duty Concealed Hinges & 3-Point Lockset', { nonNullable: true }),
+    shopId: new FormControl<string>('dm-branch-central', { nonNullable: true }),
     shopBranch: new FormControl<string>('DoorMaster Flagship Showroom - Accra Central', { nonNullable: true }),
     clientName: new FormControl<string>('', { nonNullable: true, validators: [Validators.required] }),
     clientPhone: new FormControl<string>('', { nonNullable: true, validators: [Validators.required] }),
@@ -1475,22 +1487,80 @@ export class ShopPortal {
     longitude: new FormControl<number>(-0.1582, { nonNullable: true, validators: [Validators.required] })
   });
 
-  readonly currentBranch = computed(() => this.store.shopLocation().shopName);
+  // Shop assignment & scoping signals:
+  // If the user is assigned to a shop, `/shop` locks to that shop and displays ONLY that shop's orders.
+  readonly assignedShop = computed(() => this.store.userAssignedShop());
+  readonly isShopLocked = computed(() => !!this.assignedShop());
+  readonly selectedBranchFilter = signal<string>('all');
 
-  onBranchChange(branchCode: string) {
-    this.store.setActiveBranch(branchCode);
-    this.alert.toastInfo('Branch Switched', `Active workshop set to ${this.store.shopLocation().shopName}`);
+  readonly activeShop = computed<ShopLocationSettings>(() => {
+    const locked = this.assignedShop();
+    if (locked) return locked;
+    const filter = this.selectedBranchFilter();
+    if (filter && filter !== 'all') {
+      const found = this.store.branches().find(b => String(b.id) === filter || b.branchCode === filter);
+      if (found) return found;
+    }
+    return this.store.shopLocation();
+  });
+
+  readonly shopScopedJobs = computed<InstallationJob[]>(() => {
+    if (this.assignedShop()) {
+      return this.store.shopPortalJobs();
+    }
+    const filter = this.selectedBranchFilter();
+    if (filter && filter !== 'all') {
+      return this.store.jobs().filter(j => this.store.getJobShopId(j) === filter);
+    }
+    return this.store.jobs();
+  });
+
+  readonly currentBranch = computed(() => this.activeShop().shopName);
+
+  onBranchChange(shopIdOrAll: string) {
+    if (this.isShopLocked()) return;
+    this.selectedBranchFilter.set(shopIdOrAll || 'all');
+    this.currentPage.set(1);
+    if (shopIdOrAll && shopIdOrAll !== 'all') {
+      this.store.setActiveBranch(shopIdOrAll);
+    }
   }
 
   readonly bookedAtShopCount = computed(() => {
-    return this.store.jobs().filter(j => j.status === 'booked_at_shop').length;
+    return this.shopScopedJobs().filter(j => j.status === 'booked_at_shop').length;
+  });
+
+  readonly shopScopedCollections = computed(() => {
+    return this.shopScopedJobs().reduce((sum, j) => sum + (j.shopBooking?.amountPaidAtShop || 0), 0);
   });
 
   readonly dispatchedCount = computed(() => {
-    return this.store.jobs().filter(j => j.status === 'dispatched' || j.status === 'on_site').length;
+    return this.shopScopedJobs().filter(j => j.status === 'dispatched' || j.status === 'on_site').length;
   });
 
-  readonly jobsAwaitingDriver = computed(() => this.store.shopPendingDriverJobs());
+  readonly completedAtShopCount = computed(() => {
+    return this.shopScopedJobs().filter(j => j.status === 'completed' || j.status === 'bonus_awarded').length;
+  });
+
+  readonly jobsAwaitingDriver = computed(() => {
+    return this.shopScopedJobs().filter(
+      j =>
+        !j.dispatcherId &&
+        this.store.hasJobAcceptedInstallers(j) &&
+        !['dispatched', 'delivered_on_site', 'on_site', 'installed_pending_signoff', 'completed', 'bonus_awarded'].includes(j.status)
+    );
+  });
+
+  readonly availableStoreDispatchers = computed(() => {
+    const job = this.activeAssignDriverJob();
+    const targetShop = job ? this.store.getJobBranch(job) || this.activeShop() : this.activeShop();
+    const targetId = String(targetShop?.id || '');
+    const targetCode = targetShop?.branchCode || '';
+    const branchMatched = this.store.dispatchers().filter(
+      d => (targetId && d.shopId === targetId) || (targetCode && d.branchCode === targetCode)
+    );
+    return branchMatched.length > 0 ? branchMatched : this.store.dispatchers();
+  });
 
   // Table filtering, pagination and sorting state
   readonly tableSearchQuery = signal<string>('');
@@ -1547,7 +1617,7 @@ export class ShopPortal {
     const sortF = this.sortField();
     const sortD = this.sortDirection();
 
-    const filtered = this.store.jobs().filter(job => {
+    const filtered = this.shopScopedJobs().filter(job => {
       if (!this.matchesTimeFilter(job, filter)) return false;
 
       if (query) {
@@ -1657,31 +1727,7 @@ export class ShopPortal {
   });
 
   openScheduleModal() {
-    this.selectedShopDoors.set([
-      {
-        id: `shop_door_${Date.now()}_1`,
-        doorCategory: 'Turkey interior series',
-        doorModel: 'Turkey interior DM001 Acoustic Interior Door',
-        dimensions: '2100 × 900 × 45mm',
-        finish: 'Walnut Natural Wood Grain',
-        hardwareSpecs: 'Heavy-Duty Concealed Hinges & 3-Point Lockset',
-        lockModel: 'Doormaster Smart Lock Handle F35 (Biometric & RFID)',
-        unitPrice: 4750,
-        quantity: 1,
-        isExpanded: true
-      }
-    ]);
-
-    this.bookingForm.patchValue({
-      receiptNumber: `REC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      shopBranch: this.store.shopLocation().shopName,
-      clientName: '',
-      clientPhone: '',
-      clientEmail: '',
-      siteAddress: '',
-      amountPaidAtShop: this.totalShopDoorsPrice()
-    });
-    this.showScheduleModal.set(true);
+    this.newJobOpened.emit();
   }
 
   // Client site coordinates tracked from location map
@@ -1803,8 +1849,6 @@ export class ShopPortal {
     this.bookingForm.patchValue({
       amountPaidAtShop: this.totalShopDoorsPrice()
     });
-
-    this.alert.toastSuccess('Door Preset Applied', `Category auto-selected: ${catDoor.category}`);
   }
 
   toggleShopDoorDropdown(index: number) {
@@ -1895,7 +1939,9 @@ export class ShopPortal {
     const val = this.bookingForm.getRawValue();
     const doors = this.selectedShopDoors();
     const primaryDoor = doors[0];
-    const totalDoorsPrice = this.totalShopDoorsPrice();
+    const targetBranch = this.isShopLocked()
+      ? this.activeShop()
+      : this.store.branches().find(b => String(b.id) === val.shopId || b.branchCode === val.shopId) || this.activeShop();
 
     this.store.bookInstallationByShopManager({
       doorModel: doors.map(d => `${d.quantity > 1 ? d.quantity + '× ' : ''}${d.doorModel}`).join('; '),
@@ -1916,7 +1962,9 @@ export class ShopPortal {
       dimensions: primaryDoor.dimensions,
       finish: primaryDoor.finish,
       hardwareSpecs: primaryDoor.hardwareSpecs,
-      shopBranch: val.shopBranch,
+      shopId: String(targetBranch.id || 'dm-branch-central'),
+      branchCode: targetBranch.branchCode,
+      shopBranch: targetBranch.shopName,
       clientName: val.clientName,
       clientPhone: val.clientPhone,
       clientEmail: val.clientEmail || 'client@doormaster.online',
@@ -1925,7 +1973,7 @@ export class ShopPortal {
       accessInstructions: val.accessInstructions,
       scheduledDate: val.scheduledDate,
       estimatedHours: val.estimatedHours,
-      doorPrice: totalDoorsPrice,
+      doorPrice: 0,
       installationFee: val.installationFee,
       amountPaidAtShop: val.amountPaidAtShop,
       paymentMethod: val.paymentMethod,
@@ -1935,21 +1983,30 @@ export class ShopPortal {
     this.closeScheduleModal();
     this.alert.success(
       'Installation Booked!',
-      `Order booked for ${val.clientName}. Deposit of ₵${Number(val.amountPaidAtShop).toLocaleString()} recorded via ${val.paymentMethod.toUpperCase()}.`
+      `Order booked for ${val.clientName}. Deposit of GH₵${Number(val.amountPaidAtShop).toLocaleString()} recorded via ${val.paymentMethod.toUpperCase()}.`
     );
   }
 
   openAssignDriverModal(job: InstallationJob) {
-    if (!job.assignedInstallerId) {
+    if (!this.store.canCurrentRoleSelectDispatcher()) {
+      this.alert.warning('Access Restricted', 'Dispatch driver selection is managed exclusively on the Shop Manager portal.');
+      return;
+    }
+    if (!this.store.canShopManagerAssignDriver(job)) {
+      this.alert.warning('Access Restricted', 'Only the Shop Manager who created this order can assign the Dispatch Driver.');
+      return;
+    }
+    if (!this.store.hasJobAcceptedInstallers(job)) {
       this.alert.warning(
-        'Installer Assignment Required',
-        'Assign dispatch is disabled until an installer has been assigned to this job by Operations Manager.'
+        'Installer Acceptance Required',
+        'Dispatch Driver can only be assigned after one or more assigned installers have accepted (or auto-accepted) their assignment from Operations Manager.'
       );
       return;
     }
     this.activeAssignDriverJob.set(job);
-    const available = this.store.dispatchers().filter(d => d.status === 'available');
-    const defaultDisp = available.length > 0 ? available[0] : this.store.dispatchers()[0];
+    const scopedPool = this.availableStoreDispatchers();
+    const available = scopedPool.filter(d => d.status === 'available');
+    const defaultDisp = available.length > 0 ? available[0] : scopedPool[0];
     if (defaultDisp) {
       this.driverAssignForm.patchValue({
         dispatcherId: defaultDisp.id,
@@ -1989,11 +2046,11 @@ export class ShopPortal {
     });
 
     this.closeAssignDriverModal();
-    this.alert.toastSuccess('Driver Dispatched', `Job cargo assigned to transport truck ${val.truckPlate}.`);
+    this.alert.toastSuccess('Dispatcher Selected', `Dispatcher assigned with transport truck ${val.truckPlate}.`);
   }
 
   openLocationSettingsModal() {
-    const loc = this.store.shopLocation();
+    const loc = this.activeShop();
     this.locationSettingsForm.patchValue({
       shopName: loc.shopName || '',
       branchCode: loc.branchCode || '',
@@ -2070,8 +2127,9 @@ export class ShopPortal {
 
       this.isSavingLocationSettings.set(false);
       if (result.success) {
-        this.locationSettingsFeedback.set(result.message || 'Shop location settings saved to database.');
-        this.alert.success('Your work has been saved', 'Workshop branch location and GPS coordinates saved to database.');
+        const msg = result.message || 'Shop location settings saved successfully.';
+        this.locationSettingsFeedback.set(msg);
+        this.alert.success('Location Settings Saved', msg);
         setTimeout(() => {
           this.closeLocationSettingsModal();
         }, 1200);
@@ -2103,5 +2161,34 @@ export class ShopPortal {
       default:
         return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
     }
+  }
+
+  getInstallerMemberStatusLabel(job: InstallationJob, member: AssignedInstallerTeamMember): string {
+    const status = member.status || job.installerAssignmentStatus;
+    if (status === 'accepted') {
+      return (member.autoAccepted ?? job.installerAutoAccepted) ? 'Auto-Accepted' : 'Accepted';
+    }
+    if (status === 'rejected') {
+      return 'Declined';
+    }
+    return '10m Pending';
+  }
+
+  getInstallerMemberBadgeClass(job: InstallationJob, member: AssignedInstallerTeamMember): string {
+    const status = member.status || job.installerAssignmentStatus;
+    if (status === 'accepted') {
+      return 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+    }
+    if (status === 'rejected') {
+      return 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800';
+    }
+    return 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+  }
+
+  getInstallerMemberIcon(job: InstallationJob, member: AssignedInstallerTeamMember): string {
+    const status = member.status || job.installerAssignmentStatus;
+    if (status === 'accepted') return 'check_circle';
+    if (status === 'rejected') return 'cancel';
+    return 'schedule';
   }
 }

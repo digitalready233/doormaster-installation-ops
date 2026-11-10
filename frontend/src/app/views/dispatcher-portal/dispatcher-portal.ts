@@ -29,8 +29,8 @@ import { InstallationJob, NotificationItem } from '../../models/installation.mod
           <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Logistics Dispatcher & Delivery Portal</h1>
         </div>
 
-        <!-- Driver / Truck Selector (Only visible for Manager fleet supervision) -->
-        @if (store.currentRole() !== 'dispatcher') {
+        <!-- Driver / Truck Selector (Hidden on Operations Manager & Dispatcher portals) -->
+        @if (store.currentRole() !== 'dispatcher' && store.currentRole() !== 'manager') {
           <div class="flex items-center gap-3">
             <div>
               <label for="dispatcherSelectDriver" class="block text-[10px] text-slate-400 dark:text-slate-500 uppercase font-mono font-bold mb-1">Active Driver</label>
@@ -402,7 +402,7 @@ import { InstallationJob, NotificationItem } from '../../models/installation.mod
           <div class="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 p-10 text-center">
             <mat-icon class="!text-4xl text-slate-400 mb-2">event_available</mat-icon>
             <h4 class="text-sm font-bold text-slate-700 dark:text-slate-300">No active delivery runs scheduled for today</h4>
-            <p class="text-xs text-slate-400 mt-1">Previous deliveries and future manifests are logged below. New dispatches will automatically populate here.</p>
+            <p class="text-xs text-slate-400 mt-1">New dispatches scheduled for today will automatically populate here in real-time.</p>
           </div>
         }
 
@@ -703,97 +703,6 @@ import { InstallationJob, NotificationItem } from '../../models/installation.mod
         </div>
       </div>
 
-      <!-- Previous & Other Scheduled Deliveries Table -->
-      <div class="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-        <div class="flex items-center justify-between">
-          <div>
-            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              <mat-icon class="!text-sm text-slate-500">history</mat-icon>
-              <span>Previous & Other Scheduled Deliveries</span>
-            </h3>
-            <p class="text-xs text-slate-500">Historical delivery manifests and upcoming runs outside of today's schedule</p>
-          </div>
-          <span class="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-            {{ previousJobs().length }} records
-          </span>
-        </div>
-
-        @if (previousJobs().length === 0) {
-          <div class="bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-xs text-slate-400">
-            No previous or future delivery manifests logged in this queue.
-          </div>
-        } @else {
-          <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
-            <table class="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  <th class="py-3 px-4">Manifest ID</th>
-                  <th class="py-3 px-4">Door Model & Specs</th>
-                  <th class="py-3 px-4">Client & Destination</th>
-                  <th class="py-3 px-4">Scheduled Date</th>
-                  <th class="py-3 px-4">Truck Assigned</th>
-                  <th class="py-3 px-4">Trip Stage</th>
-                  <th class="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                @for (job of previousJobs(); track job.id) {
-                  <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                    <td class="py-3.5 px-4 font-mono font-bold text-teal-600 dark:text-teal-400 whitespace-nowrap">
-                      {{ job.id }}
-                    </td>
-                    <td class="py-3.5 px-4">
-                      <p class="font-bold text-slate-900 dark:text-white">{{ job.doorModel }}</p>
-                      <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-xs">{{ job.dimensions }} · {{ job.finish }}</p>
-                    </td>
-                    <td class="py-3.5 px-4">
-                      <p class="font-bold text-slate-900 dark:text-white">{{ job.client.name }}</p>
-                      <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-xs flex items-center gap-1">
-                        <mat-icon class="!text-[12px] !w-3 !h-3 text-red-500">place</mat-icon>
-                        <span>{{ job.client.siteAddress }}</span>
-                      </p>
-                    </td>
-                    <td class="py-3.5 px-4 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                      {{ job.scheduledDate }}
-                    </td>
-                    <td class="py-3.5 px-4 font-mono text-[11px] whitespace-nowrap">
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                        <mat-icon class="!text-xs">local_shipping</mat-icon>
-                        {{ job.logisticsTruck?.truckPlate || 'Assigned Run' }}
-                      </span>
-                    </td>
-                    <td class="py-3.5 px-4 whitespace-nowrap">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider" [class]="getStatusBadgeClass(job.status)">
-                        {{ job.status.replace('_', ' ') }}
-                      </span>
-                    </td>
-                    <td class="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div class="flex items-center justify-end gap-1.5">
-                        <button 
-                          type="button"
-                          (click)="inspectingJobId.set(job.id)"
-                          class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
-                          title="View Manifest Details"
-                        >
-                          <mat-icon class="!text-sm">visibility</mat-icon>
-                        </button>
-                        <a
-                          routerLink="/map"
-                          class="p-1.5 hover:bg-teal-50 dark:hover:bg-teal-950/50 rounded-lg text-teal-600 dark:text-teal-400 transition-colors cursor-pointer"
-                          title="View on Live Delivery Map"
-                        >
-                          <mat-icon class="!text-sm">map</mat-icon>
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-      </div>
-
       <!-- Job Detail Inspection Modal -->
       @if (inspectingJobId()) {
         <app-job-detail-modal
@@ -878,10 +787,6 @@ export class DispatcherPortal {
 
   readonly todayJobs = computed(() =>
     this.store.dispatcherJobs().filter(j => this.isTodayDelivery(j))
-  );
-
-  readonly previousJobs = computed(() =>
-    this.store.dispatcherJobs().filter(j => !this.isTodayDelivery(j))
   );
 
   getDriverTimeRemaining(job: InstallationJob): { expired: boolean; text: string; percent: number } {

@@ -57,7 +57,7 @@ import { InstallationJob } from '../../models/installation.model';
             </span>
           </div>
           <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-            {{ isOnSite() ? 'Technician currently on site' : 'Efficiency score: On-schedule' }}
+            {{ isOnSite() ? 'Installer currently on site' : 'Efficiency score: On-schedule' }}
           </p>
         </div>
 

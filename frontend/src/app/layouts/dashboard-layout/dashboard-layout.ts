@@ -12,14 +12,13 @@ import { BonusModal } from '../../components/bonus-modal/bonus-modal';
 import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-modal';
 import { AddUserModal } from '../../components/add-user-modal/add-user-modal';
 import { NotificationDrawer } from '../../components/notification-drawer/notification-drawer';
-import { InstallationJob, NotificationItem, RoleDefinition, RoleType } from '../../models/installation.model';
+import { AlertService } from '../../services/alert.service';
+import { InstallationJob, InstallerTeam, NotificationItem, RoleDefinition, RoleType } from '../../models/installation.model';
 
 export type ActiveView = 
   | 'overview' 
   | 'doors' 
   | 'work' 
-  | 'installer' 
-  | 'client' 
   | 'shop' 
   | 'dispatcher' 
   | 'map' 
@@ -204,17 +203,123 @@ export class DashboardLayout {
     this.store.markNotificationRead(notif.id);
     this.closeNotificationDropdown();
     if (notif.jobId) {
+      const job = this.store.jobs().find(j => j.id === notif.jobId);
+      if (
+        this.store.canCurrentRoleAssignInstallers() &&
+        (job?.installerAssignmentStatus === 'rejected' || notif.title.toLowerCase().includes('declined'))
+      ) {
+        this.reassignSelectedInstallerIds.set([]);
+        this.store.openReassignmentPopup(notif.jobId);
+        return;
+      }
+      if (this.store.currentRole() === 'installer' && notif.type === 'job_assigned') {
+        this.setView('map');
+        return;
+      }
       this.openJobDetails(notif.jobId);
+      if (this.store.canCurrentRoleSelectDispatcher() && notif.actionLabel === 'Select Dispatcher') {
+        setTimeout(() => {
+          if (typeof document !== 'undefined') {
+            document.getElementById('detailDispatcherDropdown')?.focus();
+          }
+        }, 80);
+      } else if (this.store.canCurrentRoleAssignInstallers() && notif.actionLabel === 'Select Team') {
+        setTimeout(() => {
+          if (typeof document !== 'undefined') {
+            const grid = document.getElementById('detailTeamGrid');
+            grid?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            (grid?.querySelector('button') as HTMLButtonElement | null)?.focus();
+          }
+        }, 80);
+      }
     }
+  }
+
+  private readonly alert = inject(AlertService);
+  readonly reassignSelectedInstallerIds = signal<string[]>([]);
+
+  getJobForNotification(notif: NotificationItem): InstallationJob | undefined {
+    if (!notif.jobId) return undefined;
+    return this.store.jobs().find(j => j.id === notif.jobId);
+  }
+
+  canInstallerRespondToNotification(notif: NotificationItem): boolean {
+    if (this.store.currentRole() !== 'installer' || !notif.jobId) return false;
+    const job = this.getJobForNotification(notif);
+    if (!job || !this.store.isInstallerPendingAcceptance(job)) {
+      return false;
+    }
+    return true;
+  }
+
+  quickAcceptInstallerFromNotif(notif: NotificationItem, event: Event) {
+    event.stopPropagation();
+    if (!notif.jobId) return;
+    this.store.markNotificationRead(notif.id);
+    this.store.respondInstallerAssignment(notif.jobId, true);
+    this.alert.success('Installation Accepted', `Job ${notif.jobId} confirmed for you.`);
+    this.closeNotificationDropdown();
+  }
+
+  quickDeclineInstallerFromNotif(notif: NotificationItem, event: Event) {
+    event.stopPropagation();
+    if (!notif.jobId) return;
+    this.store.markNotificationRead(notif.id);
+    this.closeNotificationDropdown();
+    this.store.respondInstallerAssignment(notif.jobId, false, 'Declined from quick notification');
+    this.alert.warning('Installation Declined', `Job ${notif.jobId} declined. Operations Manager has been alerted.`);
+    this.setView('map');
+  }
+
+  selectTeamForReassignment(team: InstallerTeam) {
+    const uniqueIds = [team.leadId, ...team.memberIds.filter(id => id !== team.leadId)];
+    this.reassignSelectedInstallerIds.set(uniqueIds);
+  }
+
+  isTeamSelectedForReassignment(team: InstallerTeam): boolean {
+    const selected = this.reassignSelectedInstallerIds();
+    const teamIds = [team.leadId, ...team.memberIds.filter(id => id !== team.leadId)];
+    return selected.length === teamIds.length && selected.every((id, idx) => id === teamIds[idx]);
+  }
+
+  toggleInstallerForReassignment(installerId: string) {
+    this.reassignSelectedInstallerIds.update(prev =>
+      prev.includes(installerId) ? prev.filter(id => id !== installerId) : [...prev, installerId]
+    );
+  }
+
+  getInstallerName(installerId: string): string {
+    return this.store.installers().find(i => i.id === installerId)?.name || installerId;
+  }
+
+  confirmManagerReassignment(job: InstallationJob) {
+    const ids = this.reassignSelectedInstallerIds();
+    if (ids.length === 0) return;
+    this.store.assignInstallersByManager(job.id, ids);
+    const leadName = this.getInstallerName(ids[0]);
+    const teamDesc = ids.length > 1 ? `${leadName} + ${ids.length - 1} assistant(s)` : leadName;
+    this.reassignSelectedInstallerIds.set([]);
+    this.store.dismissReassignmentPopup(job.id);
+    this.alert.success(
+      'Replacement Team Assigned',
+      `${teamDesc} assigned to ${job.client.name} (${job.id}). 10-minute auto-accept countdown started.`
+    );
+  }
+
+  dismissManagerReassignment(jobId: string) {
+    this.reassignSelectedInstallerIds.set([]);
+    this.store.dismissReassignmentPopup(jobId);
   }
 
   getNotificationIcon(type: NotificationItem['type']): string {
     switch (type) {
       case 'job_assigned': return 'assignment_ind';
+      case 'truck_assigned': return 'local_shipping';
       case 'installer_accepted': return 'handshake';
       case 'driver_accepted': return 'check_circle';
       case 'driver_rejected': return 'cancel';
       case 'door_dispatched': return 'local_shipping';
+      case 'shop_payment_recorded': return 'receipt_long';
       case 'technician_clocked_in': return 'login';
       case 'technician_clocked_out': return 'logout';
       case 'signoff_required': return 'draw';
@@ -227,10 +332,12 @@ export class DashboardLayout {
   getNotificationBadgeStyle(type: NotificationItem['type']): string {
     switch (type) {
       case 'job_assigned': return 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-400';
+      case 'truck_assigned': return 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-400';
       case 'installer_accepted': return 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-400';
       case 'driver_accepted': return 'bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-400 font-bold';
       case 'driver_rejected': return 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-400 font-bold';
       case 'door_dispatched': return 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-400';
+      case 'shop_payment_recorded': return 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-400';
       case 'technician_clocked_in': return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-400';
       case 'signoff_required': return 'bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-400';
       case 'installation_verified': return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-400';
@@ -264,7 +371,7 @@ export class DashboardLayout {
   readonly currentView = computed<ActiveView>(() => {
     const url = this.currentUrl();
     const segment = url.split('?')[0].split('#')[0].replace(/^\//, '');
-    const valid: ActiveView[] = ['overview', 'doors', 'work', 'installer', 'client', 'shop', 'dispatcher', 'map', 'performance', 'finance', 'roles', 'settings', 'profile'];
+    const valid: ActiveView[] = ['overview', 'doors', 'work', 'shop', 'dispatcher', 'map', 'performance', 'finance', 'roles', 'settings', 'profile'];
     return (valid.includes(segment as ActiveView) ? segment : 'overview') as ActiveView;
   });
 
@@ -274,10 +381,8 @@ export class DashboardLayout {
     if (v === 'shop') return 'Shop & Counter';
     if (v === 'doors') return 'Doors Catalog';
     if (v === 'work') return 'Work';
-    if (v === 'installer') return 'Technician Field';
-    if (v === 'client') return 'Client Live Tracking';
     if (v === 'dispatcher') return 'Logistics Dispatch';
-    if (v === 'map') return 'Live Delivery Map';
+    if (v === 'map') return 'Map';
     if (v === 'performance') return 'Incentive Bonuses';
     if (v === 'finance') return 'Accounts Ledger';
     if (v === 'roles') return 'Roles & Permissions';
@@ -331,26 +436,6 @@ export class DashboardLayout {
       description: 'Assigned tasks and progress'
     },
     {
-      id: 'installer',
-      label: 'Technician Field',
-      icon: 'handyman',
-      iconColor: 'text-emerald-600 dark:text-emerald-400',
-      activeColor: 'text-emerald-600 dark:text-emerald-400',
-      category: 'field',
-      badgeType: 'ping',
-      description: 'Field tasks, clock in/out & checklists'
-    },
-    {
-      id: 'client',
-      label: 'Client Live Tracking',
-      icon: 'navigation',
-      iconColor: 'text-indigo-600 dark:text-indigo-400',
-      activeColor: 'text-indigo-600 dark:text-indigo-400',
-      category: 'field',
-      badgeType: 'eta',
-      description: 'Live ETA journey, door specs & verification'
-    },
-    {
       id: 'dispatcher',
       label: 'Logistics Fleet Dispatch',
       icon: 'local_shipping',
@@ -362,13 +447,13 @@ export class DashboardLayout {
     },
     {
       id: 'map',
-      label: 'Delivery Route Map',
+      label: 'Map',
       icon: 'map',
       iconColor: 'text-teal-600 dark:text-teal-400',
       activeColor: 'text-teal-600 dark:text-teal-400',
       category: 'field',
       badgeType: 'live',
-      description: 'Vehicle telematics, road routing & dynamic re-routing'
+      description: 'Unified field telematics, live radar, routes & site operations'
     },
     {
       id: 'performance',
@@ -417,9 +502,9 @@ export class DashboardLayout {
     const roleId = this.store.currentRole();
     const roleDef = this.store.currentRoleDefinition();
     if (!this.isViewAllowedForRole(view, roleId, roleDef)) {
-      const target = roleId === 'client' ? '/client' :
+      const target = roleId === 'client' ? '/map' :
                      roleId === 'dispatcher' ? '/dispatcher' :
-                     roleId === 'installer' ? '/installer' :
+                     roleId === 'installer' ? '/map' :
                      roleId === 'shop_manager' ? '/shop' :
                      roleId === 'account_officer' ? '/finance' :
                      '/overview';
@@ -428,10 +513,10 @@ export class DashboardLayout {
   }
 
   isViewAllowedForRole(viewId: ActiveView, roleId: string, roleDef: RoleDefinition): boolean {
-    if (viewId === 'settings' || viewId === 'profile') return true;
+    if (viewId === 'settings' || viewId === 'profile' || viewId === 'map') return true;
     // When impersonating another user, the user is mainly logged in with primary permissions
     if (this.store.isImpersonating()) {
-      if (viewId === 'roles' && (this.store.originalRole() === 'manager' || this.store.originalUser()?.role === 'manager')) {
+      if (viewId === 'roles' && (this.store.originalRole() === 'admin' || this.store.originalUser()?.role === 'admin')) {
         return true;
       }
     }
@@ -439,38 +524,36 @@ export class DashboardLayout {
       return roleId !== 'client';
     }
     switch (roleId) {
-      case 'manager':
+      case 'admin':
         return true;
+      case 'manager':
+        return viewId !== 'roles';
       case 'installer':
-        return viewId === 'installer' || viewId === 'performance';
+        return viewId === 'work';
       case 'client':
-        return viewId === 'client';
+        return false;
       case 'account_officer':
         return viewId === 'finance' || viewId === 'performance';
       case 'shop_manager':
         return viewId === 'shop' || viewId === 'doors';
       case 'dispatcher':
-        return viewId === 'dispatcher' || viewId === 'map';
+        return viewId === 'dispatcher';
       default: {
         const p = roleDef?.permissions;
         if (!p) return true;
         switch (viewId) {
-          case 'installer':
-            return p.canClockInOut || p.canUploadPhotos;
-          case 'client':
-            return p.canSignVerification;
           case 'shop':
             return p.canDispatchDoors;
           case 'doors':
             return p.canDispatchDoors || p.canManageRoles;
           case 'performance':
-            return p.canApproveBonuses || p.canClockInOut;
+            if (['client', 'installer', 'shop_manager', 'dispatcher'].includes(roleId)) return false;
+            return p.canApproveBonuses || roleId === 'admin';
           case 'finance':
             return p.canViewFinancials;
           case 'roles':
-            return p.canManageRoles;
+            return roleId === 'admin' || p.canManageRoles;
           case 'dispatcher':
-          case 'map':
             return roleId === 'dispatcher';
           default:
             return false;
@@ -498,7 +581,7 @@ export class DashboardLayout {
   });
 
   readonly activeLiveJob = computed(() => {
-    const all = this.store.jobs();
+    const all = this.store.branchJobs();
     return all.find(j => j.status === 'on_site' || j.status === 'dispatched' || j.status === 'accepted') || null;
   });
 
@@ -532,16 +615,16 @@ export class DashboardLayout {
     if (this.currentView() === 'overview') {
       targetView = 'overview';
     } else if (roleId === 'installer') {
-      targetView = 'installer';
+      targetView = 'map';
     } else if (roleId === 'client') {
-      targetView = 'client';
+      targetView = 'map';
     } else if (roleId === 'account_officer') {
       targetView = 'finance';
     } else if (roleId === 'shop_manager') {
       targetView = 'shop';
     } else if (roleId === 'dispatcher') {
       targetView = 'dispatcher';
-    } else if (roleId === 'manager') {
+    } else if (roleId === 'admin' || roleId === 'manager') {
       targetView = 'overview';
     } else {
       const allowed = this.filteredMenuItems();
@@ -613,7 +696,11 @@ export class DashboardLayout {
       component.newJobOpened.subscribe(() => this.showNewJobModal.set(true));
     }
     if (component.bonusModalOpened) {
-      component.bonusModalOpened.subscribe(() => this.showBonusModal.set(true));
+      component.bonusModalOpened.subscribe(() => {
+        if (!['client', 'installer', 'shop_manager', 'dispatcher'].includes(this.store.currentRole())) {
+          this.showBonusModal.set(true);
+        }
+      });
     }
     if (component.manageUsersOpened) {
       component.manageUsersOpened.subscribe(() => this.setView('roles'));

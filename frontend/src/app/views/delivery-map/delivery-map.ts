@@ -7,18 +7,30 @@ import {
   computed, 
   effect, 
   inject, 
+  output, 
   signal, 
   viewChild 
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
 import { ThemeStore } from '../../services/theme';
-import { InstallationJob } from '../../models/installation.model';
+import { AlertService } from '../../services/alert.service';
+import { 
+  InstallationJob, 
+  LiveLocation, 
+  RoleType, 
+  ShopLocationSettings 
+} from '../../models/installation.model';
 import type * as LType from 'leaflet';
 
 let L: typeof LType | null = null;
+
+export type MapRoleFilter = 'all' | 'installer' | 'dispatcher' | 'shop_manager' | 'client';
+export type MapTimeFilter = 'all' | 'today' | 'week' | 'month' | 'year' | 'custom';
+export type MapStatusFilter = 'all' | 'live' | 'pending' | 'completed';
 
 export interface RouteStats {
   distanceKm: number;
@@ -27,114 +39,406 @@ export interface RouteStats {
   corridor: string;
 }
 
-export interface TurnStep {
-  instruction: string;
-  distanceMeters: number;
-  icon: string;
+export interface MapUserOption {
+  id: string;
+  name: string;
+  role: string;
+  detail?: string;
 }
 
 @Component({
   selector: 'app-delivery-map',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, RouterModule, MatIconModule],
+  imports: [CommonModule, RouterModule, FormsModule, MatIconModule],
   template: `
     <div class="space-y-4">
       
-      <!-- Top Header & Navigation Ribbon -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+      <!-- ================================================================= -->
+      <!-- TOP OVERSIGHT HEADER & TELEMETRY KPI BANNER                       -->
+      <!-- ================================================================= -->
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div>
-          <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
-            <a routerLink="/dispatcher" class="hover:text-teal-600 dark:hover:text-teal-400 flex items-center gap-1 font-medium transition-colors">
-              <mat-icon class="!text-xs">arrow_back</mat-icon>
-              <span>Logistics Dispatch</span>
-            </a>
+          <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1 flex-wrap">
+            <span class="inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md"
+              [class]="isSuperOversight() ? 'bg-cyan-100 dark:bg-cyan-950/80 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'">
+              <mat-icon class="!text-xs">{{ isSuperOversight() ? 'admin_panel_settings' : 'travel_explore' }}</mat-icon>
+              <span>{{ isSuperOversight() ? 'Super-Oversight: Admin & Operations Command' : store.currentRoleDefinition().name + ' Telematics' }}</span>
+            </span>
             <span aria-hidden="true">·</span>
             <span class="text-teal-700 dark:text-teal-400 font-bold flex items-center gap-1">
               <span class="w-2 h-2 rounded-full bg-teal-500 animate-ping"></span>
-              <span>Intelligent Road Routing Active</span>
+              <span>OpenStreetMap Live Road Radar Active</span>
+            </span>
+            <span aria-hidden="true">·</span>
+            <span class="font-mono text-[11px] text-slate-500 dark:text-slate-400">
+              Showing {{ filteredJobs().length }} of {{ allScopedJobs().length }} jobs
             </span>
           </div>
+          
           <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <span>Delivery Route Navigation & Live Telematics Map</span>
+            <span>Unified Field Operations, Installation & Telematics Map</span>
           </h1>
-          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Real-time OpenStreetMap road network · Automatic shortest route corridor · Real-time off-route deviation detection & auto re-routing
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-3xl">
+            Real-time multi-role surveillance across Greater Accra & regional corridors. Live technician attendance, GPS logistics fleet telematics, customer site destinations, and automated shortest-corridor road routing.
           </p>
         </div>
 
-        <!-- Quick Summary Telemetry Badges -->
+        <!-- KPI Telemetry Badges (Merged from Installer, Client & Fleet) -->
         <div class="flex flex-wrap items-center gap-2">
-          <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-bold font-mono">
+          <!-- Active Live Units (GPS Transmitting) -->
+          <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold font-mono shadow-2xs">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>{{ liveTelemetryUnits().length }} Live Units Active</span>
+          </div>
+
+          <!-- Live In Progress / On Route Jobs -->
+          <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 text-xs font-bold font-mono shadow-2xs">
             <mat-icon class="!text-xs">local_shipping</mat-icon>
-            <span>{{ acceptedDeliveries().length }} Accepted Deliveries</span>
-          </span>
-          @if (activeEnRouteTrip()) {
-            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-xs font-bold font-mono">
-              <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-              <span>Trip In Transit</span>
-            </span>
-          }
+            <span>{{ liveOpsCount() }} Live Ops</span>
+          </div>
+
+          <!-- Pending Jobs -->
+          <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-xs font-bold font-mono shadow-2xs">
+            <mat-icon class="!text-xs">hourglass_top</mat-icon>
+            <span>{{ pendingOpsCount() }} Pending</span>
+          </div>
+
+          <!-- Completed Jobs -->
+          <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-bold font-mono shadow-2xs">
+            <mat-icon class="!text-xs">verified</mat-icon>
+            <span>{{ completedOpsCount() }} Completed</span>
+          </div>
         </div>
       </div>
 
-      <!-- Manifest Selection Tabs (All Accepted Deliveries) -->
+      <!-- ================================================================= -->
+      <!-- MULTI-ROLE COMPREHENSIVE FILTER & SURVEILLANCE CONTROL BAR        -->
+      <!-- ================================================================= -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-3.5">
+        
+        <!-- Primary Filter Controls: Roles, Staff Users, Lifecycle Status & Search -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          
+          <!-- 1. Role Filter -->
+          <div class="space-y-1">
+            <label class="block font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider flex items-center gap-1">
+              <mat-icon class="!text-xs text-cyan-600">badge</mat-icon>
+              <span>Filter by Role:</span>
+            </label>
+            <select
+              [ngModel]="roleFilter()"
+              (ngModelChange)="onRoleFilterChange($event)"
+              class="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer shadow-2xs"
+            >
+              <option value="all">🌐 All Roles & Portals (Omni-View)</option>
+              <option value="installer">🛠️ Field Installers (Technicians)</option>
+              <option value="dispatcher">🚚 Dispatch Drivers (Logistics Trucks)</option>
+              <option value="shop_manager">🏪 Shop Managers (Counter & Workshops)</option>
+              <option value="client">👤 Clients & Site Owners</option>
+            </select>
+          </div>
+
+          <!-- 2. Staff / User Names Filter -->
+          <div class="space-y-1">
+            <label class="block font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider flex items-center gap-1">
+              <mat-icon class="!text-xs text-cyan-600">person_search</mat-icon>
+              <span>Filter by Staff / User:</span>
+            </label>
+            <select
+              [ngModel]="userFilter()"
+              (ngModelChange)="onUserFilterChange($event)"
+              class="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer shadow-2xs"
+            >
+              <option value="all">👥 All Staff & Personnel ({{ userOptions().length }} Available)</option>
+              @for (opt of userOptions(); track opt.id) {
+                <option [value]="opt.id">
+                  {{ opt.name }} ({{ opt.role }}{{ opt.detail ? ' · ' + opt.detail : '' }})
+                </option>
+              }
+            </select>
+          </div>
+
+          <!-- 3. Lifecycle Status Filter -->
+          <div class="space-y-1">
+            <label class="block font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider flex items-center gap-1">
+              <mat-icon class="!text-xs text-cyan-600">traffic</mat-icon>
+              <span>Lifecycle Status:</span>
+            </label>
+            <div class="inline-flex items-center w-full p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-[11px] font-bold">
+              <button
+                type="button"
+                (click)="setStatusFilter('all')"
+                [class]="statusFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="flex-1 py-1 text-center rounded-lg transition-all cursor-pointer"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                (click)="setStatusFilter('live')"
+                [class]="statusFilter() === 'live' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="flex-1 py-1 text-center rounded-lg transition-all cursor-pointer flex items-center justify-center gap-0.5"
+              >
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+                <span>Live</span>
+              </button>
+              <button
+                type="button"
+                (click)="setStatusFilter('pending')"
+                [class]="statusFilter() === 'pending' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="flex-1 py-1 text-center rounded-lg transition-all cursor-pointer"
+              >
+                Pending
+              </button>
+              <button
+                type="button"
+                (click)="setStatusFilter('completed')"
+                [class]="statusFilter() === 'completed' ? 'bg-purple-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="flex-1 py-1 text-center rounded-lg transition-all cursor-pointer"
+              >
+                Completed
+              </button>
+            </div>
+          </div>
+
+          <!-- 4. Text Search Query -->
+          <div class="space-y-1">
+            <label class="block font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider flex items-center gap-1">
+              <mat-icon class="!text-xs text-cyan-600">search</mat-icon>
+              <span>Search Orders & Sites:</span>
+            </label>
+            <div class="relative">
+              <input
+                type="text"
+                [ngModel]="searchQuery()"
+                (ngModelChange)="searchQuery.set($event)"
+                placeholder="Search order ID, client, tech, truck..."
+                class="w-full pl-8 pr-7 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-cyan-500 shadow-2xs"
+              />
+              <mat-icon class="absolute left-2.5 top-1/2 -translate-y-1/2 !text-xs text-slate-400">search</mat-icon>
+              @if (searchQuery()) {
+                <button
+                  type="button"
+                  (click)="searchQuery.set('')"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <mat-icon class="!text-xs">close</mat-icon>
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+
+        <!-- Secondary Filter Controls: Timeframe (Today, Week, Month, Year, Datepicker Range) & Layer Toggles -->
+        <div class="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+          
+          <!-- Timeframe Pills + Datepicker Range -->
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <mat-icon class="!text-xs text-teal-600">calendar_today</mat-icon>
+              <span>Timeframe:</span>
+            </span>
+
+            <div class="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                (click)="setTimeFilter('all')"
+                [class]="timeFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                (click)="setTimeFilter('today')"
+                [class]="timeFilter() === 'today' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                (click)="setTimeFilter('week')"
+                [class]="timeFilter() === 'week' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+              >
+                Week
+              </button>
+              <button
+                type="button"
+                (click)="setTimeFilter('month')"
+                [class]="timeFilter() === 'month' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+              >
+                Month
+              </button>
+              <button
+                type="button"
+                (click)="setTimeFilter('year')"
+                [class]="timeFilter() === 'year' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+              >
+                Year
+              </button>
+              <button
+                type="button"
+                (click)="setTimeFilter('custom')"
+                [class]="timeFilter() === 'custom' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+              >
+                Date Range
+              </button>
+            </div>
+
+            <!-- Datepicker Range Inputs (Visible when Custom Range selected) -->
+            @if (timeFilter() === 'custom') {
+              <div class="inline-flex items-center gap-1.5 p-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs">
+                <span class="text-[10px] text-slate-400 font-mono pl-1">From:</span>
+                <input
+                  type="date"
+                  [ngModel]="customStartDate()"
+                  (ngModelChange)="customStartDate.set($event)"
+                  class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-mono"
+                />
+                <span class="text-[10px] text-slate-400 font-mono">To:</span>
+                <input
+                  type="date"
+                  [ngModel]="customEndDate()"
+                  (ngModelChange)="customEndDate.set($event)"
+                  class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-mono"
+                />
+                @if (customStartDate() || customEndDate()) {
+                  <button
+                    type="button"
+                    (click)="clearCustomDateRange()"
+                    class="p-0.5 text-slate-400 hover:text-red-500 rounded cursor-pointer"
+                    title="Reset date range"
+                  >
+                    <mat-icon class="!text-xs">close</mat-icon>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- Interactive Map Layer Toggles -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Layers:</span>
+            
+            <button
+              type="button"
+              (click)="toggleLayer('trucks')"
+              class="px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border"
+              [class]="showTrucks() ? 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 border-transparent opacity-60'"
+            >
+              <span>🚚 Trucks</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="toggleLayer('installers')"
+              class="px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border"
+              [class]="showInstallers() ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 border-transparent opacity-60'"
+            >
+              <span>🛠️ Technicians</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="toggleLayer('sites')"
+              class="px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border"
+              [class]="showSites() ? 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300 border-teal-300 dark:border-teal-800' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 border-transparent opacity-60'"
+            >
+              <span>📍 Sites</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="toggleLayer('branches')"
+              class="px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border"
+              [class]="showBranches() ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 border-transparent opacity-60'"
+            >
+              <span>🏪 Showrooms</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- MANIFEST ORDER CAROUSEL / STRIP (FILTER-SYNCHRONIZED)             -->
+      <!-- ================================================================= -->
       <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3.5 shadow-xs space-y-2">
         <div class="flex items-center justify-between">
           <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <mat-icon class="!text-xs text-teal-600">playlist_add_check</mat-icon>
-            <span>Accepted Deliveries Plotted on Map ({{ acceptedDeliveries().length }})</span>
+            <span>Plotted Operations & Site Work Orders ({{ todayPlottedJobs().length }})</span>
+            <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-800">Today Only</span>
           </span>
-          <span class="text-[11px] text-slate-400">Click a delivery to route shortest path</span>
+          <span class="text-[11px] text-slate-400">Click any card to focus road routing & telemetry</span>
         </div>
 
-        @if (acceptedDeliveries().length === 0) {
+        @if (todayPlottedJobs().length === 0) {
           <div class="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
-            No accepted deliveries currently in queue. Once a driver accepts an assigned run, it appears here with full live road routing.
+            No installation operations or site work orders scheduled for today.
           </div>
         } @else {
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-            @for (job of acceptedDeliveries(); track job.id) {
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+            @for (job of todayPlottedJobs(); track job.id) {
               <button
                 type="button"
                 (click)="selectJob(job.id)"
-                class="p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2"
+                class="p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 shadow-2xs"
                 [class]="selectedJobId() === job.id 
-                  ? 'bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 ring-2 ring-teal-500/30 dark:ring-teal-400/20 shadow-xs' 
+                  ? 'bg-teal-50/90 dark:bg-teal-950/40 border-teal-500 ring-2 ring-teal-500/30 dark:ring-teal-400/20 shadow-xs' 
                   : 'bg-slate-50/70 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'"
               >
-                <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-1.5">
-                      <span class="font-mono text-[10px] font-extrabold px-1.5 py-0.2 rounded"
+                <div class="flex items-start justify-between gap-1.5">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="font-mono text-[9px] font-extrabold px-1.5 py-0.2 rounded"
                         [class]="selectedJobId() === job.id ? 'bg-teal-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'">
                         {{ job.id }}
                       </span>
+                      
+                      <!-- Status Badge -->
                       @if (job.status === 'dispatched') {
                         <span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-700 flex items-center gap-0.5">
                           <span class="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping"></span>
                           <span>In Transit</span>
                         </span>
                       } @else if (job.status === 'delivered_on_site' || job.status === 'on_site') {
-                        <span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                          Delivered
+                        <span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center gap-0.5">
+                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5">engineering</mat-icon>
+                          <span>On Site</span>
+                        </span>
+                      } @else if (job.status === 'completed' || job.status === 'bonus_awarded') {
+                        <span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300">
+                          Completed
                         </span>
                       } @else {
-                        <span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                          Accepted
+                        <span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
+                          Pending
                         </span>
                       }
                     </div>
-                    <h4 class="text-xs font-extrabold text-slate-900 dark:text-white truncate mt-1">{{ job.doorModel }}</h4>
+
+                    <h4 class="text-xs font-bold text-slate-900 dark:text-white truncate mt-1 leading-tight">{{ job.doorModel }}</h4>
                   </div>
 
-                  <span class="text-[10px] font-mono text-slate-400 shrink-0 font-bold">
+                  <span class="text-[9px] font-mono text-slate-400 shrink-0">
                     {{ job.scheduledDate }}
                   </span>
                 </div>
 
-                <div class="text-[11px] text-slate-600 dark:text-slate-300 truncate flex items-center gap-1">
-                  <mat-icon class="!text-[12px] !w-3.5 !h-3.5 text-red-500 shrink-0">place</mat-icon>
-                  <span class="truncate">{{ job.client.name }} · {{ job.client.siteAddress }}</span>
+                <div class="space-y-0.5 text-[10px] text-slate-600 dark:text-slate-300">
+                  <p class="truncate flex items-center gap-1">
+                    <mat-icon class="!text-[11px] !w-3 !h-3 text-red-500 shrink-0">place</mat-icon>
+                    <span class="truncate">{{ job.client.name }} · {{ job.client.siteAddress }}</span>
+                  </p>
+                  <p class="truncate text-slate-400 flex items-center gap-1 font-mono">
+                    <mat-icon class="!text-[11px] !w-3 !h-3 text-emerald-500 shrink-0">handyman</mat-icon>
+                    <span>Tech: {{ job.assignedInstallerName || 'Ops Queue' }}</span>
+                  </p>
                 </div>
               </button>
             }
@@ -142,7 +446,9 @@ export interface TurnStep {
         }
       </div>
 
-      <!-- MAIN MAP CANVAS CONTAINER & NAVIGATION OVERLAYS -->
+      <!-- ================================================================= -->
+      <!-- MAIN LEAFLET MAP CANVAS CONTAINER & TELEMETRY HUD                 -->
+      <!-- ================================================================= -->
       <div class="relative isolate z-0 w-full rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl bg-slate-950">
         
         <!-- Top Overlay: Live Routing & Shortest Road HUD -->
@@ -172,9 +478,9 @@ export interface TurnStep {
                 <span class="text-slate-500">·</span>
                 <span class="text-slate-300 font-sans truncate max-w-[180px] sm:max-w-xs">
                   @if (selectedJob(); as curJob) {
-                    {{ curJob.client.name }}
+                    {{ curJob.client.name }} (#{{ curJob.id }})
                   } @else {
-                    Select Manifest
+                    Select Operation
                   }
                 </span>
               </div>
@@ -248,14 +554,16 @@ export interface TurnStep {
         </div>
 
         <!-- LEAFLET MAP ELEMENT -->
-        <div class="relative w-full h-[450px] sm:h-[550px] lg:h-[620px] bg-slate-950">
+        <div class="relative w-full h-[480px] sm:h-[580px] lg:h-[650px] bg-slate-950">
           <div #mapContainer class="relative w-full h-full bg-slate-950 z-0"></div>
         </div>
 
-        <!-- Bottom Floating Navigation HUD & Driver Action Drawer -->
+        <!-- ================================================================= -->
+        <!-- BOTTOM FLOATING HUD: MERGED FROM INSTALLER & CLIENT PORTALS       -->
+        <!-- ================================================================= -->
         @if (selectedJob()) {
           @let j = selectedJob()!;
-          <div class="absolute bottom-3 left-3 right-3 sm:right-auto sm:max-w-xl z-10 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-700/80 p-4 rounded-2xl shadow-2xl text-white space-y-3 animate-in fade-in">
+          <div class="absolute bottom-3 left-3 right-3 sm:right-auto sm:max-w-2xl z-10 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-700/80 p-4 rounded-2xl shadow-2xl text-white space-y-3 animate-in fade-in">
             
             <!-- Live Deviation / Re-routing Alert Toast -->
             @if (rerouteToast()) {
@@ -270,36 +578,88 @@ export interface TurnStep {
               </div>
             }
 
-            <!-- Destination & Vehicle Details -->
+            <!-- Destination & Target Cargo Details -->
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <span class="text-[9px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-400/30">
-                  Target Destination · {{ j.id }}
-                </span>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-[9px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-400/30">
+                    Operation #{{ j.id }}
+                  </span>
+                  <span class="text-[9px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                    {{ j.doorCategory || 'Pivot Door' }}
+                  </span>
+                </div>
+
                 <h3 class="text-sm sm:text-base font-extrabold text-white truncate mt-1">
-                  {{ j.client.name }}
+                  {{ j.client.name }} · {{ j.doorModel }}
                 </h3>
                 <p class="text-xs text-slate-300 truncate flex items-center gap-1 mt-0.5">
                   <mat-icon class="!text-xs text-red-400">place</mat-icon>
                   <span>{{ j.client.siteAddress }}</span>
                 </p>
                 <p class="text-[11px] text-slate-400 mt-0.5 font-mono">
-                  Cargo: <strong class="text-slate-200">{{ j.doorModel }}</strong> · Lock: {{ j.lockModel || 'Smart Lock Set' }}
+                  Dimensions: {{ j.dimensions }} · Lock: {{ j.lockModel || 'Smart Lock' }}
                 </p>
               </div>
 
-              <!-- Quick Client Call Button -->
-              <a 
-                [href]="'tel:' + j.client.phone" 
-                class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-bold flex items-center gap-1 shrink-0 transition-colors"
-              >
-                <mat-icon class="!text-xs text-teal-400">phone</mat-icon>
-                <span class="hidden sm:inline">Call Client</span>
-              </a>
+              <!-- Quick Client Call Button (from Client Portal) -->
+              <div class="flex items-center gap-1.5 shrink-0">
+                <a 
+                  [href]="'tel:' + j.client.phone" 
+                  class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-bold flex items-center gap-1 transition-colors"
+                  title="Call Customer Site"
+                >
+                  <mat-icon class="!text-xs text-teal-400">phone</mat-icon>
+                  <span class="hidden sm:inline">Call Client</span>
+                </a>
+
+                <button
+                  type="button"
+                  (click)="jobSelected.emit(j.id)"
+                  class="px-2.5 py-1.5 bg-cyan-700 hover:bg-cyan-600 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
+                  title="Open Full Operational Work Order Modal"
+                >
+                  <mat-icon class="!text-xs">visibility</mat-icon>
+                  <span class="hidden sm:inline">Inspect Order</span>
+                </button>
+              </div>
             </div>
 
-            <!-- Route Metrics Grid -->
-            <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-center font-mono text-xs">
+            <!-- Merged Logic Strip 1: Technician Site Attendance & Checklist (from installer-portal) -->
+            <div class="bg-slate-800/70 p-2.5 rounded-xl border border-slate-700/80 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div class="space-y-0.5">
+                <span class="text-[9px] uppercase font-bold text-slate-400 block flex items-center gap-1">
+                  <mat-icon class="!text-[11px] !w-3 !h-3 text-emerald-400">handyman</mat-icon>
+                  <span>Installation Team:</span>
+                </span>
+                <p class="font-bold text-white text-xs truncate">
+                  {{ j.assignedInstallerName || 'Operations Queue (Unassigned)' }}
+                </p>
+                <div class="flex items-center gap-1.5 text-[10px] font-mono">
+                  <span class="px-1.5 py-0.2 rounded font-bold"
+                    [class]="j.installerAssignmentStatus === 'accepted' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-amber-950 text-amber-300 border border-amber-800'">
+                    {{ j.installerAssignmentStatus === 'accepted' ? (j.installerAutoAccepted ? 'Auto-Accepted' : 'Accepted') : 'Pending Acceptance' }}
+                  </span>
+                  <span class="text-slate-400">· Scheduled: {{ j.scheduledDate }}</span>
+                </div>
+              </div>
+
+              <div class="space-y-0.5">
+                <span class="text-[9px] uppercase font-bold text-slate-400 block flex items-center gap-1">
+                  <mat-icon class="!text-[11px] !w-3 !h-3 text-cyan-400">local_shipping</mat-icon>
+                  <span>Logistics Truck & Dispatch:</span>
+                </span>
+                <p class="font-bold text-white text-xs truncate">
+                  {{ j.dispatcherName || 'Pending Store Dispatcher' }}
+                </p>
+                <p class="text-[10px] text-slate-400 font-mono truncate">
+                  {{ j.logisticsTruck?.truckPlate ? j.logisticsTruck?.truckPlate + ' (' + (j.logisticsTruck?.truckModel || 'Truck') + ')' : 'No truck assigned yet' }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Merged Logic Strip 2: Shortest Distance, Driving Time & Route Corridor -->
+            <div class="grid grid-cols-3 gap-2 text-center font-mono text-xs">
               <div class="bg-slate-800/60 p-2 rounded-xl">
                 <span class="text-[9px] text-slate-400 uppercase block">Shortest Distance</span>
                 <strong class="text-sm text-teal-400 font-black tabular-nums">
@@ -315,12 +675,12 @@ export interface TurnStep {
               <div class="bg-slate-800/60 p-2 rounded-xl">
                 <span class="text-[9px] text-slate-400 uppercase block">Route Corridor</span>
                 <strong class="text-xs text-slate-300 truncate block">
-                  {{ routeStats()?.corridor || 'Accra Arterial' }}
+                  {{ routeStats()?.corridor || 'Accra Primary Arterial' }}
                 </strong>
               </div>
             </div>
 
-            <!-- Trip Lifecycle Controls Directly on Map -->
+            <!-- Direct Trip Lifecycle Controls Directly on Map -->
             <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-800 text-xs">
               <div class="flex items-center gap-1.5">
                 <span class="text-[10px] text-slate-400 font-mono">Status:</span>
@@ -392,20 +752,39 @@ export interface TurnStep {
 export class DeliveryMap implements AfterViewInit, OnDestroy {
   readonly store = inject(InstallationStore);
   readonly themeStore = inject(ThemeStore);
+  readonly alert = inject(AlertService);
+
+  jobSelected = output<string>();
 
   private mapEl = viewChild<ElementRef<HTMLDivElement>>('mapContainer');
   private map: LType.Map | null = null;
   private tileLayer: LType.TileLayer | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
-  // Markers and Polylines
+  // Leaflet Layer Collections
   private destinationMarkers = new Map<string, LType.Marker>();
   private branchMarkers = new Map<string, LType.Marker>();
+  private liveUnitMarkers = new Map<string, LType.Marker>();
   private riderMarker: LType.Marker | null = null;
   private activeRoutePolyline: LType.Polyline | null = null;
   private offRouteTrailPolyline: LType.Polyline | null = null;
 
-  // State
+  // Layer Toggles
+  readonly showTrucks = signal<boolean>(true);
+  readonly showInstallers = signal<boolean>(true);
+  readonly showSites = signal<boolean>(true);
+  readonly showBranches = signal<boolean>(true);
+
+  // Filters State
+  readonly roleFilter = signal<MapRoleFilter>('all');
+  readonly userFilter = signal<string>('all');
+  readonly timeFilter = signal<MapTimeFilter>('all');
+  readonly statusFilter = signal<MapStatusFilter>('all');
+  readonly searchQuery = signal<string>('');
+  readonly customStartDate = signal<string>('');
+  readonly customEndDate = signal<string>('');
+
+  // Selected Job & Telematics State
   readonly selectedJobId = signal<string | null>(null);
   readonly riderPosition = signal<{ lat: number; lng: number }>({ lat: 5.6320, lng: -0.0980 });
   readonly routeStats = signal<RouteStats | null>(null);
@@ -413,46 +792,350 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   readonly hasRerouted = signal<boolean>(false);
   readonly rerouteToast = signal<string | null>(null);
 
-  // Stored planned polyline points for deviation distance calculation
+  // Planned Route Points & Step Index
   private currentPlannedRoute: [number, number][] = [];
   private stepIndex: number = 0;
 
-  // All Accepted Deliveries across the fleet (or driver-scoped)
-  readonly acceptedDeliveries = computed<InstallationJob[]>(() => {
-    const isDriver = this.store.currentRole() === 'dispatcher';
-    const jobs = isDriver ? this.store.dispatcherJobs() : this.store.jobs();
-    return jobs.filter(j => 
-      j.driverAssignmentStatus === 'accepted' || 
-      j.status === 'dispatched' || 
-      j.status === 'delivered_on_site' || 
-      j.status === 'on_site' ||
-      (j.logisticsTruck && (j.status === 'truck_assigned' || j.status === 'site_funds_dispatched'))
-    );
+  /**
+   * Super-Oversight: Admin and Operations Manager can oversee everything across all branches and personnel.
+   */
+  readonly isSuperOversight = computed(() => {
+    const role = this.store.currentRole();
+    return role === 'admin' || role === 'manager' || this.store.canCurrentRoleAssignInstallers();
   });
 
-  readonly activeEnRouteTrip = computed(() => 
-    this.acceptedDeliveries().find(j => j.status === 'dispatched') || null
+  /**
+   * Base scoped jobs depending on role perspective:
+   * Admins and Operations Managers oversee all jobs across Ghana.
+   * Shop Managers view their shop branch bookings.
+   * Dispatchers view their deliveries.
+   * Installers view their installations.
+   * Clients view their orders.
+   */
+  readonly allScopedJobs = computed<InstallationJob[]>(() => {
+    const role = this.store.currentRole();
+    if (this.isSuperOversight()) {
+      return this.store.jobs();
+    }
+    if (role === 'shop_manager') {
+      return this.store.branchJobs();
+    }
+    if (role === 'dispatcher') {
+      return this.store.dispatcherJobs();
+    }
+    if (role === 'installer') {
+      return this.store.jobs().filter(j => this.store.isJobAssignedToCurrentInstaller(j));
+    }
+    if (role === 'client') {
+      return this.store.clientJobs();
+    }
+    return this.store.jobs();
+  });
+
+  /**
+   * Available staff options for the user filter dropdown.
+   */
+  readonly userOptions = computed<MapUserOption[]>(() => {
+    const options: MapUserOption[] = [];
+
+    // Installers
+    this.store.installers().forEach(i => {
+      options.push({
+        id: i.id,
+        name: i.name,
+        role: 'Technician',
+        detail: i.teamName || 'Field Tech'
+      });
+    });
+
+    // Dispatchers
+    this.store.dispatchers().forEach(d => {
+      options.push({
+        id: d.id,
+        name: d.name,
+        role: 'Dispatcher',
+        detail: d.assignedTruck.plate
+      });
+    });
+
+    // Shop Managers
+    this.store.branches().forEach(b => {
+      options.push({
+        id: b.branchCode,
+        name: b.managerName,
+        role: 'Shop Manager',
+        detail: b.shopName.replace('DoorMaster ', '')
+      });
+    });
+
+    // Clients
+    const uniqueClients = new Map<string, string>();
+    this.store.jobs().forEach(j => {
+      if (j.client && j.client.id && !uniqueClients.has(j.client.id)) {
+        uniqueClients.set(j.client.id, j.client.name);
+      }
+    });
+    uniqueClients.forEach((name, id) => {
+      options.push({
+        id,
+        name,
+        role: 'Client'
+      });
+    });
+
+    return options;
+  });
+
+  /**
+   * Filtered jobs based on role, user name, timeframe (today, week, month, year, datepicker range), status, and search query.
+   */
+  readonly filteredJobs = computed<InstallationJob[]>(() => {
+    const list = this.allScopedJobs();
+    const rFilter = this.roleFilter();
+    const uFilter = this.userFilter();
+    const tFilter = this.timeFilter();
+    const sFilter = this.statusFilter();
+    const q = this.searchQuery().trim().toLowerCase();
+    const startDate = this.customStartDate();
+    const endDate = this.customEndDate();
+
+    return list.filter(job => {
+      // 1. Role Filter
+      if (rFilter !== 'all') {
+        if (rFilter === 'installer' && !job.assignedInstallerId && (!job.assignedInstallers || job.assignedInstallers.length === 0)) {
+          return false;
+        }
+        if (rFilter === 'dispatcher' && !job.dispatcherId) {
+          return false;
+        }
+        if (rFilter === 'shop_manager' && !job.shopBranch && !job.shopBooking) {
+          return false;
+        }
+        if (rFilter === 'client' && !job.client) {
+          return false;
+        }
+      }
+
+      // 2. Staff / User Filter
+      if (uFilter !== 'all') {
+        const matchesInstaller = 
+          job.assignedInstallerId === uFilter || 
+          (job.assignedInstallerIds && job.assignedInstallerIds.includes(uFilter)) ||
+          (job.assignedInstallerName && job.assignedInstallerName.includes(uFilter));
+        const matchesDriver = 
+          job.dispatcherId === uFilter || 
+          (job.dispatcherName && job.dispatcherName.includes(uFilter));
+        const matchesClient = 
+          job.client?.id === uFilter || 
+          job.client?.name === uFilter;
+        const matchesShop = 
+          (job.shopBooking?.bookedByShopManager && job.shopBooking.bookedByShopManager.includes(uFilter)) ||
+          job.shopBranch?.includes(uFilter);
+
+        if (!matchesInstaller && !matchesDriver && !matchesClient && !matchesShop) {
+          return false;
+        }
+      }
+
+      // 3. Status Filter
+      if (sFilter !== 'all') {
+        const isLive = job.status === 'dispatched' || job.status === 'delivered_on_site' || job.status === 'on_site';
+        const isCompleted = job.status === 'installed_pending_signoff' || job.status === 'completed' || job.status === 'bonus_awarded';
+        const isPending = !isLive && !isCompleted;
+
+        if (sFilter === 'live' && !isLive) return false;
+        if (sFilter === 'pending' && !isPending) return false;
+        if (sFilter === 'completed' && !isCompleted) return false;
+      }
+
+      // 4. Timeframe Filter (today, week, month, year, custom range)
+      if (tFilter !== 'all') {
+        if (!this.matchesTimeFilter(job, tFilter, startDate, endDate)) {
+          return false;
+        }
+      }
+
+      // 5. Text Search Query
+      if (q) {
+        const hay = [
+          job.id,
+          job.title,
+          job.doorModel,
+          job.finish,
+          job.client?.name,
+          job.client?.siteAddress,
+          job.assignedInstallerName,
+          job.dispatcherName,
+          job.logisticsTruck?.truckPlate,
+          job.shopBranch
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        if (!hay.includes(q)) return false;
+      }
+
+      return true;
+    });
+  });
+
+  /**
+   * Operations & Site Work Orders scheduled strictly for TODAY.
+   * Rendered in the "Plotted Operations & Site Work Orders" card.
+   * Filtered by active role, staff user, lifecycle status, and text search, but strictly restricted to today's tasks.
+   */
+  readonly todayPlottedJobs = computed<InstallationJob[]>(() => {
+    const list = this.allScopedJobs();
+    const rFilter = this.roleFilter();
+    const uFilter = this.userFilter();
+    const sFilter = this.statusFilter();
+    const q = this.searchQuery().trim().toLowerCase();
+
+    return list.filter(job => {
+      // Must strictly be today's task only
+      if (!this.isJobToday(job)) {
+        return false;
+      }
+
+      // 1. Role Filter
+      if (rFilter !== 'all') {
+        if (rFilter === 'installer' && !job.assignedInstallerId && (!job.assignedInstallers || job.assignedInstallers.length === 0)) {
+          return false;
+        }
+        if (rFilter === 'dispatcher' && !job.dispatcherId) {
+          return false;
+        }
+        if (rFilter === 'shop_manager' && !job.shopBranch && !job.shopBooking) {
+          return false;
+        }
+        if (rFilter === 'client' && !job.client) {
+          return false;
+        }
+      }
+
+      // 2. Staff / User Filter
+      if (uFilter !== 'all') {
+        const matchesInstaller = 
+          job.assignedInstallerId === uFilter || 
+          (job.assignedInstallerIds && job.assignedInstallerIds.includes(uFilter)) ||
+          (job.assignedInstallerName && job.assignedInstallerName.includes(uFilter));
+        const matchesDriver = 
+          job.dispatcherId === uFilter || 
+          (job.dispatcherName && job.dispatcherName.includes(uFilter));
+        const matchesClient = 
+          job.client?.id === uFilter || 
+          job.client?.name === uFilter;
+        const matchesShop = 
+          (job.shopBooking?.bookedByShopManager && job.shopBooking.bookedByShopManager.includes(uFilter)) ||
+          job.shopBranch?.includes(uFilter);
+
+        if (!matchesInstaller && !matchesDriver && !matchesClient && !matchesShop) {
+          return false;
+        }
+      }
+
+      // 3. Status Filter
+      if (sFilter !== 'all') {
+        const isLive = job.status === 'dispatched' || job.status === 'delivered_on_site' || job.status === 'on_site';
+        const isCompleted = job.status === 'installed_pending_signoff' || job.status === 'completed' || job.status === 'bonus_awarded';
+        const isPending = !isLive && !isCompleted;
+
+        if (sFilter === 'live' && !isLive) return false;
+        if (sFilter === 'pending' && !isPending) return false;
+        if (sFilter === 'completed' && !isCompleted) return false;
+      }
+
+      // 4. Text Search Query
+      if (q) {
+        const hay = [
+          job.id,
+          job.title,
+          job.doorModel,
+          job.finish,
+          job.client?.name,
+          job.client?.siteAddress,
+          job.assignedInstallerName,
+          job.dispatcherName,
+          job.logisticsTruck?.truckPlate,
+          job.shopBranch
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        if (!hay.includes(q)) return false;
+      }
+
+      return true;
+    });
+  });
+
+  /**
+   * Metrics for the top oversight KPI banner
+   */
+  readonly liveOpsCount = computed(() => 
+    this.filteredJobs().filter(j => j.status === 'dispatched' || j.status === 'on_site' || j.status === 'delivered_on_site').length
   );
 
-  readonly selectedJob = computed(() => {
+  readonly pendingOpsCount = computed(() => 
+    this.filteredJobs().filter(j => 
+      j.status !== 'dispatched' && 
+      j.status !== 'on_site' && 
+      j.status !== 'delivered_on_site' && 
+      j.status !== 'completed' && 
+      j.status !== 'bonus_awarded' &&
+      j.status !== 'installed_pending_signoff'
+    ).length
+  );
+
+  readonly completedOpsCount = computed(() => 
+    this.filteredJobs().filter(j => j.status === 'completed' || j.status === 'bonus_awarded' || j.status === 'installed_pending_signoff').length
+  );
+
+  /**
+   * Live GPS Telematics Units from store
+   */
+  readonly liveTelemetryUnits = computed<LiveLocation[]>(() => {
+    return this.store.liveLocations();
+  });
+
+  /**
+   * Visible Showrooms & Warehouses
+   */
+  readonly visibleBranches = computed<ShopLocationSettings[]>(() => {
+    if (this.store.currentRole() === 'shop_manager') {
+      const own = this.store.managerBranch();
+      return own ? [own] : this.store.branches();
+    }
+    return this.store.branches();
+  });
+
+  /**
+   * Active En-Route Delivery
+   */
+  readonly activeEnRouteTrip = computed(() => 
+    this.filteredJobs().find(j => j.status === 'dispatched') || null
+  );
+
+  /**
+   * Currently Selected Job for Routing & HUD
+   */
+  readonly selectedJob = computed<InstallationJob | null>(() => {
     const selId = this.selectedJobId();
     if (selId) {
-      const match = this.acceptedDeliveries().find(j => j.id === selId);
+      const match = this.filteredJobs().find(j => j.id === selId) || this.allScopedJobs().find(j => j.id === selId);
       if (match) return match;
     }
-    // Default to active trip in transit, or first accepted job
     const inTransit = this.activeEnRouteTrip();
     if (inTransit) return inTransit;
-    return this.acceptedDeliveries()[0] || null;
+    return this.todayPlottedJobs()[0] || this.filteredJobs()[0] || null;
   });
 
   constructor() {
-    // Synchronize initial selection
+    // Synchronize initial selection & handle filter changes cleanly
     effect(() => {
-      const accepted = this.acceptedDeliveries();
-      if (!this.selectedJobId() && accepted.length > 0) {
+      const jobs = this.filteredJobs();
+      const curSel = this.selectedJobId();
+      if (jobs.length === 0) {
+        if (curSel !== null) this.selectedJobId.set(null);
+      } else if (!curSel || !jobs.some(j => j.id === curSel)) {
         const inTransit = this.activeEnRouteTrip();
-        this.selectedJobId.set(inTransit ? inTransit.id : accepted[0].id);
+        this.selectedJobId.set(inTransit ? inTransit.id : jobs[0].id);
       }
     });
 
@@ -464,19 +1147,26 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       }
     });
 
+    // Re-render markers when filtered jobs, branches, or live units change
+    effect(() => {
+      this.visibleBranches();
+      this.filteredJobs();
+      this.liveTelemetryUnits();
+      this.showTrucks();
+      this.showInstallers();
+      this.showSites();
+      this.showBranches();
+
+      if (this.map) {
+        this.renderAllMapLayers();
+      }
+    });
+
     // React when selected job changes -> recalculate shortest route & re-render
     effect(() => {
       const job = this.selectedJob();
       if (job && this.map) {
         this.onJobSelectionChanged(job);
-      }
-    });
-
-    // Sync driver's live GPS position from store if transmitting
-    effect(() => {
-      const live = this.store.myLiveLocation();
-      if (live && live.role === 'dispatcher') {
-        this.updateRiderPosition({ lat: live.latitude, lng: live.longitude });
       }
     });
   }
@@ -527,9 +1217,9 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     }
     if (!L || !container) return;
 
-    // Centered around Greater Accra Corridor
-    const centerLat = 5.6200;
-    const centerLng = -0.1800;
+    const ownBranch = this.store.currentRole() === 'shop_manager' ? this.store.managerBranch() : null;
+    const centerLat = ownBranch?.latitude ?? 5.6200;
+    const centerLng = ownBranch?.longitude ?? -0.1800;
 
     try {
       this.map = L.map(container, {
@@ -540,8 +1230,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       });
 
       this.updateTileLayer();
-      this.renderBranchMarkers();
-      this.renderAcceptedDeliveryMarkers();
+      this.renderAllMapLayers();
 
       const job = this.selectedJob();
       if (job) {
@@ -578,7 +1267,17 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Render all DoorMaster workshop/counter branches in Accra
+   * Master renderer for all map layers: Sites, Live Units, Showrooms & Active Route.
+   */
+  private renderAllMapLayers() {
+    if (!this.map) return;
+    this.renderBranchMarkers();
+    this.renderDestinationMarkers();
+    this.renderLiveUnitMarkers();
+  }
+
+  /**
+   * Render Showrooms & Regional Warehouses across Ghana
    */
   private renderBranchMarkers() {
     const leaflet = L;
@@ -587,27 +1286,34 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     this.branchMarkers.forEach(m => this.map?.removeLayer(m));
     this.branchMarkers.clear();
 
-    const branches = this.store.branches();
+    if (!this.showBranches()) return;
+
+    const branches = this.visibleBranches();
     branches.forEach(b => {
+      const isWarehouse = b.shopName.toLowerCase().includes('warehouse') || b.branchCode.includes('WH');
+      const badgeIcon = isWarehouse ? '🏭' : '🏪';
+      const borderColor = isWarehouse ? '#f59e0b' : '#06b6d4';
+
       const icon = leaflet.divIcon({
         className: 'custom-shop-hub-icon',
         html: `
-          <div style="background:#0f172a; color:#fff; padding:4px 8px; border-radius:10px; font-weight:800; font-size:9.5px; font-family:sans-serif; box-shadow:0 3px 10px rgba(0,0,0,0.5); border:1.5px solid #06b6d4; display:flex; align-items:center; gap:4px; white-space:nowrap;">
-            <span>🏪</span>
+          <div style="background:#0f172a; color:#fff; padding:4px 8px; border-radius:10px; font-weight:800; font-size:9.5px; font-family:sans-serif; box-shadow:0 3px 10px rgba(0,0,0,0.5); border:1.5px solid ${borderColor}; display:flex; align-items:center; gap:4px; white-space:nowrap;">
+            <span>${badgeIcon}</span>
             <span>${b.shopName.replace('DoorMaster ', '')}</span>
           </div>
         `,
-        iconSize: [140, 24],
-        iconAnchor: [70, 12]
+        iconSize: [150, 24],
+        iconAnchor: [75, 12]
       });
 
       const marker = leaflet.marker([b.latitude, b.longitude], { icon })
         .addTo(this.map!)
         .bindPopup(`
-          <div style="font-family:sans-serif; padding:2px;">
-            <strong style="color:#0f172a; font-size:12px;">🏪 ${b.shopName}</strong>
+          <div style="font-family:sans-serif; padding:3px; min-width:180px;">
+            <strong style="color:#0f172a; font-size:12px;">${badgeIcon} ${b.shopName}</strong>
             <p style="color:#475569; font-size:10px; margin:4px 0;">${b.address}</p>
-            <p style="color:#0284c7; font-size:10px; font-weight:bold;">Phone: ${b.phone}</p>
+            <p style="color:#0284c7; font-size:10px; font-weight:bold; margin:0;">Phone: ${b.phone}</p>
+            <p style="color:#64748b; font-size:9px; margin-top:2px;">Radius: ${b.dispatchRadiusKm} km · ${b.operatingHours}</p>
           </div>
         `);
 
@@ -616,40 +1322,66 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Render destination markers for all accepted deliveries
+   * Render customer site destination markers color-coded by lifecycle status
    */
-  private renderAcceptedDeliveryMarkers() {
+  private renderDestinationMarkers() {
     const leaflet = L;
     if (!this.map || !leaflet) return;
 
     this.destinationMarkers.forEach(m => this.map?.removeLayer(m));
     this.destinationMarkers.clear();
 
-    const jobs = this.acceptedDeliveries();
+    if (!this.showSites()) return;
+
+    const jobs = this.filteredJobs();
     const currentSel = this.selectedJobId();
 
     jobs.forEach(j => {
       const coords = this.getJobCoordinates(j);
       const isSelected = j.id === currentSel;
+      
       const isDispatched = j.status === 'dispatched';
+      const isOnSite = j.status === 'on_site' || j.status === 'delivered_on_site';
+      const isCompleted = j.status === 'completed' || j.status === 'bonus_awarded';
+      
+      let bg = '#d97706'; // Pending: Amber
+      let statusLabel = 'PENDING';
+      let iconEmoji = '🟡';
 
-      const bg = isSelected ? '#0d9488' : isDispatched ? '#0284c7' : '#475569';
+      if (isDispatched) {
+        bg = '#0284c7'; // Live in transit: Cyan
+        statusLabel = 'EN ROUTE';
+        iconEmoji = '🚚';
+      } else if (isOnSite) {
+        bg = '#10b981'; // On site: Emerald
+        statusLabel = 'ON SITE';
+        iconEmoji = '🛠️';
+      } else if (isCompleted) {
+        bg = '#8b5cf6'; // Completed: Purple
+        statusLabel = 'COMPLETED';
+        iconEmoji = '✓';
+      }
+
+      if (isSelected) {
+        bg = '#0d9488';
+      }
+
       const border = isSelected ? '#5eead4' : '#fff';
 
       const icon = leaflet.divIcon({
         className: 'custom-dest-pin',
         html: `
           <div style="position:relative; cursor:pointer;">
-            ${isSelected ? '<div style="position:absolute; width:44px; height:44px; background:#0d948840; border-radius:50%; top:-10px; left:-10px; animation:ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>' : ''}
-            <div style="background:${bg}; color:#fff; padding:5px 9px; border-radius:12px; font-weight:bold; font-size:9.5px; font-family:monospace; box-shadow:0 4px 14px rgba(0,0,0,0.5); border:2px solid ${border}; display:flex; align-items:center; gap:4px; white-space:nowrap;">
-              <span>📍</span>
-              <span>${j.client.name}</span>
-              ${isSelected ? '<span style="background:#fff; color:#0f172a; font-size:8px; padding:1px 4px; border-radius:4px; font-weight:900;">ACTIVE</span>' : ''}
+            ${isSelected ? '<div style="position:absolute; width:46px; height:46px; background:#0d948840; border-radius:50%; top:-11px; left:-11px; animation:ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>' : ''}
+            <div style="background:${bg}; color:#fff; padding:4px 8px; border-radius:12px; font-weight:bold; font-size:9.5px; font-family:sans-serif; box-shadow:0 4px 14px rgba(0,0,0,0.5); border:2px solid ${border}; display:flex; align-items:center; gap:4px; white-space:nowrap;">
+              <span>${iconEmoji}</span>
+              <span>${j.client.name.split(' ')[0]}</span>
+              <span style="background:rgba(255,255,255,0.25); color:#fff; font-size:7.5px; padding:1px 3.5px; border-radius:4px; font-weight:900;">${statusLabel}</span>
             </div>
           </div>
         `,
-        iconSize: [160, 28],
-        iconAnchor: [80, 14]
+        iconSize: [160, 26],
+        iconAnchor: [80, 13]
       });
 
       const marker = leaflet.marker([coords.lat, coords.lng], { icon })
@@ -662,49 +1394,91 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     });
   }
 
+  /**
+   * Render active live GPS transmitting units (Dispatchers & Technicians)
+   */
+  private renderLiveUnitMarkers() {
+    const leaflet = L;
+    if (!this.map || !leaflet) return;
+
+    this.liveUnitMarkers.forEach(m => this.map?.removeLayer(m));
+    this.liveUnitMarkers.clear();
+
+    const units = this.liveTelemetryUnits();
+
+    units.forEach(u => {
+      const isDriver = u.role === 'dispatcher';
+      const isTech = u.role === 'installer';
+
+      if (isDriver && !this.showTrucks()) return;
+      if (isTech && !this.showInstallers()) return;
+
+      const bgColor = isDriver ? '#0284c7' : '#10b981';
+      const symbol = isDriver ? '🚚' : '🛠️';
+      const roleLabel = isDriver ? 'Truck Fleet' : 'Technician';
+
+      const icon = leaflet.divIcon({
+        className: 'custom-live-unit-pin',
+        html: `
+          <div style="position:relative; cursor:pointer;" title="${u.userName || 'Field Unit'} (${roleLabel})">
+            <div style="position:absolute; width:40px; height:40px; background:${bgColor}33; border-radius:50%; top:-8px; left:-8px; animation:ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+            <div style="background:${bgColor}; color:#fff; width:26px; height:26px; border-radius:50%; border:2px solid #fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 12px rgba(0,0,0,0.5); font-size:12px;">
+              ${symbol}
+            </div>
+            <div style="background:rgba(15,23,42,0.92); color:#fff; font-size:8.5px; font-family:monospace; font-weight:bold; padding:2px 6px; border-radius:5px; border:1px solid rgba(255,255,255,0.25); white-space:nowrap; position:absolute; left:30px; top:2px;">
+              ${u.userName ? u.userName.split(' ')[0] : roleLabel} · ${u.speedKmh ? u.speedKmh + ' km/h' : 'Live'}
+            </div>
+          </div>
+        `,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+
+      const marker = leaflet.marker([u.latitude, u.longitude], { icon })
+        .addTo(this.map!)
+        .bindPopup(`
+          <div style="font-family:sans-serif; padding:2px;">
+            <strong style="color:#0f172a; font-size:12px;">${symbol} ${u.userName || 'Field Staff'}</strong>
+            <p style="color:#475569; font-size:10px; margin:3px 0;">Role: <strong>${roleLabel}</strong> · Status: ${u.status}</p>
+            <p style="color:#0284c7; font-size:9.5px; font-family:monospace; margin:0;">GPS: ${u.latitude.toFixed(5)}, ${u.longitude.toFixed(5)}</p>
+          </div>
+        `);
+
+      this.liveUnitMarkers.set(u.id, marker);
+    });
+  }
+
   selectJob(jobId: string) {
     this.selectedJobId.set(jobId);
-    this.renderAcceptedDeliveryMarkers();
+    this.renderDestinationMarkers();
   }
 
   private onJobSelectionChanged(job: InstallationJob) {
-    // Reset off-route state for new job
     this.isOffRoute.set(false);
     this.hasRerouted.set(false);
     this.stepIndex = 0;
 
-    // Origin: Driver's current position, or the job's workshop branch
     const origin = this.getJobOriginCoordinates(job);
     const destination = this.getJobCoordinates(job);
 
-    // Position driver at origin if not currently set
     this.riderPosition.set(origin);
     this.renderRiderMarker(origin.lat, origin.lng);
 
-    // Calculate the shortest driving route corridor
     this.calculateAndDisplayShortestRoute(origin, destination, false);
   }
 
-  /**
-   * Determine origin coordinates for a job:
-   * Uses driver's current position if available, else finds the shop branch coordinates.
-   */
   private getJobOriginCoordinates(job: InstallationJob): { lat: number; lng: number } {
     const live = this.store.myLiveLocation();
-    if (live && live.role === 'dispatcher') {
+    if (live && (live.role === 'dispatcher' || live.role === 'installer')) {
       return { lat: live.latitude, lng: live.longitude };
     }
-    const branch = this.store.branches().find(b => b.shopName === job.shopBranch || b.branchCode === (job as any).shopBranchCode);
+    const branch = this.store.getJobBranch(job) || (this.store.currentRole() === 'shop_manager' ? this.store.managerBranch() : null);
     if (branch) {
       return { lat: branch.latitude, lng: branch.longitude };
     }
-    // Fallback: Accra Central Workshop (Spintex Corridor)
-    return { lat: 5.6320, lng: -0.0980 };
+    return { lat: 5.6320, lng: -0.0980 }; // Accra Central Workshop
   }
 
-  /**
-   * Determine destination coordinates for a job
-   */
   private getJobCoordinates(job: InstallationJob): { lat: number; lng: number } {
     if (job.client?.coordinates && job.client.coordinates.lat && job.client.coordinates.lng) {
       return job.client.coordinates;
@@ -712,7 +1486,6 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     if ((job as any).lat && (job as any).lng) {
       return { lat: (job as any).lat, lng: (job as any).lng };
     }
-    // Fallback coordinates based on address keywords
     const addr = (job.client?.siteAddress || '').toLowerCase();
     if (addr.includes('amanfrokoo') || addr.includes('chapel')) return { lat: 5.70645, lng: -0.18220 };
     if (addr.includes('obeyeyie') || addr.includes('amasaman')) return { lat: 5.7020, lng: -0.3010 };
@@ -724,9 +1497,6 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     return { lat: 5.5840, lng: -0.1780 };
   }
 
-  /**
-   * Calculate and render the shortest driving road route
-   */
   private async calculateAndDisplayShortestRoute(
     origin: { lat: number; lng: number },
     destination: { lat: number; lng: number },
@@ -741,7 +1511,6 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     let corridorName = 'Greater Accra Primary Arterial';
 
     try {
-      // Query Open Source Routing Machine (OSRM) driving API for shortest road path
       const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson`;
       const res = await fetch(url, { signal: AbortSignal.timeout(3500) });
       if (res.ok) {
@@ -755,10 +1524,9 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
         }
       }
     } catch {
-      // Fallback: procedural road router through nearest transit corridors
+      // procedural fallback
     }
 
-    // Built-in Accra transit corridor procedural router if OSRM is offline or timed out
     if (points.length === 0) {
       const fallback = this.generateAccraShortestRoadPath(origin, destination);
       points = fallback.points;
@@ -778,7 +1546,6 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       corridor: corridorName
     });
 
-    // Draw active polyline
     if (this.activeRoutePolyline) {
       this.map.removeLayer(this.activeRoutePolyline);
     }
@@ -803,14 +1570,10 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     this.fitRouteBounds();
   }
 
-  /**
-   * Generates realistic road geometry between any two points in Greater Accra
-   */
   private generateAccraShortestRoadPath(
     origin: { lat: number; lng: number },
     destination: { lat: number; lng: number }
   ): { points: [number, number][]; distanceMeters: number; durationSeconds: number; corridor: string } {
-    // Road nodes along Accra expressways & bypasses
     const nodes = [
       { lat: origin.lat, lng: origin.lng },
       { lat: origin.lat + (destination.lat - origin.lat) * 0.25, lng: origin.lng + (destination.lng - origin.lng) * 0.15 },
@@ -819,7 +1582,6 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       { lat: destination.lat, lng: destination.lng }
     ];
 
-    // Subdivide with smooth road curves
     const points: [number, number][] = [];
     for (let i = 0; i < nodes.length - 1; i++) {
       const a = nodes[i];
@@ -836,14 +1598,11 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     return {
       points,
       distanceMeters: distKm * 1000,
-      durationSeconds: (distKm / 32) * 3600, // Average Accra city speed ~32 km/h
+      durationSeconds: (distKm / 32) * 3600,
       corridor: 'George Walker Bush Highway / Accra Bypass'
     };
   }
 
-  /**
-   * Render the driver / rider vehicle marker
-   */
   private renderRiderMarker(lat: number, lng: number) {
     const leaflet = L;
     if (!this.map || !leaflet) return;
@@ -852,7 +1611,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       const icon = leaflet.divIcon({
         className: 'custom-rider-icon',
         html: `
-          <div style="position:relative; cursor:pointer;" title="Active Dispatch Rider">
+          <div style="position:relative; cursor:pointer;" title="Active Dispatch Unit">
             <div style="position:absolute; width:44px; height:44px; background:#06b6d440; border-radius:50%; top:-9px; left:-9px; animation:ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
             <div style="background:#0284c7; color:#fff; width:28px; height:28px; border-radius:50%; border:2.5px solid #fff; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.6);">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="#ffffff" style="display:block;">
@@ -876,21 +1635,12 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     }
   }
 
-  /**
-   * Update rider position and perform real-time off-route deviation check
-   */
   updateRiderPosition(newPos: { lat: number; lng: number }) {
     this.riderPosition.set(newPos);
     this.renderRiderMarker(newPos.lat, newPos.lng);
-
-    // Check if driver has deviated from planned route (> 150m off route)
     this.checkAndHandleOffRoute(newPos);
   }
 
-  /**
-   * Measures minimum distance from rider's current position to the active route polyline.
-   * If deviation > 150 meters, triggers automatic dynamic re-routing!
-   */
   private checkAndHandleOffRoute(pos: { lat: number; lng: number }) {
     if (this.currentPlannedRoute.length < 2) return;
 
@@ -911,7 +1661,6 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       const job = this.selectedJob();
       if (job) {
         const dest = this.getJobCoordinates(job);
-        // Instant dynamic re-route from new driver position to destination
         this.calculateAndDisplayShortestRoute(pos, dest, true);
       }
     } else {
@@ -919,19 +1668,13 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     }
   }
 
-  /**
-   * Simulate rider taking an alternate turn / detouring off the planned route.
-   * Demonstrates the re-route feature immediately.
-   */
   simulateOffRouteDeviation() {
     const cur = this.riderPosition();
-    // Shift rider 350 meters perpendicular into an alternate side road / detour
     const deviated = {
       lat: cur.lat + 0.0035,
       lng: cur.lng - 0.0030
     };
 
-    // Draw off-route trail line in red/orange dashed to show the detour
     const leaflet = L;
     if (this.map && leaflet) {
       if (this.offRouteTrailPolyline) {
@@ -946,9 +1689,6 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     this.updateRiderPosition(deviated);
   }
 
-  /**
-   * Advance one step forward along the planned route
-   */
   simulateAdvanceAlongRoute() {
     if (this.currentPlannedRoute.length === 0) return;
     this.stepIndex = Math.min(this.currentPlannedRoute.length - 1, this.stepIndex + 3);
@@ -983,27 +1723,162 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     const leaflet = L;
     if (!this.map || !leaflet) return;
     const allCoords: [number, number][] = [];
-    this.store.branches().forEach(b => allCoords.push([b.latitude, b.longitude]));
-    this.acceptedDeliveries().forEach(j => {
+    this.visibleBranches().forEach(b => allCoords.push([b.latitude, b.longitude]));
+    this.filteredJobs().forEach(j => {
       const c = this.getJobCoordinates(j);
       allCoords.push([c.lat, c.lng]);
     });
-    if (allCoords.length > 0) {
+    this.liveTelemetryUnits().forEach(u => allCoords.push([u.latitude, u.longitude]));
+
+    if (allCoords.length === 1) {
+      this.map.setView(allCoords[0], 14);
+    } else if (allCoords.length > 0) {
       this.map.fitBounds(leaflet.latLngBounds(allCoords), { padding: [50, 50], maxZoom: 14 });
     }
   }
 
   startLiveTrip(jobId: string) {
     this.store.startLiveMotion(jobId);
+    this.alert.toastSuccess('Live Trip Started', `Order #${jobId} marked en route. Telematics active.`);
   }
 
   markDelivered(jobId: string) {
     this.store.markDeliveredByDriver(jobId);
+    this.alert.toastSuccess('Cargo Delivered', `Door and hardware marked delivered on site for #${jobId}.`);
+  }
+
+  // Filter Event Handlers
+  onRoleFilterChange(role: MapRoleFilter) {
+    this.roleFilter.set(role);
+  }
+
+  onUserFilterChange(userId: string) {
+    this.userFilter.set(userId);
+  }
+
+  setTimeFilter(time: MapTimeFilter) {
+    this.timeFilter.set(time);
+  }
+
+  setStatusFilter(status: MapStatusFilter) {
+    this.statusFilter.set(status);
+  }
+
+  clearCustomDateRange() {
+    this.customStartDate.set('');
+    this.customEndDate.set('');
+    this.timeFilter.set('all');
+  }
+
+  toggleLayer(layer: 'trucks' | 'installers' | 'sites' | 'branches') {
+    if (layer === 'trucks') this.showTrucks.update(v => !v);
+    if (layer === 'installers') this.showInstallers.update(v => !v);
+    if (layer === 'sites') this.showSites.update(v => !v);
+    if (layer === 'branches') this.showBranches.update(v => !v);
   }
 
   /**
-   * Calculate perpendicular distance in meters from point P to line segment AB
+   * Evaluates whether a job is specifically scheduled or active for today.
    */
+  isJobToday(job: InstallationJob): boolean {
+    const rawSched = `${job.scheduledDate || ''} ${(job as any).scheduledTime || ''}`.trim().toLowerCase();
+    if (rawSched.includes('today')) {
+      return true;
+    }
+
+    const now = new Date();
+    const todayYear = now.getFullYear();
+    const todayMonth = now.getMonth();
+    const todayDate = now.getDate();
+
+    // Check YYYY-MM-DD pattern in scheduledDate or scheduledTime
+    const dateMatch = rawSched.match(/\d{4}-\d{2}-\d{2}/);
+    if (dateMatch) {
+      const parts = dateMatch[0].split('-').map(Number);
+      if (parts[0] === todayYear && parts[1] - 1 === todayMonth && parts[2] === todayDate) {
+        return true;
+      }
+    }
+
+    // Check candidate date strings
+    const candidates = [
+      job.scheduledDate,
+      (job as any).scheduledTime,
+      job.createdAt,
+      job.shopBooking?.bookingTimestamp
+    ];
+
+    for (const cand of candidates) {
+      if (!cand) continue;
+      const parsed = new Date(cand);
+      if (!isNaN(parsed.getTime())) {
+        if (
+          parsed.getFullYear() === todayYear &&
+          parsed.getMonth() === todayMonth &&
+          parsed.getDate() === todayDate
+        ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Helper to evaluate timeframe matching: today, week, month, year, custom range.
+   */
+  private matchesTimeFilter(
+    job: InstallationJob,
+    filter: MapTimeFilter,
+    startStr?: string,
+    endStr?: string
+  ): boolean {
+    if (filter === 'today') {
+      return this.isJobToday(job);
+    }
+
+    const rawDate = job.scheduledDate || job.createdAt;
+    if (!rawDate) return true;
+
+    const jobDate = new Date(rawDate);
+    if (isNaN(jobDate.getTime())) return true;
+
+    const now = new Date();
+
+    if (filter === 'week') {
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const oneWeekAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      return jobDate >= oneWeekAgo && jobDate <= oneWeekAhead;
+    }
+
+    if (filter === 'month') {
+      return (
+        jobDate.getFullYear() === now.getFullYear() &&
+        jobDate.getMonth() === now.getMonth()
+      );
+    }
+
+    if (filter === 'year') {
+      return jobDate.getFullYear() === now.getFullYear();
+    }
+
+    if (filter === 'custom' && (startStr || endStr)) {
+      if (startStr) {
+        const start = new Date(startStr);
+        if (jobDate < start) return false;
+      }
+      if (endStr) {
+        const end = new Date(endStr);
+        end.setHours(23, 59, 59, 999);
+        if (jobDate > end) return false;
+      }
+      return true;
+    }
+
+    return true;
+  }
+
   private perpendicularDistanceMeters(
     p: { lat: number; lng: number },
     a: { lat: number; lng: number },
@@ -1012,7 +1887,6 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     const dAB = this.haversineKm(a.lat, a.lng, b.lat, b.lng) * 1000;
     if (dAB === 0) return this.haversineKm(p.lat, p.lng, a.lat, a.lng) * 1000;
 
-    // Vector projection
     const x = p.lng - a.lng;
     const y = p.lat - a.lat;
     const dx = b.lng - a.lng;

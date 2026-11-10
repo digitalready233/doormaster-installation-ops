@@ -3,7 +3,8 @@ import {
   ApiAuthUser,
   AppUser,
   AssignedInstallerTeamMember,
-  BonusCriteriaConfig, 
+  BonusCriteriaConfig,
+  ClientRecord, 
   ClockSession, 
   CustomerSignoff, 
   DbHealthStatus,
@@ -22,6 +23,7 @@ import {
   RoleDefinition, 
   RoleType,
   LiveLocation,
+  ShopBookingDetails,
   ShopLocationSettings,
   SmsGatewayConfig,
   SmsLogEntry,
@@ -33,6 +35,9 @@ import { AlertService } from './alert.service';
 const STORAGE_KEY_API_USER = 'dm_installation_api_user_v1';
 const STORAGE_KEY_API_TOKEN = 'dm_installation_api_token_v1';
 const STORAGE_KEY_IMPERSONATION = 'dm_impersonation_session_v1';
+export const STORAGE_KEY_CROSS_PORTAL_SYNC = 'doormaster_cross_portal_sync';
+
+export type SyncEntity = 'jobs' | 'users' | 'doors' | 'roles' | 'teams' | 'clients' | 'branches' | 'notifications' | 'all';
 
 function readPersistedImpersonation(): ImpersonationSession | null {
   if (typeof window === 'undefined') return null;
@@ -415,6 +420,77 @@ export const DEFAULT_DOORMASTER_BRANCHES: ShopLocationSettings[] = [
   }
 ];
 
+export const DOORMASTER_WAREHOUSES: ShopLocationSettings[] = [
+  {
+    id: 'dm-warehouse-spintex',
+    shopName: 'DoorMaster Central Warehouse (Spintex Industrial Area)',
+    branchCode: 'DM-WH-SPX',
+    address: 'Plot 48B, Spintex Industrial Logistics Park, Accra',
+    landmark: 'Spintex Industrial Logistics Hub',
+    city: 'Accra',
+    region: 'Greater Accra',
+    phone: '0542745222',
+    email: 'warehouse.spintex@doormasterops.com',
+    latitude: 5.633100,
+    longitude: -0.096800,
+    dispatchRadiusKm: 60.0,
+    operatingHours: 'Mon - Sat: 07:00 - 19:00',
+    managerName: 'Central Logistics & Warehouse Control',
+    isPrimary: false
+  },
+  {
+    id: 'dm-warehouse-pobiman',
+    shopName: 'DoorMaster Pobiman Main Distribution Warehouse',
+    branchCode: 'DM-WH-PBM',
+    address: 'Pobiman Heavy Logistics Corridor, Accra–Kumasi Highway',
+    landmark: 'Pobiman Tollbooth Industrial Yard',
+    city: 'Pobiman',
+    region: 'Greater Accra',
+    phone: '0207867882',
+    email: 'warehouse.pobiman@doormaster.online',
+    latitude: 5.734100,
+    longitude: -0.312200,
+    dispatchRadiusKm: 60.0,
+    operatingHours: 'Mon - Sat: 07:00 - 19:00',
+    managerName: 'Pobiman Bulk Door & Frame Depot',
+    isPrimary: false
+  },
+  {
+    id: 'dm-warehouse-tema',
+    shopName: 'DoorMaster Tema Port Bonded Warehouse',
+    branchCode: 'DM-WH-TMA',
+    address: 'Tema Free Zones & Port Industrial Enclave, Tema',
+    landmark: 'Tema Port Logistics Zone',
+    city: 'Tema',
+    region: 'Greater Accra',
+    phone: '0502290982',
+    email: 'warehouse.tema@doormaster.online',
+    latitude: 5.654200,
+    longitude: -0.005400,
+    dispatchRadiusKm: 80.0,
+    operatingHours: 'Mon - Sat: 07:00 - 18:00',
+    managerName: 'Tema Port Container & Bonded Depot',
+    isPrimary: false
+  },
+  {
+    id: 'dm-warehouse-kumasi',
+    shopName: 'DoorMaster Kumasi Regional Warehouse (Kronum)',
+    branchCode: 'DM-WH-KSI',
+    address: 'Kronum Industrial Depot, Off Offinso Road, Kumasi',
+    landmark: 'Kronum Northern Sector Depot',
+    city: 'Kumasi',
+    region: 'Ashanti',
+    phone: '0531025775',
+    email: 'warehouse.kumasi@doormaster.online',
+    latitude: 6.759200,
+    longitude: -1.637900,
+    dispatchRadiusKm: 75.0,
+    operatingHours: 'Mon - Sat: 07:30 - 18:00',
+    managerName: 'Northern Sector Regional Warehouse',
+    isPrimary: false
+  }
+];
+
 @Injectable({
   providedIn: 'root'
 })
@@ -434,129 +510,187 @@ export class InstallationStore {
   readonly originalRole = computed<RoleType>(() => this.impersonationSession()?.originalRole ?? this.currentRole());
 
 
-  // Predefined System Roles & dynamic custom roles
-  readonly roles = signal<RoleDefinition[]>([
-    {
-      id: 'manager',
-      name: 'Operations Manager',
-      label: 'Manager',
-      description: 'Full oversight: dispatch, installer assignments, bonus threshold management & approvals.',
-      isSystem: true,
-      color: 'slate',
-      icon: 'admin_panel_settings',
-      permissions: {
-        canCreateJobs: true,
-        canAssignInstallers: true,
-        canDispatchDoors: false,
-        canClockInOut: false,
-        canUploadPhotos: true,
-        canSignVerification: false,
-        canApproveBonuses: true,
-        canViewFinancials: true,
-        canManageRoles: true
+  // Predefined System Roles & dynamic custom roles with fixed base permissions & configurable extra features
+  readonly roles = signal<RoleDefinition[]>(this.initializeRoles());
+
+  private initializeRoles(): RoleDefinition[] {
+    const defaultRoles: RoleDefinition[] = [
+      {
+        id: 'admin',
+        name: 'System Administrator',
+        label: 'Admin',
+        description: 'Super-user control: all resources, user authorization, role governance, system settings, and full operational capabilities.',
+        isSystem: true,
+        color: 'purple',
+        icon: 'admin_panel_settings',
+        permissions: {
+          canCreateJobs: true,
+          canAssignInstallers: true,
+          canDispatchDoors: true,
+          canClockInOut: true,
+          canUploadPhotos: true,
+          canSignVerification: true,
+          canApproveBonuses: true,
+          canViewFinancials: true,
+          canManageRoles: true
+        },
+        extraFeatures: ['export_reports', 'audit_logs', 'sms_gateway', 'branch_registry', 'catalog_scraper', 'fleet_broadcast', 'quality_override', 'multi_branch']
+      },
+      {
+        id: 'manager',
+        name: 'Operations Manager',
+        label: 'Manager',
+        description: 'Operations oversight: job dispatch, installer assignments, bonus threshold management & approvals.',
+        isSystem: true,
+        color: 'slate',
+        icon: 'shield_person',
+        permissions: {
+          canCreateJobs: true,
+          canAssignInstallers: true,
+          canDispatchDoors: true,
+          canClockInOut: false,
+          canUploadPhotos: true,
+          canSignVerification: false,
+          canApproveBonuses: true,
+          canViewFinancials: true,
+          canManageRoles: false
+        },
+        extraFeatures: ['export_reports', 'branch_registry', 'catalog_scraper', 'fleet_broadcast', 'quality_override', 'multi_branch']
+      },
+      {
+        id: 'installer',
+        name: 'Installer',
+        label: 'Installer',
+        description: 'Site operations: view assigned door jobs, clock in/out on site, photo uploads & customer verification request.',
+        isSystem: true,
+        color: 'emerald',
+        icon: 'handyman',
+        permissions: {
+          canCreateJobs: false,
+          canAssignInstallers: false,
+          canDispatchDoors: false,
+          canClockInOut: true,
+          canUploadPhotos: true,
+          canSignVerification: false,
+          canApproveBonuses: false,
+          canViewFinancials: false,
+          canManageRoles: false
+        },
+        extraFeatures: []
+      },
+      {
+        id: 'client',
+        name: 'Client / Site Owner',
+        label: 'Client',
+        description: 'Homeowner or site manager: track installation progress, view completed photos, and provide digital sign-off.',
+        isSystem: true,
+        color: 'indigo',
+        icon: 'person_pin_circle',
+        permissions: {
+          canCreateJobs: false,
+          canAssignInstallers: false,
+          canDispatchDoors: false,
+          canClockInOut: false,
+          canUploadPhotos: false,
+          canSignVerification: true,
+          canApproveBonuses: false,
+          canViewFinancials: false,
+          canManageRoles: false
+        },
+        extraFeatures: []
+      },
+      {
+        id: 'account_officer',
+        name: 'Accounts & Finance Officer',
+        label: 'Account Officer',
+        description: 'Financial ledger: track door order values, installation fees, installer bonuses disbursement and invoices.',
+        isSystem: true,
+        color: 'amber',
+        icon: 'account_balance_wallet',
+        permissions: {
+          canCreateJobs: false,
+          canAssignInstallers: false,
+          canDispatchDoors: false,
+          canClockInOut: false,
+          canUploadPhotos: false,
+          canSignVerification: false,
+          canApproveBonuses: true,
+          canViewFinancials: true,
+          canManageRoles: false
+        },
+        extraFeatures: ['export_reports', 'multi_branch']
+      },
+      {
+        id: 'shop_manager',
+        name: 'DoorMaster Shop Manager',
+        label: 'Shop Manager',
+        description: 'Workshop branch: book counter door installations, record customer payments, select store dispatchers, and dispatch doors to installation site.',
+        isSystem: true,
+        color: 'cyan',
+        icon: 'storefront',
+        permissions: {
+          canCreateJobs: true,
+          canAssignInstallers: false,
+          canDispatchDoors: true,
+          canClockInOut: false,
+          canUploadPhotos: true,
+          canSignVerification: false,
+          canApproveBonuses: false,
+          canViewFinancials: true,
+          canManageRoles: false
+        },
+        extraFeatures: ['branch_registry', 'catalog_scraper']
+      },
+      {
+        id: 'dispatcher',
+        name: 'Logistics Dispatcher / Driver',
+        label: 'Dispatcher',
+        description: 'Fleet logistics: verify cargo at shop, drive transport truck to customer site, deliver doors & locks, and handover to client/technician.',
+        isSystem: true,
+        color: 'teal',
+        icon: 'local_shipping',
+        permissions: {
+          canCreateJobs: false,
+          canAssignInstallers: false,
+          canDispatchDoors: true,
+          canClockInOut: false,
+          canUploadPhotos: true,
+          canSignVerification: false,
+          canApproveBonuses: false,
+          canViewFinancials: false,
+          canManageRoles: false
+        },
+        extraFeatures: ['fleet_broadcast', 'branch_registry']
       }
-    },
-    {
-      id: 'installer',
-      name: 'Installer',
-      label: 'Installer',
-      description: 'Site operations: view assigned door jobs, clock in/out on site, photo uploads & customer verification request.',
-      isSystem: true,
-      color: 'emerald',
-      icon: 'handyman',
-      permissions: {
-        canCreateJobs: false,
-        canAssignInstallers: false,
-        canDispatchDoors: false,
-        canClockInOut: true,
-        canUploadPhotos: true,
-        canSignVerification: false,
-        canApproveBonuses: false,
-        canViewFinancials: false,
-        canManageRoles: false
-      }
-    },
-    {
-      id: 'client',
-      name: 'Client / Site Owner',
-      label: 'Client',
-      description: 'Homeowner or site manager: track installation progress, view completed photos, and provide digital sign-off.',
-      isSystem: true,
-      color: 'indigo',
-      icon: 'person_pin_circle',
-      permissions: {
-        canCreateJobs: false,
-        canAssignInstallers: false,
-        canDispatchDoors: false,
-        canClockInOut: false,
-        canUploadPhotos: false,
-        canSignVerification: true,
-        canApproveBonuses: false,
-        canViewFinancials: false,
-        canManageRoles: false
-      }
-    },
-    {
-      id: 'account_officer',
-      name: 'Accounts & Finance Officer',
-      label: 'Account Officer',
-      description: 'Financial ledger: track door order values, installation fees, installer bonuses disbursement and invoices.',
-      isSystem: true,
-      color: 'amber',
-      icon: 'account_balance_wallet',
-      permissions: {
-        canCreateJobs: false,
-        canAssignInstallers: false,
-        canDispatchDoors: false,
-        canClockInOut: false,
-        canUploadPhotos: false,
-        canSignVerification: false,
-        canApproveBonuses: true,
-        canViewFinancials: true,
-        canManageRoles: false
-      }
-    },
-    {
-      id: 'shop_manager',
-      name: 'DoorMaster Shop Manager',
-      label: 'Shop Manager',
-      description: 'Workshop branch: track custom door fabrication, assemble hardware packs, assign installers, and dispatch to installation site.',
-      isSystem: true,
-      color: 'cyan',
-      icon: 'storefront',
-      permissions: {
-        canCreateJobs: true,
-        canAssignInstallers: true,
-        canDispatchDoors: true,
-        canClockInOut: false,
-        canUploadPhotos: true,
-        canSignVerification: false,
-        canApproveBonuses: false,
-        canViewFinancials: true,
-        canManageRoles: false
-      }
-    },
-    {
-      id: 'dispatcher',
-      name: 'Logistics Dispatcher / Driver',
-      label: 'Dispatcher',
-      description: 'Fleet logistics: verify cargo at shop, drive transport truck to customer site, deliver doors & locks, and handover to client/technician.',
-      isSystem: true,
-      color: 'teal',
-      icon: 'local_shipping',
-      permissions: {
-        canCreateJobs: false,
-        canAssignInstallers: false,
-        canDispatchDoors: true,
-        canClockInOut: false,
-        canUploadPhotos: true,
-        canSignVerification: false,
-        canApproveBonuses: false,
-        canViewFinancials: false,
-        canManageRoles: false
-      }
+    ];
+
+    if (typeof window === 'undefined') return defaultRoles;
+    try {
+      const stored = window.localStorage.getItem('doormaster_roles');
+      if (!stored) return defaultRoles;
+      const parsed = JSON.parse(stored) as RoleDefinition[];
+      if (!Array.isArray(parsed) || parsed.length === 0) return defaultRoles;
+      
+      const roleMap = new Map<string, RoleDefinition>();
+      defaultRoles.forEach(d => roleMap.set(d.id, { ...d }));
+      parsed.forEach(p => {
+        if (roleMap.has(p.id)) {
+          const sys = roleMap.get(p.id)!;
+          roleMap.set(p.id, {
+            ...sys,
+            // Core permissions are ALWAYS fixed from default system definition; only extraFeatures and display can be updated
+            extraFeatures: Array.isArray(p.extraFeatures) ? p.extraFeatures : sys.extraFeatures
+          });
+        } else {
+          // Custom user-defined role
+          roleMap.set(p.id, p);
+        }
+      });
+      return Array.from(roleMap.values());
+    } catch {
+      return defaultRoles;
     }
-  ]);
+  }
 
   // Bonus Rules Engine
   readonly bonusRules = signal<BonusCriteriaConfig>({
@@ -567,11 +701,13 @@ export class InstallationStore {
     cleanPhotoBonusAmount: 25
   });
 
-  // Installers Directory (derived from API users with role 'installer')
+  // Installers Directory (derived from API users with role 'installer' + synced teams)
   readonly installers = signal<InstallerProfile[]>([]);
 
-  // Two Installation Teams (3 installers each with 1 team lead)
+  // Authoritative Installation Teams synced from MySQL via /api/teams
   readonly installerTeams = signal<InstallerTeam[]>([]);
+  private readonly dbTeams = signal<InstallerTeam[]>([]);
+  readonly hasSyncedTeamsFromApi = signal<boolean>(false);
 
   // Logistics Dispatchers & Delivery Drivers (derived from API users with role 'dispatcher', 1 per branch)
   readonly dispatchers = signal<DispatcherProfile[]>([]);
@@ -587,6 +723,9 @@ export class InstallationStore {
   // Installation Jobs (live from MySQL via /api/jobs)
   readonly jobs = signal<InstallationJob[]>([]);
 
+  // Normalized Clients Directory (live from MySQL via /api/clients)
+  readonly clients = signal<ClientRecord[]>([]);
+
   // Notifications (live from MySQL via /api/notifications)
   readonly notifications = signal<NotificationItem[]>([]);
 
@@ -598,6 +737,7 @@ export class InstallationStore {
 
   // User verified mobile phones for automated SMS routing
   readonly userPhones = signal<UserPhoneDirectory>({
+    admin: '+233 24 100 0000',
     manager: '+233 24 100 0001',
     shop_manager: '+233 24 100 0002',
     dispatcher: '+233 24 555 0192',
@@ -618,6 +758,34 @@ export class InstallationStore {
 
   // DoorMaster Workshop Branches Directory (all 14 active branches + Central Atelier)
   readonly branches = signal<ShopLocationSettings[]>(DEFAULT_DOORMASTER_BRANCHES);
+  readonly warehouses = signal<ShopLocationSettings[]>(DOORMASTER_WAREHOUSES);
+
+  readonly allWarehouses = computed<ShopLocationSettings[]>(() => {
+    const base = [...this.warehouses()];
+    const existingNames = new Set(base.map(w => w.shopName.toLowerCase()));
+    for (const door of this.doors()) {
+      const sup = (door.supplierOrWorkshop || '').trim();
+      if (sup && sup.toLowerCase().includes('warehouse') && !existingNames.has(sup.toLowerCase())) {
+        existingNames.add(sup.toLowerCase());
+        base.push({
+          id: `dm-wh-${sup.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+          shopName: sup,
+          branchCode: 'DM-WH-EXT',
+          address: sup,
+          city: 'Accra',
+          region: 'Greater Accra',
+          phone: '0542745222',
+          email: 'warehouse@doormasterops.com',
+          latitude: 5.632,
+          longitude: -0.098,
+          dispatchRadiusKm: 50,
+          operatingHours: 'Mon - Sat: 08:00 - 18:00',
+          managerName: 'Warehouse Dispatch'
+        });
+      }
+    }
+    return base;
+  });
 
   // Shop Manager Workshop Location & Settings (active selected branch)
   readonly shopLocation = signal<ShopLocationSettings>(DEFAULT_DOORMASTER_BRANCHES[0]);
@@ -629,6 +797,16 @@ export class InstallationStore {
 
   // Default verified persona profiles for demo & fallback
   private readonly defaultPersonas: Record<string, ApiAuthUser> = {
+    admin: {
+      id: 'USR-ADM-01',
+      name: 'Alexander Cross',
+      email: 'admin@doormasterops.com',
+      role: 'admin',
+      phone: '+233 24 555 0100',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      status: 'active',
+      createdAt: '2026-01-10T08:00:00Z'
+    },
     manager: {
       id: 'USR-MGR-01',
       name: 'Sarah Sterling',
@@ -675,6 +853,7 @@ export class InstallationStore {
       email: 'shop@doormasterops.com',
       role: 'shop_manager',
       phone: '+233 24 555 0105',
+      shopId: 'dm-branch-central',
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       status: 'active',
       createdAt: '2026-01-17T08:00:00Z'
@@ -685,6 +864,7 @@ export class InstallationStore {
       email: 'dispatch@doormasterops.com',
       role: 'dispatcher',
       phone: '+233 24 555 0106',
+      shopId: 'dm-branch-central',
       avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
       status: 'active',
       createdAt: '2026-01-19T08:00:00Z'
@@ -703,6 +883,7 @@ export class InstallationStore {
         email: t.email,
         role: imp.targetRole,
         phone: t.phone || '',
+        shopId: t.shopId ?? null,
         avatarUrl: t.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         status: (t.status as any) || 'active',
         createdAt: t.createdAt || new Date().toISOString()
@@ -714,7 +895,70 @@ export class InstallationStore {
     const role = this.currentRole();
     const fallback = this.defaultPersonas[role] || this.defaultPersonas['manager'];
 
-    const base = api || fallback;
+    let base: ApiAuthUser = (api && api.role === role) ? api : fallback;
+
+    if (!api || api.role !== role) {
+      if (role === 'installer' && this.currentInstallerId()) {
+        const instId = this.currentInstallerId();
+        const dirUser = this.users().find(u => u.id === instId && u.role === 'installer');
+        const instProf = this.installers().find(i => i.id === instId);
+        if (dirUser) {
+          base = {
+            id: dirUser.id,
+            name: dirUser.name,
+            email: dirUser.email,
+            role: 'installer',
+            phone: dirUser.phone || fallback.phone,
+            shopId: dirUser.shopId ?? null,
+            avatarUrl: dirUser.avatarUrl || fallback.avatarUrl,
+            status: (dirUser.status as any) || 'active',
+            createdAt: dirUser.createdAt || fallback.createdAt
+          };
+        } else if (instProf) {
+          base = {
+            id: instProf.id,
+            name: instProf.name,
+            email: instProf.email || fallback.email,
+            role: 'installer',
+            phone: instProf.phone || fallback.phone,
+            shopId: null,
+            avatarUrl: instProf.avatarUrl || fallback.avatarUrl,
+            status: 'active',
+            createdAt: fallback.createdAt
+          };
+        }
+      } else if (role === 'dispatcher' && this.currentDispatcherId()) {
+        const dispId = this.currentDispatcherId();
+        const dirUser = this.users().find(u => u.id === dispId && u.role === 'dispatcher');
+        const dispProf = this.dispatchers().find(d => d.id === dispId);
+        if (dirUser) {
+          base = {
+            id: dirUser.id,
+            name: dirUser.name,
+            email: dirUser.email,
+            role: 'dispatcher',
+            phone: dirUser.phone || fallback.phone,
+            shopId: dirUser.shopId ?? null,
+            avatarUrl: dirUser.avatarUrl || fallback.avatarUrl,
+            status: (dirUser.status as any) || 'active',
+            createdAt: dirUser.createdAt || fallback.createdAt
+          };
+        } else if (dispProf) {
+          base = {
+            id: dispProf.id,
+            name: dispProf.name,
+            email: dispProf.email || fallback.email,
+            role: 'dispatcher',
+            phone: dispProf.phone || fallback.phone,
+            shopId: dispProf.shopId ?? null,
+            avatarUrl: dispProf.avatarUrl || fallback.avatarUrl,
+            status: 'active',
+            createdAt: fallback.createdAt
+          };
+        }
+      }
+    }
+
     if (!custom) return base;
 
     return {
@@ -722,6 +966,7 @@ export class InstallationStore {
       name: custom.name !== undefined ? custom.name : base.name,
       email: custom.email !== undefined ? custom.email : base.email,
       phone: custom.phone !== undefined ? custom.phone : base.phone,
+      shopId: custom.shopId !== undefined ? custom.shopId : base.shopId,
       avatarUrl: custom.avatarUrl !== undefined ? custom.avatarUrl : base.avatarUrl
     };
   });
@@ -738,7 +983,8 @@ export class InstallationStore {
   readonly isGpsTracking = signal<boolean>(false);
   readonly gpsWatchId = signal<number | null>(null);
   readonly myLiveLocation = signal<LiveLocation | null>(null);
-  readonly isManager = computed(() => this.apiUser()?.role === 'manager');
+  readonly isAdmin = computed(() => this.currentRole() === 'admin' || this.apiUser()?.role === 'admin');
+  readonly isManager = computed(() => this.currentRole() === 'manager' || this.apiUser()?.role === 'manager' || this.isAdmin());
 
   // Database health
   readonly dbStatus = signal<DbHealthStatus | null>(null);
@@ -792,15 +1038,177 @@ export class InstallationStore {
     return this.roles().find(r => r.id === roleId) || this.roles()[0];
   });
 
-  readonly unreadNotificationsCount = computed(() => {
+  /** Shop Managers never have access to select or assign installers. */
+  canCurrentRoleAssignInstallers(): boolean {
     const role = this.currentRole();
-    return this.notifications().filter(n => !n.read && (n.recipientRole === role || n.recipientRole === 'all')).length;
+    if (role === 'shop_manager') return false;
+    return role === 'admin' || role === 'manager' || !!this.currentRoleDefinition()?.permissions.canAssignInstallers;
+  }
+
+  /** Dispatch driver selection belongs strictly to the Shop Manager portal (hidden from Operations Manager). */
+  canCurrentRoleSelectDispatcher(): boolean {
+    return this.currentRole() === 'shop_manager';
+  }
+
+  /** Checks if at least one installer assigned to the job has accepted or auto-accepted their assignment. */
+  hasJobAcceptedInstallers(job: InstallationJob): boolean {
+    if (job.installerAssignmentStatus === 'accepted' || job.installerAutoAccepted) {
+      return true;
+    }
+    if (job.assignedInstallers && job.assignedInstallers.length > 0) {
+      return job.assignedInstallers.some(m => m.status === 'accepted' || m.autoAccepted);
+    }
+    return false;
+  }
+
+  /** Checks if the current shop manager created the job or is responsible for its shop branch. */
+  canShopManagerAssignDriver(job: InstallationJob): boolean {
+    if (!this.canCurrentRoleSelectDispatcher()) return false;
+    const curUser = this.currentUser();
+    const branch = this.managerBranch();
+    const branchId = branch ? String(branch.id ?? '') : '';
+    const resolvedShop = this.getJobBranch(job);
+    const resolvedId = resolvedShop ? String(resolvedShop.id ?? '') : '';
+
+    if (job.createdByUserId && curUser.id && job.createdByUserId === curUser.id) return true;
+    if (branchId && resolvedId && branchId === resolvedId) return true;
+    if (branch?.branchCode && resolvedShop?.branchCode && branch.branchCode === resolvedShop.branchCode) return true;
+    if (!branchId && !job.createdByUserId) return true;
+    return false;
+  }
+
+  private normalizeNotificationForManager(n: NotificationItem): NotificationItem {
+    if (n.recipientRole !== 'manager') return n;
+
+    let title = n.title || '';
+    let message = n.message || '';
+    let actionLabel = n.actionLabel;
+
+    if (actionLabel && /assign\s+team|set\s*up\s*truck|select\s+installer/i.test(actionLabel)) {
+      actionLabel = 'Select Team';
+    } else if (actionLabel && /reassign\s+driver|select\s+dispatcher/i.test(actionLabel)) {
+      actionLabel = undefined;
+    }
+
+    title = title
+      .replace(/Assign\s+Installation\s+Team\s*&\s*Truck/gi, 'Select Installation Team')
+      .replace(/Driver\s+Rejected\s*-\s*Reassignment\s+Needed/gi, 'Dispatch Driver Rejected Delivery Run');
+
+    message = message
+      .replace(/Please\s+configure\s+delivery\s+truck\s*&\s*assign\s+available\s+Installer\.?/gi, 'Please select an Installation Team (Lead + Assistants).')
+      .replace(/Please\s+assign\s+Installation\s+Team\s*\(Lead\s*\+\s*Assistants\)\s*and\s+delivery\s+truck\.?/gi, 'Please select an Installation Team (Lead + Assistants).')
+      .replace(/Reassignment\s+required\.$/i, 'Shop Manager has been notified to select another dispatcher.');
+
+    return {
+      ...n,
+      title,
+      message,
+      actionLabel
+    };
+  }
+
+  private normalizeNotificationForShopManager(n: NotificationItem): NotificationItem {
+    if (n.recipientRole !== 'shop_manager') return n;
+
+    let title = n.title || '';
+    let message = n.message || '';
+    let actionLabel = n.actionLabel;
+
+    if (actionLabel && /installer|team|driver/i.test(actionLabel)) {
+      actionLabel = 'Select Dispatcher';
+    }
+
+    if (/installer\s+rejection/i.test(title) || /queued\s+for\s+shop\s+manager\s+reassignment/i.test(message)) {
+      title = 'Select Dispatcher for Installation Order';
+      message = message
+        .replace(/Queued for Shop Manager reassignment\.?/gi, 'Please select a store dispatcher for delivery.')
+        .replace(/installer\s+reassignment/gi, 'dispatcher selection');
+      actionLabel = 'Select Dispatcher';
+    }
+
+    if (/(select|assign)\s+(an?\s+)?installer/i.test(title)) {
+      title = title.replace(/(select|assign)\s+(an?\s+)?installer/gi, 'Select Dispatcher');
+      actionLabel = actionLabel || 'Select Dispatcher';
+    }
+
+    if (/(select|assign)\s+(an?\s+)?installer/i.test(message)) {
+      message = message.replace(/(select|assign)\s+(an?\s+)?installer/gi, 'select a dispatcher');
+      actionLabel = actionLabel || 'Select Dispatcher';
+    }
+
+    return {
+      ...n,
+      title,
+      message,
+      actionLabel
+    };
+  }
+
+  readonly unreadNotificationsCount = computed(() => {
+    return this.roleNotifications().filter(n => !n.read).length;
   });
 
   readonly roleNotifications = computed(() => {
-    const role = this.currentRole();
-    return this.notifications().filter(n => n.recipientRole === role || n.recipientRole === 'all');
+    const seen = new Set<string>();
+    const result: NotificationItem[] = [];
+
+    for (const raw of this.notifications()) {
+      if (!this.isNotificationVisibleToCurrentRole(raw)) continue;
+
+      let n = raw;
+      if (this.currentRole() === 'shop_manager') {
+        n = this.normalizeNotificationForShopManager(raw);
+      } else if (this.currentRole() === 'manager') {
+        n = this.normalizeNotificationForManager(raw);
+      }
+
+      // Guarantee each installer / user receives at most 1 notification per job + event type + title
+      const dedupKey = `${n.recipientRole}|${n.recipientUserId || ''}|${n.jobId || ''}|${n.type}|${n.title}`;
+      if (seen.has(dedupKey)) continue;
+      seen.add(dedupKey);
+      result.push(n);
+    }
+
+    return result;
   });
+
+  readonly dismissedReassignmentJobIds = signal<string[]>([]);
+  readonly activeReassignmentPopupJobId = signal<string | null>(null);
+
+  /**
+   * Automatically surfaces a job that was declined by an installer so the Operations Manager
+   * receives an immediate popup to re-assign another installer/team.
+   */
+  readonly pendingManagerReassignmentJob = computed<InstallationJob | null>(() => {
+    if (!this.canCurrentRoleAssignInstallers()) return null;
+    const explicitId = this.activeReassignmentPopupJobId();
+    if (explicitId) {
+      const explicitJob = this.jobs().find(j => j.id === explicitId);
+      if (explicitJob) return explicitJob;
+    }
+    const dismissed = this.dismissedReassignmentJobIds();
+    return (
+      this.jobs().find(
+        j =>
+          (j.installerAssignmentStatus === 'rejected' ||
+            (j.assignedInstallers && j.assignedInstallers.length > 0 && j.assignedInstallers.some(m => m.status === 'rejected'))) &&
+          !dismissed.includes(j.id)
+      ) || null
+    );
+  });
+
+  openReassignmentPopup(jobId: string): void {
+    this.dismissedReassignmentJobIds.update(ids => ids.filter(id => id !== jobId));
+    this.activeReassignmentPopupJobId.set(jobId);
+  }
+
+  dismissReassignmentPopup(jobId?: string): void {
+    const targetId = jobId || this.pendingManagerReassignmentJob()?.id;
+    this.activeReassignmentPopupJobId.set(null);
+    if (targetId) {
+      this.dismissedReassignmentJobIds.update(ids => (ids.includes(targetId) ? ids : [...ids, targetId]));
+    }
+  }
 
   readonly activeJobForCurrentInstaller = computed(() => {
     const instId = this.currentInstallerId();
@@ -808,10 +1216,10 @@ export class InstallationStore {
     if (!instId && !curUser) return undefined;
     const namePrefix = curUser?.name ? curUser.name.split(' ')[0].toLowerCase() : '';
     return this.jobs().find(j => {
-      const matchId = (instId && (j.assignedInstallerId === instId || (j.assignedInstallerIds && j.assignedInstallerIds.includes(instId)))) ||
+      const matchId = (instId && (j.assignedInstallerId === instId || (j.assignedInstallerIds && j.assignedInstallerIds.includes(instId)) || (j.assignedInstallers && j.assignedInstallers.some(m => m.id === instId)))) ||
                       (instId === 'USR-INS-01' && (j.assignedInstallerId === 'inst_01' || j.assignedInstallerId === 'USR-INS-01'));
-      const matchName = namePrefix && j.assignedInstallerName && j.assignedInstallerName.toLowerCase().includes(namePrefix);
-      const isLive = j.status === 'on_site' || j.status === 'accepted' || j.status === 'dispatched' || j.status === 'assigned' || j.status === 'in_progress';
+      const matchName = namePrefix && ((j.assignedInstallerName && j.assignedInstallerName.toLowerCase().includes(namePrefix)) || (j.assignedInstallerNames && j.assignedInstallerNames.some(n => n.toLowerCase().includes(namePrefix))));
+      const isLive = j.status === 'on_site' || j.status === 'accepted' || j.status === 'dispatched' || j.status === 'assigned' || j.status === 'truck_assigned' || j.status === 'in_progress';
       return (matchId || matchName) && isLive;
     });
   });
@@ -908,19 +1316,528 @@ export class InstallationStore {
 
   // Cross-role workflow queues
   readonly shopPendingTruckSetupJobs = computed(() => this.jobs().filter(j => j.status === 'booked_at_shop' || ((!j.assignedInstallerId && (!j.assignedInstallerIds || j.assignedInstallerIds.length === 0)) && j.status !== 'completed' && j.status !== 'bonus_awarded')));
-  readonly shopPendingDriverJobs = computed(() => this.jobs().filter(j => (j.status === 'assigned' || j.status === 'booked_at_shop') && (!!j.assignedInstallerId || (j.assignedInstallerIds && j.assignedInstallerIds.length > 0)) && !j.dispatcherId));
+  readonly shopPendingDriverJobs = computed(() => this.jobs().filter(j => !j.dispatcherId && !['dispatched', 'delivered_on_site', 'on_site', 'installed_pending_signoff', 'completed', 'bonus_awarded'].includes(j.status)));
   readonly pendingFinanceVerificationJobs = computed(() => this.jobs().filter(j => j.shopBooking && !j.shopBooking.accountantVerified));
   readonly pendingTechMobilizationJobs = computed(() => this.jobs().filter(j => j.technicianSiteFunds && j.technicianSiteFunds.status === 'pending_dispatch'));
   readonly totalShopCollections = computed(() => this.jobs().reduce((sum, j) => sum + (j.shopBooking?.amountPaidAtShop || 0), 0));
   readonly totalSiteFundsDispatched = computed(() => this.jobs().reduce((sum, j) => sum + (j.technicianSiteFunds?.status === 'dispatched' ? j.technicianSiteFunds.amount : 0), 0));
 
-  readonly stats = computed(() => {
+  readonly stats = computed(() => this.computeJobStats(this.jobs()));
+
+  // ============================================================================
+  // SHOP ASSIGNMENT & BRANCH SCOPING
+  // Every user assigned to a shop (via `shopId` reference to `shop_locations.id`,
+  // or via their shop_manager/dispatcher branch assignment) sees ONLY data
+  // belonging to their assigned shop on `/shop` and branch-scoped views.
+  // ============================================================================
+
+  /** Resolves the shop assigned to the currently active user (null for global unassigned roles like Admin/HQ Manager). */
+  readonly userAssignedShop = computed<ShopLocationSettings | null>(() => {
+    const curUser = this.currentUser();
+    const role = this.currentRole();
+    if (curUser.shopId) {
+      return this.getUserAssignedBranch(curUser);
+    }
+    if (role === 'shop_manager' || role === 'dispatcher') {
+      return this.getUserAssignedBranch(curUser);
+    }
+    return null;
+  });
+
+  /** The branch owned by the signed-in shop manager or shop-assigned operational user. */
+  readonly managerBranch = computed<ShopLocationSettings | null>(() => {
+    const role = this.currentRole();
+    const curUser = this.currentUser();
+    if (role === 'shop_manager') {
+      return this.getUserAssignedBranch(curUser);
+    }
+    const crossBranchFieldRoles = ['admin', 'installer', 'dispatcher', 'client', 'account_officer'];
+    if (curUser.shopId && !crossBranchFieldRoles.includes(role)) {
+      return this.getUserAssignedBranch(curUser);
+    }
+    return null;
+  });
+
+  /** True when the current session must only see its own branch's data across general portal views. */
+  readonly isBranchScoped = computed(() => this.currentRole() === 'shop_manager' || !!this.managerBranch());
+
+  /** Jobs scoped to the current user's assigned shop on `/shop` (or all jobs for unassigned global users). */
+  readonly shopPortalJobs = computed<InstallationJob[]>(() => {
     const all = this.jobs();
+    const assigned = this.userAssignedShop();
+    if (!assigned) return all;
+    const targetShopId = String(assigned.id ?? assigned.branchCode);
+    const index = this.buildBranchIndex();
+    return all.filter(j => this.resolveJobBranchId(j, index) === targetShopId);
+  });
+
+  /** Jobs visible to the current session: own-branch jobs for shop-scoped users, everything for global roles. */
+  readonly branchJobs = computed<InstallationJob[]>(() => {
+    const all = this.jobs();
+    if (!this.isBranchScoped()) return all;
+    const branch = this.managerBranch();
+    const branchId = branch ? String(branch.id ?? branch.branchCode) : null;
+    const curUser = this.currentUser();
+    const userEmail = (curUser.email || '').toLowerCase();
+    const userId = (curUser.id || '').toLowerCase();
+    const managerName = (curUser.name || '').toLowerCase();
+    const index = this.buildBranchIndex();
+
+    return all.filter(j => {
+      const resolvedId = this.resolveJobBranchId(j, index);
+      if (branchId && resolvedId === branchId) return true;
+      if (resolvedId && branchId && resolvedId !== branchId) return false;
+      if (j.createdByUserId && curUser.id && j.createdByUserId === curUser.id) return true;
+      const bookedBy = (j.shopBooking?.bookedByShopManager || '').toLowerCase();
+      if (!bookedBy || bookedBy === 'doormaster master shop manager') return false;
+      return (!!userEmail && bookedBy.includes(userEmail)) ||
+             (!!userId && bookedBy.includes(userId)) ||
+             (!!managerName && bookedBy.includes(managerName));
+    });
+  });
+
+  readonly branchJobIds = computed(() => new Set(this.branchJobs().map(j => j.id)));
+  readonly branchStats = computed(() => this.computeJobStats(this.branchJobs()));
+  readonly branchShopCollections = computed(() => this.branchJobs().reduce((sum, j) => sum + (j.shopBooking?.amountPaidAtShop || 0), 0));
+  readonly branchPendingTruckSetupJobs = computed(() => this.branchJobs().filter(j => j.status === 'booked_at_shop' || ((!j.assignedInstallerId && (!j.assignedInstallerIds || j.assignedInstallerIds.length === 0)) && j.status !== 'completed' && j.status !== 'bonus_awarded')));
+  readonly branchPendingDriverJobs = computed(() =>
+    this.branchJobs().filter(
+      j =>
+        !j.dispatcherId &&
+        this.hasJobAcceptedInstallers(j) &&
+        !['dispatched', 'delivered_on_site', 'on_site', 'installed_pending_signoff', 'completed', 'bonus_awarded'].includes(j.status)
+    )
+  );
+
+  /** Orders created at this shop where technicians have been assigned but not yet confirmed/accepted. */
+  readonly branchAwaitingInstallerAcceptanceJobs = computed(() =>
+    this.branchJobs().filter(
+      j =>
+        !j.dispatcherId &&
+        !this.hasJobAcceptedInstallers(j) &&
+        !['dispatched', 'delivered_on_site', 'on_site', 'installed_pending_signoff', 'completed', 'bonus_awarded'].includes(j.status)
+    )
+  );
+
+  /** Dispatchers scoped to the shop manager's own branch (or all dispatchers for other roles). */
+  readonly branchDispatchers = computed<DispatcherProfile[]>(() => {
+    const all = this.dispatchers();
+    if (!this.isBranchScoped()) return all;
+    const branch = this.managerBranch();
+    const branchId = branch ? String(branch.id ?? '') : '';
+    const jobIds = this.branchJobIds();
+    const assignedDispatcherIds = new Set(this.branchJobs().map(j => j.dispatcherId).filter(Boolean));
+    return all.filter(d =>
+      (branchId && d.shopId === branchId) ||
+      (branch?.branchCode && d.branchCode === branch.branchCode) ||
+      (branch?.shopName && d.branchName === branch.shopName) ||
+      (d.currentTripJobId && jobIds.has(d.currentTripJobId)) ||
+      assignedDispatcherIds.has(d.id)
+    );
+  });
+
+  /** SMS logs scoped to the shop manager's own branch/jobs/phone (or all logs for other roles). */
+  readonly roleSmsLogs = computed<SmsLogEntry[]>(() => {
+    const all = this.smsLogs();
+    if (!this.isBranchScoped()) return all;
+    const jobIds = this.branchJobIds();
+    const branch = this.managerBranch();
+    const curUser = this.currentUser();
+    const normalizeDigits = (p?: string | null) => (p || '').replace(/\D/g, '').slice(-9);
+    const knownPhones = new Set<string>(
+      [curUser.phone, ...(branch?.phone ? branch.phone.split('/') : [])]
+        .map(p => normalizeDigits(p))
+        .filter(d => d.length >= 7)
+    );
+
+    return all.filter(log => {
+      if (log.jobId) {
+        return jobIds.has(log.jobId);
+      }
+      if (log.recipientRole !== 'shop_manager') return false;
+      const logDigits = normalizeDigits(log.recipientPhone);
+      if (logDigits && knownPhones.has(logDigits)) return true;
+      if (branch && log.messageText.toLowerCase().includes(branch.shopName.toLowerCase())) return true;
+      return false;
+    });
+  });
+
+  /** Public helper to resolve the shop/branch assigned to any user record (checks `shopId` reference first). */
+  getUserAssignedBranch(
+    user: { id?: string; name?: string; email?: string; role?: string; shopId?: string | null } | null | undefined
+  ): ShopLocationSettings | null {
+    if (!user) return null;
+    const branches = this.branches();
+
+    const email = (user.email || '').toLowerCase().trim();
+    const name = (user.name || '').toLowerCase().trim();
+    const id = (user.id || '').toUpperCase().trim();
+
+    let resolvedShopId = (user.shopId || '').toString().trim().toLowerCase();
+    if (!resolvedShopId) {
+      const directoryUser = this.users().find(
+        u =>
+          (user.id && String(u.id) === String(user.id)) ||
+          (email && (u.email || '').toLowerCase().trim() === email)
+      );
+      if (directoryUser?.shopId) {
+        resolvedShopId = String(directoryUser.shopId).trim().toLowerCase();
+      }
+    }
+
+    if (resolvedShopId) {
+      const byShopId = branches.find(
+        b =>
+          String(b.id || '').toLowerCase() === resolvedShopId ||
+          (b.branchCode || '').toLowerCase() === resolvedShopId ||
+          (b.shopName || '').toLowerCase() === resolvedShopId
+      );
+      if (byShopId) return byShopId;
+    }
+
+    const role = (user.role || '').toLowerCase();
+    if (role && role !== 'shop_manager' && role !== 'dispatcher') {
+      return null;
+    }
+
+    if (email) {
+      const byEmail = branches.find(b =>
+        (b.managerEmail || '').toLowerCase().trim() === email ||
+        (b.email || '').toLowerCase().trim() === email
+      );
+      if (byEmail) return byEmail;
+    }
+
+    if (id.startsWith('USR-SHP-') || id.startsWith('USR-DSP-')) {
+      const suffix = id.replace('USR-SHP-', '').replace('USR-DSP-', '');
+      if (suffix === '01') {
+        const central = branches.find(b => b.isPrimary || b.branchCode === 'DM-GH-HQ-SPX');
+        if (central) return central;
+      } else {
+        const byCode = branches.find(b => (b.branchCode || '').toUpperCase().endsWith(suffix));
+        if (byCode) return byCode;
+      }
+    }
+
+    if (name && role === 'shop_manager') {
+      const byFullName =
+        branches.find(b => (b.managerName || '').toLowerCase().trim() === name) ||
+        branches.find(b => (b.managerName || '').toLowerCase().includes(name));
+      if (byFullName) return byFullName;
+    }
+
+    return null;
+  }
+
+  /** Matches a user account to its dedicated shop branch without falling back to the /shop counter switcher. */
+  private findBranchForUser(
+    user: { id?: string; name?: string; email?: string; role?: string; shopId?: string | null } | null | undefined
+  ): ShopLocationSettings | null {
+    return this.getUserAssignedBranch(user);
+  }
+
+  private findBranchByNameOrCode(branchName?: string | null, branchCode?: string | null): ShopLocationSettings | null {
+    const branches = this.branches();
+    if (branchCode) {
+      const codeLower = branchCode.toLowerCase().trim();
+      const byCode = branches.find(b => (b.branchCode || '').toLowerCase().trim() === codeLower);
+      if (byCode) return byCode;
+    }
+    if (branchName) {
+      const index = this.buildBranchIndex();
+      const norm = this.normalizeBranchLabel(branchName);
+      if (norm) {
+        const exact = index.find(b => b.label === norm);
+        if (exact) return branches.find(b => String(b.id ?? b.branchCode) === exact.id) || null;
+        const partial = index.filter(b => b.label && (norm.includes(b.label) || b.label.includes(norm)));
+        if (partial.length === 1) {
+          return branches.find(b => String(b.id ?? b.branchCode) === partial[0].id) || null;
+        }
+      }
+      const rawLower = branchName.toLowerCase();
+      if (
+        rawLower.includes('flagship') ||
+        rawLower.includes('spintex') ||
+        rawLower.includes('atelier main') ||
+        rawLower.includes('central showroom') ||
+        rawLower.includes('central atelier') ||
+        rawLower.includes('downtown atelier') ||
+        rawLower.includes('accra central')
+      ) {
+        return branches.find(b => b.isPrimary) || null;
+      }
+    }
+    return null;
+  }
+
+  private resolveShopManagerForBranch(branch: ShopLocationSettings | null | undefined): { id: string; name: string; phone: string; email: string } | null {
+    if (!branch) return null;
+    const targetId = String(branch.id || '').toLowerCase();
+    const branchEmail = (branch.managerEmail || branch.email || '').toLowerCase().trim();
+    const matchedUser = this.users().find(u =>
+      u.role === 'shop_manager' && (
+        (!!targetId && (u.shopId || '').toLowerCase() === targetId) ||
+        (!!branchEmail && (u.email || '').toLowerCase().trim() === branchEmail) ||
+        (!!branch.managerName && (branch.managerName.toLowerCase().includes((u.name || '').toLowerCase())))
+      )
+    );
+    if (matchedUser) {
+      return {
+        id: matchedUser.id,
+        name: matchedUser.name,
+        phone: matchedUser.phone || branch.phone,
+        email: matchedUser.email
+      };
+    }
+    const code = (branch.branchCode || '').toUpperCase();
+    const fallbackId = (branch.isPrimary || code === 'DM-GH-HQ-SPX')
+      ? 'USR-SHP-01'
+      : code.startsWith('DM-GH-')
+        ? `USR-SHP-${code.replace('DM-GH-', '')}`
+        : undefined;
+    if (!fallbackId) return null;
+    return {
+      id: fallbackId,
+      name: branch.managerName || `${branch.shopName} Manager`,
+      phone: branch.phone.split('/')[0].trim(),
+      email: branch.managerEmail || branch.email
+    };
+  }
+
+  private resolveShopManagerForJob(job: InstallationJob | null | undefined) {
+    if (!job) return null;
+    return this.resolveShopManagerForBranch(this.getJobBranch(job));
+  }
+
+  /**
+   * Resolves the canonical ID(s) of the currently active installer so notifications
+   * and task assignments are strictly isolated per individual installer.
+   */
+  resolveActiveInstallerIds(): Set<string> {
+    const ids = new Set<string>();
+    const curUser = this.currentUser();
+    const explicitInstId = this.currentInstallerId();
+
+    const primaryId = (curUser.role === 'installer' && curUser.id)
+      ? curUser.id
+      : (explicitInstId || 'USR-INS-01');
+
+    ids.add(primaryId);
+
+    const matchedTech = this.installers().find(i =>
+      i.id === primaryId ||
+      (curUser.role === 'installer' && curUser.email && i.email.toLowerCase() === curUser.email.toLowerCase())
+    );
+    if (matchedTech) {
+      ids.add(matchedTech.id);
+    }
+
+    // Map legacy 'inst_01' <-> 'USR-INS-01' only for the corresponding installer
+    if (ids.has('USR-INS-01') || ids.has('inst_01')) {
+      ids.add('USR-INS-01');
+      ids.add('inst_01');
+    }
+    if (ids.has('USR-INS-02') || ids.has('inst_02')) {
+      ids.add('USR-INS-02');
+      ids.add('inst_02');
+    }
+    if (ids.has('USR-INS-03') || ids.has('inst_03')) {
+      ids.add('USR-INS-03');
+      ids.add('inst_03');
+    }
+
+    return ids;
+  }
+
+  isJobAssignedToCurrentInstaller(job: InstallationJob | undefined | null): boolean {
+    if (!job) return false;
+    const myIds = this.resolveActiveInstallerIds();
+    if (job.assignedInstallerId && myIds.has(job.assignedInstallerId)) return true;
+    if (job.assignedInstallerIds && job.assignedInstallerIds.some(id => myIds.has(id))) return true;
+    if (job.assignedInstallers && job.assignedInstallers.some(m => myIds.has(m.id))) return true;
+    return false;
+  }
+
+  getInstallerMemberForJob(job: InstallationJob | undefined | null, targetInstallerId?: string): AssignedInstallerTeamMember | undefined {
+    if (!job) return undefined;
+    const myIds = targetInstallerId ? new Set([targetInstallerId]) : this.resolveActiveInstallerIds();
+    if (job.assignedInstallers && job.assignedInstallers.length > 0) {
+      return job.assignedInstallers.find(m => myIds.has(m.id));
+    }
+    if (job.assignedInstallerId && myIds.has(job.assignedInstallerId)) {
+      return {
+        id: job.assignedInstallerId,
+        name: job.assignedInstallerName || 'Technician',
+        role: 'lead',
+        status: job.installerAssignmentStatus || 'pending',
+        autoAccepted: job.installerAutoAccepted,
+        deadlineAt: job.installerDeadlineAt,
+        assignedAt: job.installerAssignedAt,
+        respondedAt: job.installerRespondedAt,
+        rejectReason: job.installerRejectReason
+      };
+    }
+    return undefined;
+  }
+
+  isInstallerPendingAcceptance(job: InstallationJob | undefined | null, targetInstallerId?: string): boolean {
+    if (!job) return false;
+    const member = this.getInstallerMemberForJob(job, targetInstallerId);
+    if (!member) return false;
+    
+    const memberStatus = member.status || 'pending';
+    if (memberStatus !== 'pending') return false;
+
+    // Check 10-minute deadline
+    const deadlineStr = member.deadlineAt || job.installerDeadlineAt;
+    if (deadlineStr && new Date(deadlineStr).getTime() <= Date.now()) {
+      return false; // Expired (auto-accepted)
+    }
+
+    return true;
+  }
+
+  private isNotificationVisibleToCurrentRole(n: NotificationItem): boolean {
+    const role = this.currentRole();
+    const isRestrictedRole = ['client', 'installer', 'shop_manager'].includes(role);
+    if (isRestrictedRole && n.type === 'bonus_awarded') return false;
+
+    if (role === 'installer') {
+      if (n.recipientRole !== 'installer') return false;
+      const myIds = this.resolveActiveInstallerIds();
+      if (n.recipientUserId) {
+        return myIds.has(n.recipientUserId);
+      }
+      if (n.jobId && n.jobId !== 'GENERAL') {
+        const job = this.jobs().find(j => j.id === n.jobId);
+        return this.isJobAssignedToCurrentInstaller(job);
+      }
+      return false;
+    }
+
+    if (role === 'dispatcher') {
+      if (n.recipientRole !== 'dispatcher') return false;
+      const curUser = this.currentUser();
+      const dispId = (curUser.role === 'dispatcher' && curUser.id) ? curUser.id : this.currentDispatcherId();
+      if (n.recipientUserId && dispId) {
+        return n.recipientUserId === dispId;
+      }
+      return true;
+    }
+
+    if (role === 'client') {
+      if (n.recipientRole !== 'client') return false;
+      const cliId = this.currentClientId();
+      if (n.recipientUserId && cliId) {
+        return n.recipientUserId === cliId;
+      }
+      return true;
+    }
+
+    if (role === 'shop_manager') {
+      if (n.recipientRole !== 'shop_manager') return false;
+      const curUser = this.currentUser();
+      if (n.recipientUserId) {
+        return n.recipientUserId === curUser.id;
+      }
+      if (n.jobId && n.jobId !== 'GENERAL') {
+        return this.branchJobIds().has(n.jobId);
+      }
+      const branch = this.managerBranch();
+      if (!branch) return false;
+      const msgBranch = this.findBranchByNameOrCode(n.message, null);
+      if (msgBranch) {
+        return String(msgBranch.id ?? msgBranch.branchCode) === String(branch.id ?? branch.branchCode);
+      }
+      return false;
+    }
+
+    return n.recipientRole === role || n.recipientRole === 'all';
+  }
+
+  private normalizeBranchLabel(value: string | undefined | null): string {
+    return (value || '')
+      .toLowerCase()
+      .replace(/doormaster|branch|section|showroom|&|\(|\)|,|\./g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private buildBranchIndex(): { id: string; code: string; label: string; isPrimary: boolean }[] {
+    return this.branches().map(b => ({
+      id: String(b.id ?? b.branchCode),
+      code: (b.branchCode || '').toLowerCase(),
+      label: this.normalizeBranchLabel(b.shopName),
+      isPrimary: !!b.isPrimary
+    }));
+  }
+
+  /**
+   * Resolves which branch a job belongs to. Matches on canonical `shopId` reference first,
+   * then branch code, then normalized branch name, and maps Central Showroom aliases to primary.
+   */
+  private resolveJobBranchId(job: InstallationJob, index = this.buildBranchIndex()): string | null {
+    const explicitId = (job.shopId || job.shopBooking?.shopId || '').toString().trim().toLowerCase();
+    if (explicitId) {
+      const byId = index.find(b => b.id.toLowerCase() === explicitId || b.code === explicitId);
+      if (byId) return byId.id;
+    }
+
+    const code = (job.shopBranchCode || job.shopBooking?.branchCode || '').toLowerCase().trim();
+    if (code) {
+      const byCode = index.find(b => b.code === code);
+      if (byCode) return byCode.id;
+    }
+
+    const rawLabels = [job.shopBooking?.shopBranch, job.shopBranch].filter((l): l is string => !!l && !!l.trim());
+    const labels = rawLabels.map(l => this.normalizeBranchLabel(l)).filter(l => !!l);
+
+    for (const label of labels) {
+      const exact = index.find(b => b.label === label);
+      if (exact) return exact.id;
+    }
+
+    for (const label of labels) {
+      const partial = index.filter(b => b.label && (label.includes(b.label) || b.label.includes(label)));
+      if (partial.length === 1) return partial[0].id;
+      if (partial.length > 1) return null; // ambiguous (e.g. "Kumasi"), don't leak to any branch
+    }
+
+    for (const raw of rawLabels) {
+      const lower = raw.toLowerCase();
+      if (
+        lower.includes('flagship') ||
+        lower.includes('spintex') ||
+        lower.includes('atelier main') ||
+        lower.includes('central showroom') ||
+        lower.includes('central atelier') ||
+        lower.includes('downtown atelier') ||
+        lower.includes('accra central')
+      ) {
+        return index.find(b => b.isPrimary)?.id ?? null;
+      }
+    }
+
+    return null;
+  }
+
+  /** Canonical shop reference ID (`shop_locations.id`) that a job belongs to. */
+  getJobShopId(job: InstallationJob): string | null {
+    return this.resolveJobBranchId(job);
+  }
+
+  /** Branch that a job belongs to (null when it cannot be determined). */
+  getJobBranch(job: InstallationJob): ShopLocationSettings | null {
+    const id = this.resolveJobBranchId(job);
+    return this.branches().find(b => String(b.id ?? b.branchCode) === id) || null;
+  }
+
+  private computeJobStats(all: InstallationJob[]) {
     const completed = all.filter(j => j.status === 'completed' || j.status === 'bonus_awarded').length;
     const inProgress = all.filter(j => j.status === 'on_site' || j.status === 'accepted' || j.status === 'dispatched' || j.status === 'delivered_on_site' || j.status === 'truck_assigned' || j.status === 'site_funds_dispatched' || j.status === 'assigned').length;
     const pendingSignoff = all.filter(j => j.status === 'installed_pending_signoff').length;
     const pendingBonusApproval = all.filter(j => j.financials.bonusStatus === 'pending' && (j.status === 'completed' || j.status === 'installed_pending_signoff')).length;
-    const totalOrderValue = all.reduce((sum, j) => sum + j.financials.doorPrice + j.financials.installationFee, 0);
+    const totalOrderValue = all.reduce((sum, j) => sum + (j.financials.installationFee || 0) + (j.financials.laborCost || 0), 0);
     const totalBonusesAllocated = all.reduce((sum, j) => sum + j.financials.bonusAmount, 0);
     
     return {
@@ -932,7 +1849,7 @@ export class InstallationStore {
       totalOrderValue,
       totalBonusesAllocated
     };
-  });
+  }
 
   constructor() {
     const session = readPersistedSession();
@@ -947,17 +1864,178 @@ export class InstallationStore {
       this.applyImpersonatedState(savedImp);
     }
 
+    // Seed default installer teams immediately, then sync live data from API
+    this.deriveInstallersAndDispatchersFromUsers();
     this.loadFromApi();
 
     if (session) {
       void this.validateSession();
     }
 
-    // 10-Minute Dispatch Driver & Installer Auto-Acceptance Watchdog (Checks every 5 seconds)
+    // 10-Minute Dispatch Driver & Installer Auto-Acceptance Watchdog (Checks every 2 seconds)
     setInterval(() => {
       this.checkAndAutoAcceptExpiredDriverAssignments();
       this.checkAndAutoAcceptExpiredInstallerAssignments();
-    }, 5000);
+    }, 2000);
+
+    // Instant cross-portal synchronization bus & active heartbeat
+    if (typeof window !== 'undefined') {
+      this.setupCrossPortalSync();
+
+      setInterval(() => {
+        if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+          void this.syncLiveCrossUserState();
+        }
+      }, 3500);
+
+      window.addEventListener('focus', () => {
+        void this.syncLiveCrossUserState();
+      });
+    }
+  }
+
+  private syncChannel: BroadcastChannel | null = null;
+
+  /**
+   * Initializes the browser BroadcastChannel bus and localStorage event fallbacks
+   * for zero-latency cross-portal / cross-tab reactive data synchronization.
+   */
+  private setupCrossPortalSync(): void {
+    if (typeof window === 'undefined') return;
+
+    try {
+      if ('BroadcastChannel' in window) {
+        this.syncChannel = new BroadcastChannel('doormaster_cross_portal_sync_bus');
+        this.syncChannel.onmessage = (event: MessageEvent) => {
+          if (event.data && event.data.entity) {
+            void this.handleIncomingDataSync(event.data.entity as SyncEntity);
+          }
+        };
+      }
+    } catch (err) {
+      console.warn('[CrossPortalSync] BroadcastChannel unavailable, using storage event fallback:', err);
+    }
+
+    window.addEventListener('storage', (event: StorageEvent) => {
+      if (event.key === STORAGE_KEY_CROSS_PORTAL_SYNC && event.newValue) {
+        try {
+          const payload = JSON.parse(event.newValue);
+          if (payload?.entity) {
+            void this.handleIncomingDataSync(payload.entity as SyncEntity);
+          }
+        } catch {
+          // ignore parsing error
+        }
+      }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        void this.syncLiveCrossUserState();
+      }
+    });
+  }
+
+  /**
+   * Broadcasts data changes across all browser tabs and portal views instantly.
+   */
+  broadcastDataChanged(entity: SyncEntity): void {
+    if (typeof window === 'undefined') return;
+    const now = Date.now();
+
+    try {
+      this.syncChannel?.postMessage({ entity, timestamp: now });
+    } catch {
+      // ignore
+    }
+
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEY_CROSS_PORTAL_SYNC,
+        JSON.stringify({ entity, timestamp: now })
+      );
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Handles incoming cross-portal synchronization events, refreshing authoritative tables.
+   */
+  async handleIncomingDataSync(entity: SyncEntity): Promise<void> {
+    try {
+      switch (entity) {
+        case 'jobs':
+          await Promise.all([this.loadJobsFromBackend(), this.loadClientsFromBackend()]);
+          break;
+        case 'users':
+          await Promise.all([this.loadUsers(), this.loadTeamsFromBackend()]);
+          this.deriveInstallersAndDispatchersFromUsers();
+          break;
+        case 'teams':
+          await Promise.all([this.loadTeamsFromBackend(), this.loadUsers()]);
+          this.deriveInstallersAndDispatchersFromUsers();
+          break;
+        case 'roles':
+          await this.loadRolesFromBackend();
+          break;
+        case 'doors':
+          await this.loadDoorsFromBackend();
+          break;
+        case 'branches':
+          await Promise.all([this.loadBranchesFromBackend(), this.loadShopLocationFromBackend()]);
+          break;
+        case 'clients':
+          await this.loadClientsFromBackend();
+          break;
+        case 'notifications':
+          await this.loadNotificationsFromBackend();
+          break;
+        case 'all':
+        default:
+          await this.refreshAllData('Incoming Broadcast');
+          break;
+      }
+    } catch (err) {
+      console.warn(`[CrossPortalSync] Error processing incoming sync for ${entity}:`, err);
+    }
+  }
+
+  /**
+   * Global refresh method to reload every table and relational view immediately.
+   */
+  async refreshAllData(reason?: string): Promise<void> {
+    await Promise.all([
+      this.loadTeamsFromBackend(),
+      this.loadRolesFromBackend(),
+      this.loadJobsFromBackend(),
+      this.loadClientsFromBackend(),
+      this.loadDoorsFromBackend(),
+      this.loadBranchesFromBackend(),
+      this.loadShopLocationFromBackend(),
+      this.loadNotificationsFromBackend(),
+      ...(this.apiToken() ? [this.loadUsers()] : [])
+    ]);
+    this.deriveInstallersAndDispatchersFromUsers();
+  }
+
+  /**
+   * Keeps every signed-in user's store signals (teams, members, positions, roles, users, jobs, notifications, doors, branches)
+   * in sync with MySQL across browsers and sessions.
+   */
+  async syncLiveCrossUserState(): Promise<void> {
+    await Promise.all([
+      this.loadTeamsFromBackend(),
+      this.loadRolesFromBackend(),
+      this.loadJobsFromBackend(),
+      this.loadClientsFromBackend(),
+      this.loadNotificationsFromBackend(),
+      this.loadDoorsFromBackend(),
+      this.loadBranchesFromBackend(),
+      this.loadShopLocationFromBackend(),
+      ...(this.apiToken() ? [this.loadUsers()] : [])
+    ]);
+    this.deriveInstallersAndDispatchersFromUsers();
   }
 
   /**
@@ -997,13 +2075,10 @@ export class InstallationStore {
       this.currentDispatcherId.set(user.id);
     } else if (user.role === 'client') {
       this.currentClientId.set(user.id);
-    } else if (user.role === 'shop_manager') {
-      const email = (user.email || '').toLowerCase();
-      const matched = this.branches().find(b => 
-        (b.email && b.email.toLowerCase() === email) ||
-        (b.managerEmail && b.managerEmail.toLowerCase() === email) ||
-        (b.managerName && b.managerName.toLowerCase().includes(user.name.toLowerCase()))
-      );
+    }
+
+    if (user.shopId || user.role === 'shop_manager' || user.role === 'dispatcher') {
+      const matched = this.getUserAssignedBranch(user);
       if (matched) {
         this.shopLocation.set(matched);
       }
@@ -1049,7 +2124,10 @@ export class InstallationStore {
   private async loadFromApi(): Promise<void> {
     await Promise.all([
       this.loadUsers(),
+      this.loadTeamsFromBackend(),
+      this.loadRolesFromBackend(),
       this.loadJobsFromBackend(),
+      this.loadClientsFromBackend(),
       this.loadNotificationsFromBackend(),
       this.loadSmsLogsFromBackend(),
       this.loadInquiriesFromBackend(),
@@ -1059,134 +2137,489 @@ export class InstallationStore {
       this.checkDbStatus()
     ]);
 
-    // Derive installers & dispatchers from authenticated users
+    // Derive installers & dispatchers from authenticated users & DB teams
     this.deriveInstallersAndDispatchersFromUsers();
+
+    // Ensure assigned shop always takes precedence over primary shop default
+    const assignedBranch = this.userAssignedShop();
+    if (assignedBranch) {
+      this.shopLocation.set(assignedBranch);
+    }
   }
 
   /**
-   * Derives installer & dispatcher profiles from the users table.
-   * Maps 1 dispatcher per branch and organizes installers into 2 teams with 3 installers each (1 team lead per team).
+   * Derives installer & dispatcher profiles from the users table and authoritative DB teams.
+   * Maps 1 dispatcher per branch and organizes installers into all available teams (Team Alpha, Team Bravo, and any custom teams).
    */
   private deriveInstallersAndDispatchersFromUsers(): void {
     const userList = this.users();
     const branches = this.branches();
-    
-    const installerUsers = userList.filter(u => u.role === 'installer');
-    const mappedInstallers: InstallerProfile[] = installerUsers.map((u, idx) => {
-      // Determine Team Alpha vs Team Bravo (3 each, 1 team lead per team)
-      const isTeamAlpha = u.id === 'USR-INS-01' || u.id === 'USR-INS-02' || u.id === 'USR-INS-03' || 
-                          u.name.toLowerCase().includes('alpha') || u.name.toLowerCase().includes('vance') || 
-                          u.name.toLowerCase().includes('koranteng') || u.name.toLowerCase().includes('annan') || idx < 3;
-      const teamId = isTeamAlpha ? 'team-alpha' : 'team-bravo';
-      const teamName = isTeamAlpha ? 'Team Alpha (Precision Acoustics & Pivots)' : 'Team Bravo (Smart Lock & Heavy Entry Squad)';
-      const isTeamLead = u.id === 'USR-INS-01' || u.id === 'USR-INS-04' || 
-                         u.name.toLowerCase().includes('lead') || 
-                         (isTeamAlpha && idx === 0) || (!isTeamAlpha && idx === 3);
-      const teamRole: 'lead' | 'assistant' = isTeamLead ? 'lead' : 'assistant';
 
-      return {
-        id: u.id,
-        name: u.name,
-        role: 'installer' as const,
-        phone: u.phone || '',
-        email: u.email,
-        avatarUrl: u.avatarUrl || '',
-        teamId,
-        teamName,
-        isTeamLead,
-        teamRole,
-        specialties: isTeamAlpha ? ['acoustic_french', 'entrance_pivot'] : ['Smart Lock Doors', 'Premium Villa Series'],
-        lockSpecialties: isTeamLead ? ['Doormaster Smart Lock Handle F35', 'Biometric & RFID'] : ['Concealed Hinges', 'Multi-point Lockset'],
-        activeJobId: null,
-        isSignedIn: u.status === 'active',
-        lastSeenAt: u.createdAt || new Date().toISOString(),
-        currentLocationName: isTeamAlpha ? 'Central & Greater Accra Sector' : 'Northern & Commercial Sector',
-        availabilityStatus: u.status === 'active' ? 'available' : 'off_duty',
-        metrics: {
-          completedJobs: isTeamLead ? 24 : 12,
-          onTimeRate: isTeamLead ? 99 : 96,
-          avgTurnaroundHours: 3.2,
-          avgRating: isTeamLead ? 4.95 : 4.88,
-          firstTimePassRate: 98,
-          totalBonusesEarned: isTeamLead ? 720 : 360,
-          pendingBonuses: 0
+    const activeInstallerUsers = userList.filter(
+      u => u.role === 'installer' && u.status !== 'rejected' && u.status !== 'deactivated'
+    );
+
+    const fallbackInstallerUsers: AppUser[] = [
+      {
+        id: 'USR-INS-01',
+        name: 'Marcus Vance (Lead Master Tech - Team Alpha Lead)',
+        email: 'm.vance@doormasterops.com',
+        role: 'installer',
+        phone: '+233 24 555 0102',
+        status: 'active',
+        teamId: 'team-alpha',
+        teamRole: 'lead',
+        teamPosition: 'Lead Master Tech',
+        avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+        createdAt: '2026-01-16T08:00:00Z'
+      },
+      {
+        id: 'USR-INS-02',
+        name: 'Benjamin Koranteng (Senior Acoustic Tech - Team Alpha)',
+        email: 'b.koranteng@doormasterops.com',
+        role: 'installer',
+        phone: '+233 24 555 0112',
+        status: 'active',
+        teamId: 'team-alpha',
+        teamRole: 'assistant',
+        teamPosition: 'Senior Acoustic Tech',
+        avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+        createdAt: '2026-01-16T08:05:00Z'
+      },
+      {
+        id: 'USR-INS-03',
+        name: 'Joseph Annan (Pivot & Frameless Glass Tech - Team Alpha)',
+        email: 'j.annan@doormasterops.com',
+        role: 'installer',
+        phone: '+233 24 555 0113',
+        status: 'active',
+        teamId: 'team-alpha',
+        teamRole: 'assistant',
+        teamPosition: 'Pivot & Frameless Glass Tech',
+        avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+        createdAt: '2026-01-16T08:10:00Z'
+      },
+      {
+        id: 'USR-INS-04',
+        name: 'Derrick Bruce (Smart Lock Specialist - Team Bravo Lead)',
+        email: 'd.bruce@doormasterops.com',
+        role: 'installer',
+        phone: '+233 24 555 0114',
+        status: 'active',
+        teamId: 'team-bravo',
+        teamRole: 'lead',
+        teamPosition: 'Smart Lock Specialist',
+        avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+        createdAt: '2026-01-16T08:15:00Z'
+      },
+      {
+        id: 'USR-INS-05',
+        name: 'Emmanuel Ofori (Grand Villa Steel Tech - Team Bravo)',
+        email: 'e.ofori@doormasterops.com',
+        role: 'installer',
+        phone: '+233 24 555 0115',
+        status: 'active',
+        teamId: 'team-bravo',
+        teamRole: 'assistant',
+        teamPosition: 'Grand Villa Steel Tech',
+        avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
+        createdAt: '2026-01-16T08:20:00Z'
+      },
+      {
+        id: 'USR-INS-06',
+        name: 'Patrick Gyasi (Precision Joiner Tech - Team Bravo)',
+        email: 'p.gyasi@doormasterops.com',
+        role: 'installer',
+        phone: '+233 24 555 0116',
+        status: 'active',
+        teamId: 'team-bravo',
+        teamRole: 'assistant',
+        teamPosition: 'Precision Joiner Tech',
+        avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80',
+        createdAt: '2026-01-16T08:25:00Z'
+      }
+    ];
+
+    if (this.hasSyncedTeamsFromApi()) {
+      const apiTeams = this.dbTeams();
+      const userById = new Map<string, AppUser>(userList.map(u => [u.id, u]));
+
+      // Synchronize each DB team's member list with the latest user records
+      const syncedTeams: InstallerTeam[] = apiTeams.map(rawTeam => {
+        const syncedMembers: AssignedInstallerTeamMember[] = (rawTeam.members || []).map((m, idx) => {
+          const liveUser = userById.get(m.id);
+          const isLead = m.role === 'lead' || m.isTeamLead || (rawTeam.leadId ? rawTeam.leadId === m.id : idx === 0);
+          return {
+            ...m,
+            name: liveUser?.name || m.name,
+            phone: liveUser?.phone || m.phone || '+233 24 555 0102',
+            email: liveUser?.email || m.email,
+            avatar: liveUser?.avatarUrl || m.avatar,
+            role: isLead ? 'lead' : 'assistant',
+            position: liveUser?.teamPosition || m.position || (isLead ? 'Team Lead' : 'Installation Technician'),
+            teamId: rawTeam.id,
+            teamName: rawTeam.name,
+            isTeamLead: isLead,
+            status: liveUser?.status || m.status || 'active',
+            avgRating: m.avgRating || (isLead ? 4.95 : 4.88)
+          };
+        });
+
+        const explicitLead = syncedMembers.find(m => m.isTeamLead) || syncedMembers[0];
+        const orderedMembers = explicitLead
+          ? [explicitLead, ...syncedMembers.filter(m => m.id !== explicitLead.id)]
+          : syncedMembers;
+
+        return {
+          ...rawTeam,
+          leadId: explicitLead ? explicitLead.id : (rawTeam.leadId || ''),
+          leadName: explicitLead ? explicitLead.name : (rawTeam.leadName || 'Unassigned Lead'),
+          leadPhone: explicitLead?.phone || rawTeam.leadPhone || '+233 24 555 0102',
+          leadAvatarUrl: explicitLead?.avatar || rawTeam.leadAvatarUrl,
+          memberIds: orderedMembers.map(m => m.id),
+          members: orderedMembers,
+          positions: Array.isArray(rawTeam.positions) && rawTeam.positions.length > 0
+            ? rawTeam.positions
+            : ['Team Lead', 'Lead Master Tech', 'Senior Acoustic Tech', 'Smart Lock Specialist', 'Precision Joiner Tech', 'Installation Technician']
+        };
+      });
+
+      this.installerTeams.set(syncedTeams);
+
+      // Build map of userId -> team membership from syncedTeams
+      const memberTeamLookup = new Map<string, { team: InstallerTeam; member: AssignedInstallerTeamMember }>();
+      for (const team of syncedTeams) {
+        for (const member of team.members) {
+          memberTeamLookup.set(member.id, { team, member });
         }
+      }
+
+      // Collect all installer users (plus any team members whose user list wasn't loaded or has another role)
+      const installerUserMap = new Map<string, AppUser>();
+      for (const u of activeInstallerUsers) {
+        installerUserMap.set(u.id, u);
+      }
+      for (const team of syncedTeams) {
+        for (const m of team.members) {
+          if (!installerUserMap.has(m.id)) {
+            const matchedUser = userById.get(m.id);
+            installerUserMap.set(m.id, matchedUser || {
+              id: m.id,
+              name: m.name,
+              email: m.email || `${m.id.toLowerCase()}@doormasterops.com`,
+              role: 'installer',
+              phone: m.phone || '+233 24 555 0102',
+              status: m.status || 'active',
+              teamId: team.id,
+              teamRole: m.role,
+              teamPosition: m.position,
+              avatarUrl: m.avatar,
+              createdAt: new Date().toISOString()
+            });
+          }
+        }
+      }
+
+      const sortedUsers = Array.from(installerUserMap.values()).sort((a, b) => a.id.localeCompare(b.id));
+      const mappedInstallers: InstallerProfile[] = sortedUsers.map(u => {
+        const lookup = memberTeamLookup.get(u.id);
+        const matchedTeam = lookup?.team || (u.teamId ? syncedTeams.find(t => t.id === u.teamId) : undefined);
+        const matchedMember = lookup?.member;
+
+        const teamId = matchedTeam?.id || undefined;
+        const teamName = matchedTeam?.name || undefined;
+        const isTeamLead = matchedMember
+          ? matchedMember.role === 'lead' || !!matchedMember.isTeamLead
+          : u.teamRole === 'lead';
+        const teamRole: 'lead' | 'assistant' = isTeamLead ? 'lead' : 'assistant';
+        const teamPosition = matchedMember?.position || u.teamPosition || (teamId ? (isTeamLead ? 'Team Lead' : 'Installation Technician') : undefined);
+        const isAlphaSide = teamId === 'team-alpha';
+
+        return {
+          id: u.id,
+          name: u.name,
+          role: 'installer' as const,
+          phone: u.phone || '+233 24 555 0102',
+          email: u.email,
+          avatarUrl: u.avatarUrl || '',
+          teamId,
+          teamName,
+          isTeamLead,
+          teamRole,
+          teamPosition,
+          specialties: matchedTeam?.specialties?.length
+            ? matchedTeam.specialties
+            : (isAlphaSide ? ['acoustic_french', 'entrance_pivot'] : ['Smart Lock Doors', 'Premium Villa Series']),
+          lockSpecialties: isTeamLead ? ['Doormaster Smart Lock Handle F35', 'Biometric & RFID'] : ['Concealed Hinges', 'Multi-point Lockset'],
+          activeJobId: null,
+          isSignedIn: u.status === 'active',
+          lastSeenAt: u.createdAt || new Date().toISOString(),
+          currentLocationName: isAlphaSide ? 'Central & Greater Accra Sector' : 'Northern & Commercial Sector',
+          availabilityStatus: u.status === 'active' ? 'available' : 'off_duty',
+          metrics: {
+            completedJobs: isTeamLead ? 24 : 12,
+            onTimeRate: isTeamLead ? 99 : 96,
+            avgTurnaroundHours: 3.2,
+            avgRating: isTeamLead ? 4.95 : 4.88,
+            firstTimePassRate: 98,
+            totalBonusesEarned: isTeamLead ? 720 : 360,
+            pendingBonuses: 0
+          }
+        };
+      });
+
+      this.installers.set(mappedInstallers);
+    } else {
+      const sourceInstallerUsers = activeInstallerUsers.length > 0 ? activeInstallerUsers : fallbackInstallerUsers;
+
+      // Sort deterministically so leads and seed IDs keep canonical order regardless of DB query ordering
+      const sortedInstallerUsers = [...sourceInstallerUsers].sort((a, b) => a.id.localeCompare(b.id));
+
+      let alphaCount = 0;
+      let bravoCount = 0;
+      const customTeamMeta = new Map<string, { id: string; code: string; name: string; description: string; specialties: string[] }>();
+
+      // First pass: count explicit Alpha and Bravo members
+      for (const u of sortedInstallerUsers) {
+        const lower = (u.name || '').toLowerCase();
+        const lowerEmail = (u.email || '').toLowerCase();
+        const isBravo =
+          u.teamId === 'team-bravo' ||
+          u.id === 'USR-INS-04' || u.id === 'USR-INS-05' || u.id === 'USR-INS-06' ||
+          lower.includes('bravo') || lowerEmail.includes('bravo') ||
+          lower.includes('bruce') || lower.includes('ofori') || lower.includes('gyasi');
+        const isAlpha =
+          !isBravo && (
+            u.teamId === 'team-alpha' ||
+            u.id === 'USR-INS-01' || u.id === 'USR-INS-02' || u.id === 'USR-INS-03' ||
+            lower.includes('alpha') || lowerEmail.includes('alpha') ||
+            lower.includes('vance') || lower.includes('koranteng') || lower.includes('annan')
+          );
+        if (isAlpha) alphaCount++;
+        if (isBravo) bravoCount++;
+      }
+
+      const mappedInstallers: InstallerProfile[] = sortedInstallerUsers.map(u => {
+        const lower = (u.name || '').toLowerCase();
+        const lowerEmail = (u.email || '').toLowerCase();
+
+        const isExplicitBravo =
+          u.teamId === 'team-bravo' ||
+          u.id === 'USR-INS-04' || u.id === 'USR-INS-05' || u.id === 'USR-INS-06' ||
+          lower.includes('bravo') || lowerEmail.includes('bravo') ||
+          lower.includes('bruce') || lower.includes('ofori') || lower.includes('gyasi');
+
+        const isExplicitAlpha =
+          !isExplicitBravo && (
+            u.teamId === 'team-alpha' ||
+            u.id === 'USR-INS-01' || u.id === 'USR-INS-02' || u.id === 'USR-INS-03' ||
+            lower.includes('alpha') || lowerEmail.includes('alpha') ||
+            lower.includes('vance') || lower.includes('koranteng') || lower.includes('annan')
+          );
+
+        let teamId: string;
+        let teamName: string;
+
+        if (isExplicitAlpha) {
+          teamId = 'team-alpha';
+          teamName = 'Team Alpha (Precision Acoustics & Pivots)';
+        } else if (isExplicitBravo) {
+          teamId = 'team-bravo';
+          teamName = 'Team Bravo (Smart Lock & Heavy Entry Squad)';
+        } else {
+          const customMatch = (u.name || '').match(/team\s+([a-z0-9_-]+)/i);
+          if (customMatch && customMatch[1]) {
+            const rawLabel = customMatch[1];
+            const normalizedSlug = rawLabel.toLowerCase();
+            const titleLabel = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
+            teamId = `team-${normalizedSlug}`;
+            teamName = `Team ${titleLabel} (Field Installation Squad)`;
+            if (!customTeamMeta.has(teamId)) {
+              customTeamMeta.set(teamId, {
+                id: teamId,
+                code: rawLabel.toUpperCase(),
+                name: `Team ${titleLabel} - Field Installation Squad`,
+                description: `Dedicated DoorMaster field installation squad (Team ${titleLabel}).`,
+                specialties: ['Architectural Door Fitting', 'Smart Lock Calibration', 'Multi-Point Hardware']
+              });
+            }
+          } else if (alphaCount < 3) {
+            alphaCount++;
+            teamId = 'team-alpha';
+            teamName = 'Team Alpha (Precision Acoustics & Pivots)';
+          } else if (bravoCount < 3) {
+            bravoCount++;
+            teamId = 'team-bravo';
+            teamName = 'Team Bravo (Smart Lock & Heavy Entry Squad)';
+          } else {
+            teamId = 'team-charlie';
+            teamName = 'Team Charlie (Rapid Response & Custom Fit)';
+            if (!customTeamMeta.has(teamId)) {
+              customTeamMeta.set(teamId, {
+                id: teamId,
+                code: 'CHARLIE',
+                name: 'Team Charlie - Rapid Response & Custom Fit',
+                description: 'Specialized field squad for rapid turnaround installations, commercial fire doors, and custom hardware.',
+                specialties: ['Commercial Fire Doors', 'Rapid Site Turnaround', 'Custom Mortise Hardware']
+              });
+            }
+          }
+        }
+
+        const isTeamLead =
+          u.teamRole === 'lead' ||
+          u.id === 'USR-INS-01' ||
+          u.id === 'USR-INS-04' ||
+          lower.includes('lead');
+        const teamRole: 'lead' | 'assistant' = isTeamLead ? 'lead' : 'assistant';
+        const isAlphaSide = teamId === 'team-alpha';
+
+        return {
+          id: u.id,
+          name: u.name,
+          role: 'installer' as const,
+          phone: u.phone || '',
+          email: u.email,
+          avatarUrl: u.avatarUrl || '',
+          teamId,
+          teamName,
+          isTeamLead,
+          teamRole,
+          teamPosition: u.teamPosition || (isTeamLead ? 'Team Lead' : 'Installation Technician'),
+          specialties: isAlphaSide ? ['acoustic_french', 'entrance_pivot'] : ['Smart Lock Doors', 'Premium Villa Series'],
+          lockSpecialties: isTeamLead ? ['Doormaster Smart Lock Handle F35', 'Biometric & RFID'] : ['Concealed Hinges', 'Multi-point Lockset'],
+          activeJobId: null,
+          isSignedIn: u.status === 'active',
+          lastSeenAt: u.createdAt || new Date().toISOString(),
+          currentLocationName: isAlphaSide ? 'Central & Greater Accra Sector' : 'Northern & Commercial Sector',
+          availabilityStatus: u.status === 'active' ? 'available' : 'off_duty',
+          metrics: {
+            completedJobs: isTeamLead ? 24 : 12,
+            onTimeRate: isTeamLead ? 99 : 96,
+            avgTurnaroundHours: 3.2,
+            avgRating: isTeamLead ? 4.95 : 4.88,
+            firstTimePassRate: 98,
+            totalBonusesEarned: isTeamLead ? 720 : 360,
+            pendingBonuses: 0
+          }
+        };
+      });
+
+      this.installers.set(mappedInstallers);
+
+      const buildTeamRecord = (
+        id: string,
+        code: string,
+        name: string,
+        shortName: string,
+        specialties: string[],
+        description: string,
+        membersList: InstallerProfile[],
+        fallbackLeadName: string,
+        fallbackLeadId: string
+      ): InstallerTeam => {
+        const explicitLead = membersList.find(m => m.isTeamLead) || membersList[0];
+        if (explicitLead && !explicitLead.isTeamLead) {
+          explicitLead.isTeamLead = true;
+          explicitLead.teamRole = 'lead';
+        }
+        const orderedMembers = explicitLead
+          ? [explicitLead, ...membersList.filter(m => m.id !== explicitLead.id)]
+          : membersList;
+
+        return {
+          id,
+          name,
+          code,
+          leadId: explicitLead ? explicitLead.id : fallbackLeadId,
+          leadName: explicitLead ? explicitLead.name : fallbackLeadName,
+          leadPhone: explicitLead ? explicitLead.phone : '+233 24 555 0102',
+          leadAvatarUrl: explicitLead?.avatarUrl,
+          memberIds: orderedMembers.map(m => m.id),
+          members: orderedMembers.map((m, idx) => ({
+            id: m.id,
+            name: m.name,
+            phone: m.phone,
+            role: idx === 0 ? 'lead' : 'assistant',
+            position: m.teamPosition || (idx === 0 ? 'Team Lead' : 'Installation Technician'),
+            avatar: m.avatarUrl,
+            avgRating: m.metrics.avgRating,
+            teamId: id,
+            teamName: shortName,
+            isTeamLead: idx === 0
+          })),
+          positions: ['Team Lead', 'Lead Master Tech', 'Senior Acoustic Tech', 'Smart Lock Specialist', 'Precision Joiner Tech', 'Installation Technician'],
+          specialties,
+          description,
+          status: 'available'
+        };
       };
-    });
 
-    this.installers.set(mappedInstallers);
+      const teamAlphaMembers = mappedInstallers.filter(i => i.teamId === 'team-alpha');
+      const teamBravoMembers = mappedInstallers.filter(i => i.teamId === 'team-bravo');
 
-    // Build the two installer teams (3 installers each, 1 team lead)
-    const teamAlphaMembers = mappedInstallers.filter(i => i.teamId === 'team-alpha');
-    const teamBravoMembers = mappedInstallers.filter(i => i.teamId === 'team-bravo');
+      const teams: InstallerTeam[] = [];
 
-    const leadAlpha = teamAlphaMembers.find(i => i.isTeamLead) || teamAlphaMembers[0];
-    const leadBravo = teamBravoMembers.find(i => i.isTeamLead) || teamBravoMembers[0];
+      if (teamAlphaMembers.length > 0) {
+        teams.push(
+          buildTeamRecord(
+            'team-alpha',
+            'ALPHA',
+            'Team Alpha - Precision Acoustics & Pivots',
+            'Team Alpha',
+            ['Acoustic French Doors', 'Entrance Pivot Doors', 'Master Architectural Alignment'],
+            'Elite 3-person squad specialized in precision acoustic French doors, heavy pivot systems, and concealed hinges.',
+            teamAlphaMembers,
+            'Marcus Vance',
+            'USR-INS-01'
+          )
+        );
+      }
 
-    const teams: InstallerTeam[] = [];
+      if (teamBravoMembers.length > 0) {
+        teams.push(
+          buildTeamRecord(
+            'team-bravo',
+            'BRAVO',
+            'Team Bravo - Smart Lock & Heavy Entry Squad',
+            'Team Bravo',
+            ['Smart Lock Biometrics & RFID', 'Grand Villa Steel Doors', 'Multi-Point Deadbolts'],
+            'Elite 3-person heavy security squad specialized in biometric smart handle integration, armored villa doors, and rapid response.',
+            teamBravoMembers,
+            'Derrick Bruce',
+            'USR-INS-04'
+          )
+        );
+      }
 
-    if (teamAlphaMembers.length > 0) {
-      teams.push({
-        id: 'team-alpha',
-        name: 'Team Alpha - Precision Acoustics & Pivots',
-        code: 'ALPHA',
-        leadId: leadAlpha ? leadAlpha.id : 'USR-INS-01',
-        leadName: leadAlpha ? leadAlpha.name : 'Marcus Vance',
-        leadPhone: leadAlpha ? leadAlpha.phone : '+233 24 555 0102',
-        leadAvatarUrl: leadAlpha?.avatarUrl,
-        memberIds: teamAlphaMembers.map(m => m.id),
-        members: teamAlphaMembers.map(m => ({
-          id: m.id,
-          name: m.name,
-          phone: m.phone,
-          role: m.isTeamLead ? 'lead' : 'assistant',
-          avatar: m.avatarUrl,
-          avgRating: m.metrics.avgRating,
-          teamId: 'team-alpha',
-          teamName: 'Team Alpha',
-          isTeamLead: m.isTeamLead
-        })),
-        specialties: ['Acoustic French Doors', 'Entrance Pivot Doors', 'Master Architectural Alignment'],
-        description: 'Elite 3-person squad specialized in precision acoustic French doors, heavy pivot systems, and concealed hinges.',
-        status: 'available'
-      });
+      for (const [customId, meta] of customTeamMeta.entries()) {
+        const customMembers = mappedInstallers.filter(i => i.teamId === customId);
+        if (customMembers.length > 0) {
+          teams.push(
+            buildTeamRecord(
+              meta.id,
+              meta.code,
+              meta.name,
+              `Team ${meta.code}`,
+              meta.specialties,
+              meta.description,
+              customMembers,
+              customMembers[0].name,
+              customMembers[0].id
+            )
+          );
+        }
+      }
+
+      this.installerTeams.set(teams);
     }
 
-    if (teamBravoMembers.length > 0) {
-      teams.push({
-        id: 'team-bravo',
-        name: 'Team Bravo - Smart Lock & Heavy Entry Squad',
-        code: 'BRAVO',
-        leadId: leadBravo ? leadBravo.id : 'USR-INS-04',
-        leadName: leadBravo ? leadBravo.name : 'Derrick Bruce',
-        leadPhone: leadBravo ? leadBravo.phone : '+233 24 555 0114',
-        leadAvatarUrl: leadBravo?.avatarUrl,
-        memberIds: teamBravoMembers.map(m => m.id),
-        members: teamBravoMembers.map(m => ({
-          id: m.id,
-          name: m.name,
-          phone: m.phone,
-          role: m.isTeamLead ? 'lead' : 'assistant',
-          avatar: m.avatarUrl,
-          avgRating: m.metrics.avgRating,
-          teamId: 'team-bravo',
-          teamName: 'Team Bravo',
-          isTeamLead: m.isTeamLead
-        })),
-        specialties: ['Smart Lock Biometrics & RFID', 'Grand Villa Steel Doors', 'Multi-Point Deadbolts'],
-        description: 'Elite 3-person heavy security squad specialized in biometric smart handle integration, armored villa doors, and rapid response.',
-        status: 'available'
-      });
-    }
-
-    this.installerTeams.set(teams);
-
-    // Map each dispatcher user to their respective branch
+    // Map each dispatcher user to their respective branch (checking explicit shopId reference first)
     const dispatcherUsers = userList.filter(u => u.role === 'dispatcher');
     this.dispatchers.set(dispatcherUsers.map((u, idx) => {
-      // Find matching branch from 15 branches
+      const assignedByRef = this.getUserAssignedBranch(u);
       const branchKey = u.id.replace('USR-DSP-', '').toLowerCase();
-      const matchedBranch = branches.find(b => {
+      const matchedBranch = assignedByRef || branches.find(b => {
         const bCode = (b.branchCode || '').toLowerCase();
         const bId = String(b.id || '').toLowerCase();
         const bCity = (b.city || '').toLowerCase();
@@ -1208,6 +2641,7 @@ export class InstallationStore {
         phone: u.phone || '',
         email: u.email,
         avatarUrl: u.avatarUrl || '',
+        shopId: matchedBranch?.id ? String(matchedBranch.id) : undefined,
         branchCode: matchedBranch?.branchCode || 'DM-GH-HQ-SPX',
         branchName: matchedBranch?.shopName || 'DoorMaster Central Showroom & Atelier',
         assignedTruck: {
@@ -1221,6 +2655,275 @@ export class InstallationStore {
         completedDeliveries: 4 + (idx * 2)
       };
     }));
+  }
+
+  // ============================================================================
+  // TEAMS, SQUAD POSITIONS & ROLES SYNC (MySQL Persisted)
+  // ============================================================================
+
+  async loadTeamsFromBackend(): Promise<void> {
+    try {
+      const res = await this.apiFetch('/api/teams');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.teams)) {
+          this.dbTeams.set(data.teams);
+          this.hasSyncedTeamsFromApi.set(true);
+          this.deriveInstallersAndDispatchersFromUsers();
+        }
+      }
+    } catch (err) {
+      console.warn('[Store] Could not load teams from backend:', err);
+    }
+  }
+
+  async loadRolesFromBackend(): Promise<void> {
+    try {
+      const res = await this.apiFetch('/api/roles');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.roles) && data.roles.length > 0) {
+          this.roles.set(data.roles);
+          if (typeof window !== 'undefined') {
+            try {
+              window.localStorage.setItem('doormaster_roles', JSON.stringify(data.roles));
+            } catch {
+              // ignore storage write failure
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Store] Could not load roles from backend:', err);
+    }
+  }
+
+  /**
+   * Returns live synced team & position info for any user record.
+   */
+  getUserTeamInfo(user?: {
+    id: string;
+    teamId?: string | null;
+    teamRole?: string | null;
+    teamPosition?: string | null;
+  } | null): {
+    team: InstallerTeam | null;
+    teamId: string | null;
+    teamName: string | null;
+    teamCode: string | null;
+    position: string | null;
+    isLead: boolean;
+    color: string;
+  } {
+    if (!user) {
+      return { team: null, teamId: null, teamName: null, teamCode: null, position: null, isLead: false, color: 'indigo' };
+    }
+    const teams = this.installerTeams();
+    for (const t of teams) {
+      const member = t.members.find(m => m.id === user.id);
+      if (member) {
+        const isLead = member.role === 'lead' || !!member.isTeamLead || t.leadId === user.id;
+        return {
+          team: t,
+          teamId: t.id,
+          teamName: t.name,
+          teamCode: t.code,
+          position: member.position || user.teamPosition || (isLead ? 'Team Lead' : 'Installation Technician'),
+          isLead,
+          color: t.color || (t.id === 'team-bravo' ? 'amber' : 'indigo')
+        };
+      }
+    }
+    if (user.teamId) {
+      const matched = teams.find(t => t.id === user.teamId);
+      if (matched) {
+        const isLead = user.teamRole === 'lead' || matched.leadId === user.id;
+        return {
+          team: matched,
+          teamId: matched.id,
+          teamName: matched.name,
+          teamCode: matched.code,
+          position: user.teamPosition || (isLead ? 'Team Lead' : 'Installation Technician'),
+          isLead,
+          color: matched.color || (matched.id === 'team-bravo' ? 'amber' : 'indigo')
+        };
+      }
+    }
+    return {
+      team: null,
+      teamId: null,
+      teamName: null,
+      teamCode: null,
+      position: user.teamPosition || null,
+      isLead: user.teamRole === 'lead',
+      color: 'slate'
+    };
+  }
+
+  async createInstallerTeam(input: {
+    name: string;
+    code?: string;
+    description?: string;
+    specialties?: string[];
+    positions?: string[];
+    color?: string;
+    leadId?: string;
+    members?: { userId: string; position?: string; teamRole?: 'lead' | 'assistant' }[];
+  }): Promise<{ success: boolean; message: string; team?: InstallerTeam }> {
+    try {
+      const res = await this.apiFetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (Array.isArray(data.teams)) {
+          this.dbTeams.set(data.teams);
+          this.hasSyncedTeamsFromApi.set(true);
+        }
+        await this.loadUsers();
+        this.deriveInstallersAndDispatchersFromUsers();
+        this.broadcastDataChanged('teams');
+        return {
+          success: true,
+          message: data.message || `Team "${input.name}" created and synced.`,
+          team: data.team
+        };
+      }
+      return { success: false, message: data.message || 'Could not create team.' };
+    } catch (err) {
+      return { success: false, message: (err as Error).message || 'Network error creating team.' };
+    }
+  }
+
+  async updateInstallerTeam(
+    teamId: string,
+    input: {
+      name?: string;
+      code?: string;
+      description?: string;
+      specialties?: string[];
+      positions?: string[];
+      color?: string;
+      status?: string;
+      leadId?: string | null;
+    }
+  ): Promise<{ success: boolean; message: string; team?: InstallerTeam }> {
+    try {
+      const res = await this.apiFetch(`/api/teams/${teamId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (Array.isArray(data.teams)) {
+          this.dbTeams.set(data.teams);
+          this.hasSyncedTeamsFromApi.set(true);
+        }
+        await this.loadUsers();
+        this.deriveInstallersAndDispatchersFromUsers();
+        this.broadcastDataChanged('teams');
+        return {
+          success: true,
+          message: data.message || 'Team settings updated and synced.',
+          team: data.team
+        };
+      }
+      return { success: false, message: data.message || 'Could not update team.' };
+    } catch (err) {
+      return { success: false, message: (err as Error).message || 'Network error updating team.' };
+    }
+  }
+
+  async deleteInstallerTeam(teamId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await this.apiFetch(`/api/teams/${teamId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (Array.isArray(data.teams)) {
+          this.dbTeams.set(data.teams);
+          this.hasSyncedTeamsFromApi.set(true);
+        }
+        await this.loadUsers();
+        this.deriveInstallersAndDispatchersFromUsers();
+        this.broadcastDataChanged('teams');
+        return {
+          success: true,
+          message: data.message || 'Team deleted and members unassigned.'
+        };
+      }
+      return { success: false, message: data.message || 'Could not delete team.' };
+    } catch (err) {
+      return { success: false, message: (err as Error).message || 'Network error deleting team.' };
+    }
+  }
+
+  async upsertTeamMember(
+    teamId: string,
+    payload: {
+      userId: string;
+      position?: string;
+      teamRole?: 'lead' | 'assistant';
+    }
+  ): Promise<{ success: boolean; message: string; team?: InstallerTeam }> {
+    try {
+      const res = await this.apiFetch(`/api/teams/${teamId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (Array.isArray(data.teams)) {
+          this.dbTeams.set(data.teams);
+          this.hasSyncedTeamsFromApi.set(true);
+        }
+        await this.loadUsers();
+        this.deriveInstallersAndDispatchersFromUsers();
+        this.broadcastDataChanged('teams');
+        return {
+          success: true,
+          message: data.message || 'Team member & position synced.',
+          team: data.team
+        };
+      }
+      return { success: false, message: data.message || 'Could not update team member.' };
+    } catch (err) {
+      return { success: false, message: (err as Error).message || 'Network error updating team member.' };
+    }
+  }
+
+  async removeTeamMember(
+    teamId: string,
+    userId: string
+  ): Promise<{ success: boolean; message: string; team?: InstallerTeam }> {
+    try {
+      const res = await this.apiFetch(`/api/teams/${teamId}/members/${userId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (Array.isArray(data.teams)) {
+          this.dbTeams.set(data.teams);
+          this.hasSyncedTeamsFromApi.set(true);
+        }
+        await this.loadUsers();
+        this.deriveInstallersAndDispatchersFromUsers();
+        this.broadcastDataChanged('teams');
+        return {
+          success: true,
+          message: data.message || 'Member removed from team.',
+          team: data.team
+        };
+      }
+      return { success: false, message: data.message || 'Could not remove member from team.' };
+    } catch (err) {
+      return { success: false, message: (err as Error).message || 'Network error removing member from team.' };
+    }
   }
 
   // ============================================================================
@@ -1243,6 +2946,21 @@ export class InstallationStore {
     }
   }
 
+  async loadClientsFromBackend(): Promise<void> {
+    try {
+      const res = await this.apiFetch('/api/clients');
+      if (res.ok) {
+        const responseData = await res.json();
+        if (responseData.success && Array.isArray(responseData.clients)) {
+          this.clients.set(responseData.clients);
+          console.log(`[Store] Synced ${responseData.clients.length} normalized clients from MySQL`);
+        }
+      }
+    } catch (err) {
+      console.warn('[Store] Could not load clients from backend:', err);
+    }
+  }
+
   private mapDbJobToInstallationJob(dbJob: any): InstallationJob {
     const client = dbJob.client || {
       id: `cli_${dbJob.id}`,
@@ -1254,9 +2972,11 @@ export class InstallationStore {
       accessInstructions: dbJob.notes || ''
     };
 
-    const shopBooking = dbJob.shopBooking || {
+    const rawBooking = dbJob.shopBooking || {
       bookedByShopManager: 'DoorMaster Master Shop Manager',
+      shopId: dbJob.shopId || undefined,
       shopBranch: dbJob.shopBranch || 'Accra Flagship Showroom',
+      branchCode: dbJob.shopBranchCode || undefined,
       bookingTimestamp: dbJob.createdAt || new Date().toISOString(),
       lockModelRequested: dbJob.lockModel || 'Doormaster High-Security Smart Lock',
       amountPaidAtShop: Number(dbJob.depositAmount) || 0,
@@ -1264,6 +2984,12 @@ export class InstallationStore {
       receiptNumber: `REC-${dbJob.jobNumber || 'LIVE'}`,
       paymentStatus: Number(dbJob.balanceDue) <= 0 ? 'paid_in_full' : 'deposit_paid',
       accountantVerified: true
+    };
+    const shopBooking: ShopBookingDetails = {
+      ...rawBooking,
+      shopId: rawBooking.shopId || dbJob.shopId || undefined,
+      branchCode: rawBooking.branchCode || dbJob.shopBranchCode || undefined,
+      shopBranch: rawBooking.shopBranch || dbJob.shopBranch || 'Accra Flagship Showroom'
     };
 
     const technicianSiteFunds = dbJob.technicianSiteFunds || {
@@ -1273,8 +2999,8 @@ export class InstallationStore {
     };
 
     const financials = dbJob.financials || {
-      doorPrice: (Number(dbJob.depositAmount) || 0) + (Number(dbJob.balanceDue) || 0),
-      installationFee: 500,
+      doorPrice: 0,
+      installationFee: Number(dbJob.depositAmount) || 500,
       laborCost: 450,
       bonusAmount: 220,
       bonusStatus: 'pending',
@@ -1285,6 +3011,8 @@ export class InstallationStore {
     return {
       id: dbJob.jobNumber || dbJob.id || `DM-${Date.now()}`,
       title: dbJob.title || `${dbJob.doorName || 'Door Installation'} - ${dbJob.clientName || 'Client'}`,
+      clientId: dbJob.clientId || client.id,
+      doorId: dbJob.doorId || undefined,
       doorModel: dbJob.doorName || 'Architectural Door Slab',
       doorCategory: dbJob.doorCategory || 'General Doors',
       doors: dbJob.doors || undefined,
@@ -1292,7 +3020,10 @@ export class InstallationStore {
       dimensions: dbJob.doorDimensions || '2100 × 900 × 50mm',
       finish: dbJob.finish || 'Architectural Finish',
       hardwareSpecs: dbJob.hardwareSpecs || 'DormaKaba Heavy Duty Pivot, 3-point magnetic mortise lock',
+      shopId: dbJob.shopId || shopBooking.shopId || undefined,
+      shopBranchCode: dbJob.shopBranchCode || shopBooking.branchCode || undefined,
       shopBranch: dbJob.shopBranch || 'Accra Flagship Showroom',
+      createdByUserId: dbJob.createdByUserId || undefined,
       client,
       shopBooking,
       technicianSiteFunds,
@@ -1312,12 +3043,14 @@ export class InstallationStore {
       assignedInstallerNames: dbJob.assignedInstallerNames || (dbJob.assignedInstallerName ? dbJob.assignedInstallerName.split(', ') : []),
       assignedInstallers: dbJob.assignedInstallers || (dbJob.assignedInstallerId ? [{ id: dbJob.assignedInstallerId, name: dbJob.assignedInstallerName || 'Technician', role: 'lead' }] : []),
       installerAssignmentStatus: dbJob.installerAssignmentStatus || 'pending',
-      installerAssignedAt: dbJob.installerAssignedAt || (dbJob as any).assignedInstallers?.[0]?.assignedAt || dbJob.assignedAt,
-      installerDeadlineAt: dbJob.installerDeadlineAt || (dbJob as any).assignedInstallers?.[0]?.deadlineAt,
-      installerAutoAccepted: dbJob.installerAutoAccepted ?? false,
-      installerRejectReason: dbJob.installerRejectReason,
-      installerProposedSlot: dbJob.installerProposedSlot,
-      installerRespondedAt: dbJob.installerRespondedAt,
+      installerAssignedAt: dbJob.installerAssignedAt || (dbJob.shopBooking as any)?.installerMeta?.installerAssignedAt || (dbJob as any).assignedInstallers?.[0]?.assignedAt || dbJob.assignedAt,
+      installerDeadlineAt: dbJob.installerDeadlineAt || (dbJob.shopBooking as any)?.installerMeta?.installerDeadlineAt || (dbJob as any).assignedInstallers?.[0]?.deadlineAt,
+      installerAutoAccepted: dbJob.installerAutoAccepted ?? (dbJob.shopBooking as any)?.installerMeta?.installerAutoAccepted ?? (dbJob as any).assignedInstallers?.[0]?.autoAccepted ?? false,
+      installerRejectReason: dbJob.installerRejectReason || (dbJob.shopBooking as any)?.installerMeta?.installerRejectReason,
+      installerProposedSlot: dbJob.installerProposedSlot || (dbJob.shopBooking as any)?.installerMeta?.installerProposedSlot,
+      installerRespondedAt: dbJob.installerRespondedAt || (dbJob.shopBooking as any)?.installerMeta?.installerRespondedAt || (dbJob as any).assignedInstallers?.[0]?.respondedAt,
+      rejectedByInstallerName: dbJob.rejectedByInstallerName || (dbJob.shopBooking as any)?.installerMeta?.rejectedByInstallerName,
+      acceptedAt: dbJob.acceptedAt || (dbJob.shopBooking as any)?.installerMeta?.acceptedAt,
       operationsApproved: dbJob.operationsApproved || false,
       status: (dbJob.status as JobStatus) || 'booked_at_shop',
       scheduledDate: dbJob.scheduledTime || 'Scheduled Today',
@@ -1349,6 +3082,12 @@ export class InstallationStore {
       const lng = job.client?.coordinates?.lng ?? -0.1870;
       const notes = job.client?.accessInstructions || '';
 
+      const resolvedShopId = job.shopId || job.shopBooking?.shopId || this.resolveJobBranchId(job) || null;
+      const resolvedBranchObj = resolvedShopId
+        ? this.branches().find(b => String(b.id ?? b.branchCode) === resolvedShopId)
+        : null;
+      const resolvedBranchCode = job.shopBranchCode || job.shopBooking?.branchCode || resolvedBranchObj?.branchCode || null;
+
       await this.apiFetch('/api/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1368,9 +3107,12 @@ export class InstallationStore {
           finish: job.finish,
           hardwareSpecs: job.hardwareSpecs,
           lockModel: job.lockModel,
+          shopId: resolvedShopId,
+          shopBranchCode: resolvedBranchCode,
           shopBranch: job.shopBranch,
-          depositAmount: job.shopBooking?.amountPaidAtShop ?? (job.financials?.depositPaid ? job.financials.doorPrice : 0),
-          balanceDue: (job.financials?.doorPrice || 0) - (job.shopBooking?.amountPaidAtShop || 0),
+          createdByUserId: job.createdByUserId || null,
+          depositAmount: job.shopBooking?.amountPaidAtShop ?? (job.financials?.depositPaid ? ((job.financials?.installationFee || 0) + (job.financials?.laborCost || 0)) : 0),
+          balanceDue: Math.max(0, ((job.financials?.installationFee || 0) + (job.financials?.laborCost || 0)) - (job.shopBooking?.amountPaidAtShop || 0)),
           status: job.status,
           assignedDriverId: job.dispatcherId || null,
           assignedDriverName: job.dispatcherName || null,
@@ -1381,12 +3123,35 @@ export class InstallationStore {
           assignedInstallerNames: job.assignedInstallerNames || null,
           assignedInstallers: job.assignedInstallers || null,
           installerAssignmentStatus: job.installerAssignmentStatus || 'pending',
+          installerAssignedAt: job.installerAssignedAt || job.assignedAt || undefined,
+          installerDeadlineAt: job.installerDeadlineAt || undefined,
+          installerAutoAccepted: job.installerAutoAccepted ?? false,
+          installerRejectReason: job.installerRejectReason || undefined,
+          installerProposedSlot: job.installerProposedSlot || undefined,
+          installerRespondedAt: job.installerRespondedAt || undefined,
+          rejectedByInstallerName: job.rejectedByInstallerName || undefined,
+          acceptedAt: job.acceptedAt || undefined,
           operationsApproved: job.operationsApproved || false,
           scheduledTime: job.scheduledDate,
           notes,
           doors: job.doors || null,
           client: job.client || null,
-          shopBooking: job.shopBooking || null,
+          shopBooking: job.shopBooking
+            ? {
+                ...job.shopBooking,
+                installerMeta: {
+                  ...((job.shopBooking as any).installerMeta || {}),
+                  installerAssignedAt: job.installerAssignedAt || job.assignedAt,
+                  installerDeadlineAt: job.installerDeadlineAt,
+                  installerAutoAccepted: job.installerAutoAccepted ?? false,
+                  installerRejectReason: job.installerRejectReason,
+                  installerProposedSlot: job.installerProposedSlot,
+                  installerRespondedAt: job.installerRespondedAt,
+                  rejectedByInstallerName: job.rejectedByInstallerName,
+                  acceptedAt: job.acceptedAt
+                }
+              }
+            : null,
           technicianSiteFunds: job.technicianSiteFunds || null,
           logisticsTruck: job.logisticsTruck || null,
           clockSessions: job.clockSessions || null,
@@ -1397,8 +3162,33 @@ export class InstallationStore {
         })
       });
       console.log(`[Store] Persisted job ${job.id} to MySQL via Prisma`);
+      await Promise.all([
+        this.loadJobsFromBackend(),
+        this.loadClientsFromBackend()
+      ]);
+      this.broadcastDataChanged('jobs');
     } catch (err) {
       console.warn('[Store] Could not persist job to backend:', err);
+    }
+  }
+
+  async deleteJob(jobId: string): Promise<boolean> {
+    try {
+      const res = await this.apiFetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json().catch(() => null);
+      this.jobs.update(list => list.filter(j => j.id !== jobId));
+      this.saveJobsLocally();
+      await Promise.all([
+        this.loadJobsFromBackend(),
+        this.loadClientsFromBackend()
+      ]);
+      this.broadcastDataChanged('jobs');
+      return data?.success ?? true;
+    } catch (err) {
+      console.warn('[Store] Failed deleting job from backend:', err);
+      return false;
     }
   }
 
@@ -1434,18 +3224,20 @@ export class InstallationStore {
       if (res.ok) {
         const responseData = await res.json()
         if (responseData.success && Array.isArray(responseData.notifications)) {
-          const mapped: NotificationItem[] = responseData.notifications.map((n: any) => ({
-            id: n.id,
-            recipientRole: n.recipientRole as RoleType,
-            recipientUserId: n.recipientUserId || undefined,
-            title: n.title,
-            message: n.message,
-            type: n.type as any,
-            jobId: n.jobId || undefined,
-            timestamp: n.createdAt || new Date().toISOString(),
-            read: !!n.read,
-            actionLabel: n.actionLabel || undefined
-          }));
+          const mapped: NotificationItem[] = responseData.notifications.map((n: any) =>
+            this.normalizeNotificationForShopManager({
+              id: n.id,
+              recipientRole: n.recipientRole as RoleType,
+              recipientUserId: n.recipientUserId || undefined,
+              title: n.title,
+              message: n.message,
+              type: n.type as any,
+              jobId: n.jobId || undefined,
+              timestamp: n.createdAt || new Date().toISOString(),
+              read: !!n.read,
+              actionLabel: n.actionLabel || undefined
+            })
+          );
           this.notifications.set(mapped);
         }
       }
@@ -1529,28 +3321,34 @@ export class InstallationStore {
         const responseData = await res.json()
         if (responseData.success && Array.isArray(responseData.users)) {
           this.users.set(responseData.users);
+          this.deriveInstallersAndDispatchersFromUsers();
           console.log(`[Store] Synced ${responseData.users.length} users from database`);
           return;
         }
       }
       this.users.set([]);
+      this.deriveInstallersAndDispatchersFromUsers();
     } catch (err) {
       console.warn('[Store] Could not load users from backend:', err);
       this.users.set([]);
+      this.deriveInstallersAndDispatchersFromUsers();
     }
   }
 
-  async approveUser(userId: string): Promise<boolean> {
+  async approveUser(userId: string): Promise<{ success: boolean; message: string }> {
     try {
       const res = await this.apiFetch(`/api/auth/users/${userId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'active' })
       });
-      const responseData = await res.json()
+      const responseData = await res.json();
       if (responseData.success) {
         this.users.update(list => list.map(u => u.id === userId ? { ...u, status: 'active' } : u));
-        await this.deriveInstallersAndDispatchersFromUsers();
+        await this.loadUsers();
+        await this.loadTeamsFromBackend();
+        this.deriveInstallersAndDispatchersFromUsers();
+        this.broadcastDataChanged('users');
         const target = this.users().find(u => u.id === userId);
         this.createNotification({
           recipientRole: 'manager',
@@ -1559,46 +3357,52 @@ export class InstallationStore {
           type: 'job_assigned',
           jobId: ''
         });
-        return true;
+        return { success: true, message: responseData.message || `Account for ${target?.name || 'user'} activated.` };
       }
-      return false;
+      return { success: false, message: responseData.message || 'Could not activate user account.' };
     } catch (err) {
       console.warn('[Store] Failed approving user via API:', err);
-      return false;
+      return { success: false, message: (err as Error).message || 'Failed approving user.' };
     }
   }
 
-  async rejectUser(userId: string): Promise<boolean> {
+  async rejectUser(userId: string): Promise<{ success: boolean; message: string }> {
     try {
       const res = await this.apiFetch(`/api/auth/users/${userId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'rejected' })
       });
-      const responseData = await res.json()
+      const responseData = await res.json();
       if (responseData.success) {
         this.users.update(list => list.map(u => u.id === userId ? { ...u, status: 'rejected' } : u));
-        await this.deriveInstallersAndDispatchersFromUsers();
-        return true;
+        await this.loadUsers();
+        await this.loadTeamsFromBackend();
+        this.deriveInstallersAndDispatchersFromUsers();
+        this.broadcastDataChanged('users');
+        return { success: true, message: responseData.message || 'Registration request rejected.' };
       }
-      return false;
+      return { success: false, message: responseData.message || 'Could not reject user request.' };
     } catch (err) {
       console.warn('[Store] Failed rejecting user via API:', err);
-      return false;
+      return { success: false, message: (err as Error).message || 'Failed rejecting user.' };
     }
   }
 
-  async deactivateUser(userId: string): Promise<boolean> {
+  async deactivateUser(userId: string): Promise<{ success: boolean; message: string }> {
     try {
       const res = await this.apiFetch(`/api/auth/users/${userId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'deactivated' })
       });
-      const responseData = await res.json()
+      const responseData = await res.json();
       if (responseData.success) {
         this.users.update(list => list.map(u => u.id === userId ? { ...u, status: 'deactivated' } : u));
-        await this.deriveInstallersAndDispatchersFromUsers();
+        await this.loadUsers();
+        await this.loadTeamsFromBackend();
+        this.deriveInstallersAndDispatchersFromUsers();
+        this.broadcastDataChanged('users');
         const target = this.users().find(u => u.id === userId);
         this.createNotification({
           recipientRole: 'manager',
@@ -1607,16 +3411,16 @@ export class InstallationStore {
           type: 'job_assigned',
           jobId: ''
         });
-        return true;
+        return { success: true, message: responseData.message || `Account for ${target?.name || 'user'} deactivated.` };
       }
-      return false;
+      return { success: false, message: responseData.message || 'Could not deactivate user account.' };
     } catch (err) {
       console.warn('[Store] Failed deactivating user via API:', err);
-      return false;
+      return { success: false, message: (err as Error).message || 'Failed deactivating user.' };
     }
   }
 
-  async activateUser(userId: string): Promise<boolean> {
+  async activateUser(userId: string): Promise<{ success: boolean; message: string }> {
     return this.approveUser(userId);
   }
 
@@ -1625,6 +3429,10 @@ export class InstallationStore {
     email: string;
     role: RoleType | string;
     phone: string;
+    shopId?: string | null;
+    teamId?: string | null;
+    teamRole?: string | null;
+    teamPosition?: string | null;
     password?: string;
     status?: string;
   }): Promise<{ success: boolean; message: string; user?: AppUser }> {
@@ -1642,12 +3450,19 @@ export class InstallationStore {
           email: responseData.user.email,
           role: responseData.user.role,
           phone: responseData.user.phone,
+          shopId: responseData.user.shopId ?? userData.shopId ?? null,
+          teamId: responseData.user.teamId ?? userData.teamId ?? null,
+          teamRole: responseData.user.teamRole ?? userData.teamRole ?? null,
+          teamPosition: responseData.user.teamPosition ?? userData.teamPosition ?? null,
           status: responseData.user.status || 'active',
           avatarUrl: responseData.user.avatarUrl,
           createdAt: responseData.user.createdAt
         };
         this.users.update(list => [newUser, ...list.filter(u => u.id !== newUser.id)]);
-        await this.deriveInstallersAndDispatchersFromUsers();
+        await this.loadUsers();
+        await this.loadTeamsFromBackend();
+        this.deriveInstallersAndDispatchersFromUsers();
+        this.broadcastDataChanged('users');
 
         this.createNotification({
           recipientRole: 'manager',
@@ -1666,19 +3481,22 @@ export class InstallationStore {
     }
   }
 
-  async deleteUserAccount(userId: string): Promise<boolean> {
+  async deleteUserAccount(userId: string): Promise<{ success: boolean; message: string }> {
     try {
       const res = await this.apiFetch(`/api/auth/users/${userId}`, { method: 'DELETE' });
-      const responseData = await res.json()
+      const responseData = await res.json();
       if (responseData.success) {
         this.users.update(list => list.filter(u => u.id !== userId));
-        await this.deriveInstallersAndDispatchersFromUsers();
-        return true;
+        await this.loadUsers();
+        await this.loadTeamsFromBackend();
+        this.deriveInstallersAndDispatchersFromUsers();
+        this.broadcastDataChanged('users');
+        return { success: true, message: responseData.message || 'User account deleted successfully.' };
       }
-      return false;
+      return { success: false, message: responseData.message || 'Could not delete user account.' };
     } catch (err) {
       console.warn('[Store] Failed deleting user via API:', err);
-      return false;
+      return { success: false, message: (err as Error).message || 'Failed deleting user.' };
     }
   }
 
@@ -1689,6 +3507,10 @@ export class InstallationStore {
       email?: string;
       phone?: string;
       role?: RoleType | string;
+      shopId?: string | null;
+      teamId?: string | null;
+      teamRole?: string | null;
+      teamPosition?: string | null;
       status?: string;
       avatarUrl?: string;
     }
@@ -1707,13 +3529,20 @@ export class InstallationStore {
           email: responseData.user.email,
           role: responseData.user.role,
           phone: responseData.user.phone,
+          shopId: responseData.user.shopId ?? null,
+          teamId: responseData.user.teamId ?? null,
+          teamRole: responseData.user.teamRole ?? null,
+          teamPosition: responseData.user.teamPosition ?? null,
           status: responseData.user.status || 'active',
           avatarUrl: responseData.user.avatarUrl,
           createdAt: responseData.user.createdAt,
           updatedAt: responseData.user.updatedAt
         };
         this.users.update(list => list.map(u => (u.id === userId ? { ...u, ...updated } : u)));
-        await this.deriveInstallersAndDispatchersFromUsers();
+        await this.loadUsers();
+        await this.loadTeamsFromBackend();
+        this.deriveInstallersAndDispatchersFromUsers();
+        this.broadcastDataChanged('users');
 
         if (this.apiUser()?.id === userId) {
           this.apiUser.update(cur => (cur ? { ...cur, ...updated } : cur));
@@ -1817,31 +3646,16 @@ export class InstallationStore {
       });
     } else if (session.targetRole === 'client') {
       this.currentClientId.set(session.targetUser.id);
-    } else if (session.targetRole === 'shop_manager') {
-      const email = (session.targetUser.email || '').toLowerCase();
-      const name = (session.targetUser.name || '').toLowerCase();
-      const namePrefix = name.split(' ')[0];
-      const matched = this.branches().find(b => 
-        (b.email && b.email.toLowerCase() === email) ||
-        (b.managerEmail && b.managerEmail.toLowerCase() === email) ||
-        (b.managerName && b.managerName.toLowerCase().includes(name)) ||
-        (namePrefix && b.managerName && b.managerName.toLowerCase().includes(namePrefix)) ||
-        (namePrefix && b.shopName && b.shopName.toLowerCase().includes(namePrefix))
-      );
+    }
+
+    if (session.targetUser.shopId || session.targetRole === 'shop_manager' || session.targetRole === 'dispatcher') {
+      const matched = this.getUserAssignedBranch(session.targetUser);
       if (matched) {
         this.shopLocation.set({
           ...matched,
-          managerName: session.targetUser.name,
-          managerEmail: session.targetUser.email || matched.managerEmail,
-          phone: session.targetUser.phone || matched.phone
-        });
-      } else {
-        const cur = this.shopLocation();
-        this.shopLocation.set({
-          ...cur,
-          managerName: session.targetUser.name,
-          managerEmail: session.targetUser.email || cur.managerEmail,
-          phone: session.targetUser.phone || cur.phone
+          managerName: session.targetRole === 'shop_manager' ? (session.targetUser.name || matched.managerName) : matched.managerName,
+          managerEmail: session.targetRole === 'shop_manager' ? (session.targetUser.email || matched.managerEmail) : matched.managerEmail,
+          phone: session.targetRole === 'shop_manager' ? (session.targetUser.phone || matched.phone) : matched.phone
         });
       }
     }
@@ -1862,6 +3676,7 @@ export class InstallationStore {
       email: this.currentUser().email,
       role: this.currentRole(),
       phone: this.currentUser().phone,
+      shopId: this.currentUser().shopId ?? null,
       avatarUrl: this.currentUser().avatarUrl
     };
     const origRole = currentImp ? currentImp.originalRole : this.currentRole();
@@ -1906,13 +3721,8 @@ export class InstallationStore {
     this.currentDispatcherId.set(session.originalDispatcherId ?? null);
     this.currentClientId.set(session.originalClientId ?? null);
 
-    if (session.originalRole === 'shop_manager') {
-      const email = (session.originalUser.email || '').toLowerCase();
-      const matched = this.branches().find(b => 
-        (b.email && b.email.toLowerCase() === email) ||
-        (b.managerEmail && b.managerEmail.toLowerCase() === email) ||
-        (b.managerName && b.managerName.toLowerCase().includes(session.originalUser.name.toLowerCase()))
-      );
+    if (session.originalUser.shopId || session.originalRole === 'shop_manager' || session.originalRole === 'dispatcher') {
+      const matched = this.getUserAssignedBranch(session.originalUser);
       if (matched) {
         this.shopLocation.set(matched);
       }
@@ -1935,7 +3745,10 @@ export class InstallationStore {
         const responseData = await res.json()
         const loc = responseData.shopLocation || responseData.location;
         if (responseData.success && loc) {
-          this.shopLocation.set(loc);
+          const assigned = this.userAssignedShop();
+          if (!assigned) {
+            this.shopLocation.set(loc);
+          }
           console.log('[Store] Synced shop location from database:', loc.shopName);
         }
       }
@@ -1954,12 +3767,7 @@ export class InstallationStore {
           console.log(`[Store] Synced ${responseData.locations.length} branch locations from MySQL.`);
 
           // If current user is a shop manager, auto-focus their branch
-          const userEmail = this.currentUser().email.toLowerCase();
-          const matchedBranch = responseData.locations.find((b: ShopLocationSettings) => 
-            (b.email && b.email.toLowerCase() === userEmail) ||
-            (b.managerEmail && b.managerEmail.toLowerCase() === userEmail) ||
-            (b.managerName && b.managerName.toLowerCase().includes(this.currentUser().name.toLowerCase()))
-          );
+          const matchedBranch = this.findBranchForUser(this.currentUser());
           if (matchedBranch) {
             this.shopLocation.set(matchedBranch);
           }
@@ -2015,13 +3823,23 @@ export class InstallationStore {
   }
 
   async updateShopLocation(settings: Partial<ShopLocationSettings>): Promise<{ success: boolean; message?: string }> {
+    const baseBranch = (this.currentRole() === 'shop_manager' && this.managerBranch())
+      ? this.managerBranch()!
+      : this.shopLocation();
     const updated: ShopLocationSettings = {
-      ...this.shopLocation(),
+      ...baseBranch,
       ...settings,
       updatedAt: new Date().toISOString()
     };
 
     this.shopLocation.set(updated);
+    this.branches.update(list =>
+      list.map(b =>
+        (updated.id && b.id === updated.id) || (updated.branchCode && b.branchCode === updated.branchCode)
+          ? { ...b, ...updated }
+          : b
+      )
+    );
 
     try {
       const res = await this.apiFetch('/api/shop-location', {
@@ -2035,13 +3853,24 @@ export class InstallationStore {
         this.shopLocation.set(loc);
       }
 
+      const targetShopMgr = this.currentRole() === 'shop_manager'
+        ? this.currentUser()
+        : this.resolveShopManagerForBranch(updated);
+
       this.createNotification({
         recipientRole: 'shop_manager',
+        recipientUserId: targetShopMgr?.id,
         title: 'Shop Location Settings Saved',
         message: `${updated.shopName} location & coordinates saved to database.`,
         type: 'job_assigned',
         jobId: ''
       });
+
+      await Promise.all([
+        this.loadBranchesFromBackend(),
+        this.loadShopLocationFromBackend()
+      ]);
+      this.broadcastDataChanged('branches');
 
       return { success: true, message: responseData.message || 'Shop location settings saved to database' };
     } catch (err: any) {
@@ -2056,11 +3885,11 @@ export class InstallationStore {
   // ============================================================================
 
   /**
-   * Shop Manager / Operations Manager assigns an installer to a door installation job.
+   * Operations Manager assigns an installer to a door installation job.
    * Dispatches in-app notification & SMS to the installer with a 10-minute action window.
    */
   assignInstaller(jobId: string, installerId: string) {
-    if (!this.currentRoleDefinition().permissions.canAssignInstallers && this.currentRole() !== 'shop_manager' && this.currentRole() !== 'manager') {
+    if (!this.canCurrentRoleAssignInstallers()) {
       this.alert.warning('Access Restricted', 'Your role is not authorized to assign installers.');
       return;
     }
@@ -2084,19 +3913,34 @@ export class InstallationStore {
             name: installer.name,
             phone: installer.phone,
             role: 'lead',
-            avgRating: installer.metrics.avgRating
+            position: installer.teamPosition || 'Team Lead',
+            avatar: installer.avatarUrl,
+            teamId: installer.teamId,
+            teamName: installer.teamName,
+            isTeamLead: installer.isTeamLead,
+            avgRating: installer.metrics.avgRating,
+            status: 'pending',
+            assignedAt: now,
+            deadlineAt: deadline
           }],
           assignedAt: now,
           installerAssignedAt: now,
           installerDeadlineAt: deadline,
           installerAssignmentStatus: 'pending',
           installerAutoAccepted: false,
-          status: 'assigned'
+          installerRejectReason: undefined,
+          installerProposedSlot: undefined,
+          installerRespondedAt: undefined,
+          rejectedByInstallerName: undefined,
+          status: job.dispatcherId ? 'truck_assigned' : 'assigned'
         };
         return updatedJob;
       }
       return job;
     }));
+
+    this.dismissReassignmentPopup(jobId);
+    this.currentInstallerId.set(installer.id);
 
     if (updatedJob) {
       this.persistJobToBackend(updatedJob);
@@ -2109,17 +3953,41 @@ export class InstallationStore {
         return t;
       }));
 
-      const assigner = this.currentRole() === 'shop_manager' ? 'Shop Manager' : 'Operations Manager';
+      const assigner = 'Operations Manager';
 
       // In-App Notification to Field Installer
       this.createNotification({
         recipientRole: 'installer',
         recipientUserId: installer.id,
         title: 'New Installation Assigned (10-Min Action Required)',
-        message: `${assigner} assigned you to install ${updatedJob.doorModel} for ${updatedJob.client.name} (${updatedJob.client.siteAddress}). Scheduled: ${updatedJob.scheduledDate}. You have 10 minutes to reject for reassignment, otherwise auto-accepted for you.`,
+        message: `${assigner} assigned you to install ${updatedJob.doorModel} for ${updatedJob.client.name} (${updatedJob.client.siteAddress}). Scheduled: ${updatedJob.scheduledDate}. Please Accept or Decline within 10 minutes, otherwise auto-accepted for you.`,
         type: 'job_assigned',
         jobId: jobId,
-        actionLabel: 'Review & Respond'
+        actionLabel: 'Accept or Decline'
+      });
+
+      // Notify Shop Manager (scoped to job's branch)
+      const branchShopMgr = this.resolveShopManagerForJob(updatedJob);
+      this.createNotification({
+        recipientRole: 'shop_manager',
+        recipientUserId: branchShopMgr?.id,
+        title: updatedJob.dispatcherId ? 'Installer Assigned by Operations' : 'Installer Assigned — Select Dispatcher',
+        message: updatedJob.dispatcherId
+          ? `Operations Manager assigned ${installer.name} to job ${jobId} (${updatedJob.doorModel}) for ${updatedJob.client.name}. 10-minute installer acceptance countdown active.`
+          : `Operations Manager assigned ${installer.name} to job ${jobId} (${updatedJob.doorModel}). Please select a dispatcher to deliver the door and hardware to site.`,
+        type: 'truck_assigned',
+        jobId: jobId,
+        actionLabel: updatedJob.dispatcherId ? 'View Order' : 'Select Dispatcher'
+      });
+
+      // Notify Client
+      this.createNotification({
+        recipientRole: 'client',
+        recipientUserId: updatedJob.client.id,
+        title: 'Installer Assigned',
+        message: `Installer ${installer.name} has been assigned to your installation of ${updatedJob.doorModel}. Scheduled: ${updatedJob.scheduledDate}.`,
+        type: 'job_assigned',
+        jobId: jobId
       });
 
       // SMS to Field Installer
@@ -2128,7 +3996,7 @@ export class InstallationStore {
         recipientPhone: installer.phone,
         recipientName: installer.name,
         triggerEvent: 'installer_assigned',
-        messageText: `DoorMaster SMS: ${assigner} assigned you to install ${updatedJob.doorModel} (${jobId}). Scheduled: ${updatedJob.scheduledDate} at ${updatedJob.client.siteAddress}. Please reject within 10 mins if unavailable, else auto-accepted for you.`,
+        messageText: `DoorMaster SMS: ${assigner} assigned you to install ${updatedJob.doorModel} (${jobId}). Scheduled: ${updatedJob.scheduledDate} at ${updatedJob.client.siteAddress}. Please accept or reject within 10 mins if unavailable, else auto-accepted for you.`,
         jobId
       });
     }
@@ -2159,7 +4027,7 @@ export class InstallationStore {
         recipientRole: 'client',
         recipientUserId: updatedJob.client.id,
         title: 'Installer Confirmed Your Installation',
-        message: `DoorMaster technician ${updatedJob.assignedInstallerName || 'Marcus Vance'} has confirmed and accepted your installation of ${updatedJob.doorModel}. Scheduled date: ${updatedJob.scheduledDate}.`,
+        message: `DoorMaster installer ${updatedJob.assignedInstallerName || 'Marcus Vance'} has confirmed and accepted your installation of ${updatedJob.doorModel}. Scheduled date: ${updatedJob.scheduledDate}.`,
         type: 'installer_accepted',
         jobId: jobId,
         actionLabel: 'View Installation Schedule'
@@ -2167,7 +4035,7 @@ export class InstallationStore {
 
       this.createNotification({
         recipientRole: 'manager',
-        title: 'Technician Accepted Job',
+        title: 'Installer Accepted Job',
         message: `${updatedJob.assignedInstallerName} accepted job ${updatedJob.id} (${updatedJob.title}).`,
         type: 'installer_accepted',
         jobId: jobId
@@ -2179,68 +4047,128 @@ export class InstallationStore {
    * Field Installer responds to installation assignment (accept/reject).
    * Installer can only reject within 10 minutes of assignment.
    * Can accept manually within the 10-minute window.
+   * Each installer in a team uniquely accepts or rejects the task separately.
    */
-  respondInstallerAssignment(jobId: string, accepted: boolean, reason?: string, proposedSlot?: string) {
+  respondInstallerAssignment(
+    jobId: string, 
+    accepted: boolean, 
+    reason?: string, 
+    proposedSlot?: string,
+    targetInstallerId?: string
+  ) {
     const currentJob = this.jobs().find(j => j.id === jobId);
     if (!currentJob) return;
 
     const now = new Date().toISOString();
     let updatedJob: InstallationJob | undefined;
 
+    // Resolve the responding installer uniquely
+    const myIds = this.resolveActiveInstallerIds();
+    const currentTeam: AssignedInstallerTeamMember[] = (currentJob.assignedInstallers && currentJob.assignedInstallers.length > 0)
+      ? [...currentJob.assignedInstallers]
+      : (currentJob.assignedInstallerId ? [{
+          id: currentJob.assignedInstallerId,
+          name: currentJob.assignedInstallerName || 'Technician',
+          role: 'lead' as const,
+          status: currentJob.installerAssignmentStatus || 'pending',
+          assignedAt: currentJob.installerAssignedAt,
+          deadlineAt: currentJob.installerDeadlineAt
+        }] : []);
+
+    const respondingMember = currentTeam.find(m =>
+      (targetInstallerId && m.id === targetInstallerId) || myIds.has(m.id)
+    ) || currentTeam[0];
+
+    if (!respondingMember) return;
+    const responderId = respondingMember.id;
+    const responderName = respondingMember.name || 'Technician';
+
     if (accepted) {
       this.jobs.update(list => list.map(job => {
         if (job.id === jobId) {
+          const team = (job.assignedInstallers && job.assignedInstallers.length > 0)
+            ? job.assignedInstallers
+            : currentTeam;
+
+          const updatedTeam = team.map(member => {
+            if (member.id === responderId) {
+              return {
+                ...member,
+                status: 'accepted',
+                respondedAt: now,
+                autoAccepted: false
+              };
+            }
+            return member;
+          });
+
+          const anyPending = updatedTeam.some(m => !m.status || m.status === 'pending');
+
           updatedJob = {
             ...job,
-            installerAssignmentStatus: 'accepted',
+            assignedInstallers: updatedTeam,
+            installerAssignmentStatus: anyPending ? 'pending' : 'accepted',
             installerAutoAccepted: false,
             installerRespondedAt: now,
-            status: (job.status === 'booked_at_shop' || job.status === 'assigned') ? 'assigned' : job.status
+            acceptedAt: now,
+            status: (job.status === 'booked_at_shop' || job.status === 'assigned') ? 'accepted' : job.status
           };
           return updatedJob;
         }
         return job;
       }));
+
+      // Update technician availability
+      this.installers.update(techs => techs.map(t => {
+        if (t.id === responderId) {
+          return { ...t, activeJobId: jobId, availabilityStatus: 'assigned' };
+        }
+        return t;
+      }));
+
       this.saveJobsLocally();
       if (updatedJob) this.persistJobToBackend(updatedJob);
 
-      const techName = currentJob.assignedInstallerName || 'Technician';
-
-      // 1. In-App Notification to Field Installer
+      // 1. In-App Notification to the responding Field Installer ONLY
       this.createNotification({
         recipientRole: 'installer',
-        recipientUserId: currentJob.assignedInstallerId || undefined,
+        recipientUserId: responderId,
         title: 'Installation Confirmed & Accepted',
-        message: `You confirmed and accepted the installation for ${currentJob.doorModel} to ${currentJob.client.name}. Order activated for site arrival.`,
+        message: `You confirmed and accepted installation for ${currentJob.doorModel} (${currentJob.client.name} at ${currentJob.client.siteAddress}). Order activated for site arrival.`,
         type: 'installer_accepted',
         jobId: jobId,
         actionLabel: 'View Work Order'
       });
 
-      // 2. In-App Notification to Shop Manager
+      // 2. In-App Notification to Shop Manager (scoped to the job's branch)
+      const branchShopMgr = this.resolveShopManagerForJob(currentJob);
       this.createNotification({
         recipientRole: 'shop_manager',
-        title: 'Installer Confirmed & Accepted Installation',
-        message: `Technician ${techName} confirmed and accepted installation for ${currentJob.doorModel} at ${currentJob.client.siteAddress}.`,
+        recipientUserId: branchShopMgr?.id,
+        title: currentJob.dispatcherId ? 'Installer Confirmed Installation' : 'Installer Confirmed — Select Dispatcher',
+        message: currentJob.dispatcherId
+          ? `Installer ${responderName} confirmed and accepted installation for ${currentJob.doorModel} at ${currentJob.client.siteAddress}.`
+          : `Installer ${responderName} confirmed installation for ${currentJob.doorModel} at ${currentJob.client.siteAddress}. Please select a dispatcher for delivery.`,
         type: 'installer_accepted',
-        jobId: jobId
+        jobId: jobId,
+        actionLabel: currentJob.dispatcherId ? 'View Order' : 'Select Dispatcher'
       });
 
       // 3. In-App Notification to Operations Manager
       this.createNotification({
         recipientRole: 'manager',
         title: 'Installer Confirmed Installation Assignment',
-        message: `Technician ${techName} confirmed and accepted installation for ${currentJob.doorModel} to ${currentJob.client.name}.`,
+        message: `Installer ${responderName} confirmed and accepted installation for ${currentJob.doorModel} to ${currentJob.client.name}.`,
         type: 'installer_accepted',
         jobId: jobId
       });
 
-      // 4. In-App Notification to Client
+      // 4. In-App Notification to Client (first confirmed technician)
       this.createNotification({
         recipientRole: 'client',
         recipientUserId: currentJob.client.id,
         title: 'Installer Confirmed for Your Installation',
-        message: `Technician ${techName} has confirmed and accepted your door installation assignment.`,
+        message: `Installer ${responderName} has confirmed and accepted your door installation assignment.`,
         type: 'installer_accepted',
         jobId: jobId
       });
@@ -2250,97 +4178,120 @@ export class InstallationStore {
         recipientRole: 'manager',
         recipientName: 'Operations Manager',
         triggerEvent: 'installer_accepted',
-        messageText: `DoorMaster SMS: Installer ${techName} confirmed installation for job ${jobId} (${currentJob.doorModel}). Scheduled: ${currentJob.scheduledDate}.`,
+        messageText: `DoorMaster SMS: Installer ${responderName} confirmed installation for job ${jobId} (${currentJob.doorModel}). Scheduled: ${currentJob.scheduledDate}.`,
         jobId
       });
 
       this.alert.toastSuccess('Installation Accepted', `You confirmed installation for ${currentJob.doorModel}.`);
     } else {
-      // Installer REJECTED: Enforce 10-minute rejection limit!
-      if (currentJob.installerDeadlineAt) {
-        const deadline = new Date(currentJob.installerDeadlineAt).getTime();
+      // Installer REJECTED: Enforce 10-minute rejection limit for this installer!
+      const deadlineStr = respondingMember.deadlineAt || currentJob.installerDeadlineAt;
+      if (deadlineStr) {
+        const deadline = new Date(deadlineStr).getTime();
         if (deadline <= Date.now()) {
-          this.alert.toastWarning('Rejection Window Expired', 'You can only reject an installation within 10 minutes of assignment. This job has already been auto-accepted.');
+          this.alert.toastWarning('Rejection Window Expired', 'You can only reject an installation within 10 minutes of assignment. This task has already been auto-accepted for you.');
           return;
         }
       }
 
       const rejectReason = reason || 'Installer unavailable / schedule conflict';
-      const rejectedTechName = currentJob.assignedInstallerName || 'Technician';
-      const rejectedTechId = currentJob.assignedInstallerId;
 
       this.jobs.update(list => list.map(job => {
         if (job.id === jobId) {
+          const team = (job.assignedInstallers && job.assignedInstallers.length > 0)
+            ? job.assignedInstallers
+            : currentTeam;
+
+          const updatedTeam = team.map(member => {
+            if (member.id === responderId) {
+              return {
+                ...member,
+                status: 'rejected',
+                rejectReason: rejectReason,
+                proposedSlot: proposedSlot,
+                respondedAt: now
+              };
+            }
+            return member;
+          });
+
+          const allRejected = updatedTeam.every(m => m.status === 'rejected');
+
           updatedJob = {
             ...job,
-            installerAssignmentStatus: 'rejected',
+            installerAssignmentStatus: allRejected ? 'rejected' : job.installerAssignmentStatus,
             installerRejectReason: rejectReason,
             installerProposedSlot: proposedSlot,
             installerRespondedAt: now,
-            // Reassignment needed: unassign tech so Shop Manager / Operations Manager can reassign
-            assignedInstallerId: null,
-            assignedInstallerName: null,
-            assignedInstallerIds: [],
-            assignedInstallerNames: [],
-            assignedInstallers: [],
-            status: job.dispatcherId ? 'truck_assigned' : 'booked_at_shop'
+            rejectedByInstallerName: responderName,
+            assignedInstallers: updatedTeam,
+            status: allRejected ? (job.dispatcherId ? 'truck_assigned' : 'booked_at_shop') : job.status
           };
           return updatedJob;
         }
         return job;
       }));
 
-      // Free tech in installer list
-      if (rejectedTechId) {
-        this.installers.update(techs => techs.map(t => {
-          if (t.id === rejectedTechId) {
-            return { ...t, activeJobId: null, availabilityStatus: 'available' };
-          }
-          return t;
-        }));
-      }
+      // Free ONLY the declining installer
+      this.installers.update(techs => techs.map(t => {
+        if (t.id === responderId) {
+          return { ...t, activeJobId: null, availabilityStatus: 'available' };
+        }
+        return t;
+      }));
+
+      const teamAfter = updatedJob?.assignedInstallers || [];
+      const allRejected = teamAfter.length > 0 && teamAfter.every(m => m.status === 'rejected');
+
+      // Trigger Operations Manager immediate Re-Assignment Popup
+      this.openReassignmentPopup(jobId);
 
       this.saveJobsLocally();
       if (updatedJob) this.persistJobToBackend(updatedJob);
 
-      // In-App Notification to Shop Manager
-      this.createNotification({
-        recipientRole: 'shop_manager',
-        title: 'Installer Rejection - Reassignment Required',
-        message: `Installer ${rejectedTechName} rejected job ${jobId} (${currentJob.doorModel}). Reason: "${rejectReason}". Queued for Shop Manager reassignment.`,
-        type: 'job_assigned',
-        jobId: jobId
-      });
-
-      // In-App Notification to Operations Manager
+      // In-App Notification to Operations Manager (with popup action)
       this.createNotification({
         recipientRole: 'manager',
-        title: 'Installer Rejection - Reassignment Required',
-        message: `Installer ${rejectedTechName} rejected job ${jobId} (${currentJob.doorModel}). Reason: "${rejectReason}". Queued for reassignment.`,
+        title: allRejected
+          ? 'All Assigned Installers Declined — Immediate Re-Assignment Required'
+          : `Installer ${responderName} Declined Task Assignment`,
+        message: `Installer ${responderName} declined job ${jobId} (${currentJob.doorModel} for ${currentJob.client.name}). Reason: "${rejectReason}". ${allRejected ? 'All assigned installers have declined. Please re-assign another team.' : 'Other assigned installer(s) remain on the job. Re-assign a replacement installer if desired.'}`,
+        type: 'job_assigned',
+        jobId: jobId,
+        actionLabel: 'Select Team'
+      });
+
+      // Notify Shop Manager of branch
+      const branchShopMgr = this.resolveShopManagerForJob(currentJob);
+      this.createNotification({
+        recipientRole: 'shop_manager',
+        recipientUserId: branchShopMgr?.id,
+        title: 'Installer Declined — Operations Reassigning',
+        message: `Installer ${responderName} declined job ${jobId} (${currentJob.doorModel} for ${currentJob.client.name}). Operations Manager has been alerted to re-assign if needed.`,
         type: 'job_assigned',
         jobId: jobId
       });
 
-      // SMS Notification to Shop Manager
+      // SMS Notification to Operations Manager
       this.sendSms({
-        recipientRole: 'shop_manager',
-        recipientName: 'Shop Manager',
+        recipientRole: 'manager',
+        recipientName: 'Operations Manager',
         triggerEvent: 'installer_rejected',
-        messageText: `DoorMaster Urgent SMS: Installer ${rejectedTechName} rejected installation for ${jobId} (${currentJob.doorModel}). Reason: ${rejectReason}. Reassignment required.`,
+        messageText: `DoorMaster Urgent SMS: Installer ${responderName} rejected installation for ${jobId} (${currentJob.doorModel}). Reason: ${rejectReason}.`,
         jobId
       });
 
-      // In-App Notification to Installer confirming rejection
+      // In-App Notification ONLY to the declining installer
       this.createNotification({
         recipientRole: 'installer',
-        recipientUserId: rejectedTechId || undefined,
-        title: 'Installation Run Rejected & Reassigned',
-        message: `You rejected installation for ${jobId}. Shop Manager has been alerted for technician reassignment.`,
+        recipientUserId: responderId,
+        title: 'Installation Run Declined & Returned for Reassignment',
+        message: `You declined installation for ${jobId} (${currentJob.doorModel}). Operations Manager has been alerted with a popup to re-assign another technician.`,
         type: 'job_assigned',
         jobId: jobId
       });
 
-      this.alert.toastWarning('Installation Rejected', 'Installation assignment rejected and returned to Shop Manager for reassignment.');
+      this.alert.toastWarning('Installation Declined', 'Installation assignment declined and returned to Operations Manager for reassignment.');
     }
   }
 
@@ -2381,10 +4332,15 @@ export class InstallationStore {
         recipientRole: 'client',
         recipientUserId: updatedJob.client.id,
         title: 'Door Dispatched for Delivery',
-        message: `Your custom architectural door has been dispatched from DoorMaster workshop. Technician will arrive shortly.`,
+        message: `Your custom architectural door has been dispatched from DoorMaster workshop. Installer will arrive shortly.`,
         type: 'door_dispatched',
         jobId: jobId
       });
+
+      this.alert.toastSuccess(
+        'Door Dispatched',
+        `${updatedJob.doorModel} dispatched from ${updatedJob.shopBranch} to ${updatedJob.client.siteAddress}.`
+      );
     }
   }
 
@@ -2444,7 +4400,7 @@ export class InstallationStore {
         recipientRole: 'client',
         recipientUserId: updatedJob.client.id,
         title: 'DoorMaster Installer Has Arrived on Site',
-        message: `${updatedJob.assignedInstallerName || 'Technician'} has clocked in on site at ${updatedJob.client.siteAddress} and begun site preparation.`,
+        message: `${updatedJob.assignedInstallerName || 'Installer'} has clocked in on site at ${updatedJob.client.siteAddress} and begun site preparation.`,
         type: 'technician_clocked_in',
         jobId: jobId
       });
@@ -2509,7 +4465,7 @@ export class InstallationStore {
           installerName: (updatedJob as InstallationJob | undefined)?.assignedInstallerName || 'Installer',
           jobId,
           sessionType: 'clock_out',
-          notes: notes || 'Technician completed shift / installation work'
+          notes: notes || 'Installer completed shift / installation work'
         })
       }).catch(err => console.warn('Installer track sync warning:', err));
     }
@@ -2517,7 +4473,7 @@ export class InstallationStore {
     if (updatedJob) {
       this.createNotification({
         recipientRole: 'manager',
-        title: 'Technician Clocked Out',
+        title: 'Installer Clocked Out',
         message: `${updatedJob.assignedInstallerName} clocked out of job ${updatedJob.id}. Total logged time: ${updatedJob.actualHours} hrs.`,
         type: 'technician_clocked_out',
         jobId: jobId
@@ -2756,9 +4712,9 @@ export class InstallationStore {
       this.createNotification({
         recipientRole: 'installer',
         recipientUserId: targetJob.assignedInstallerId,
-        title: 'Performance Bonus Approved!',
-        message: `Congratulations! Management approved your performance bonus of $${targetJob.financials.bonusAmount} for job ${targetJob.id} (${targetJob.doorModel}).`,
-        type: 'bonus_awarded',
+        title: 'Installation Finalized & Verified',
+        message: `Management has finalized and verified the installation for job ${targetJob.id} (${targetJob.doorModel}).`,
+        type: 'work_completed',
         jobId: jobId
       });
     }
@@ -2806,20 +4762,100 @@ export class InstallationStore {
   // Dynamic Roles & Extensibility
   // ============================================================================
 
-  addCustomRole(roleDef: Omit<RoleDefinition, 'isSystem'>) {
+  async addCustomRole(roleDef: Omit<RoleDefinition, 'isSystem'>): Promise<void> {
     const newRole: RoleDefinition = {
       ...roleDef,
-      isSystem: false
+      isSystem: false,
+      extraFeatures: roleDef.extraFeatures ?? []
     };
-    this.roles.update(r => [...r, newRole]);
+    this.roles.update(r => {
+      const updated = [...r.filter(x => x.id !== newRole.id), newRole];
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem('doormaster_roles', JSON.stringify(updated));
+        } catch (e) {
+          console.warn('Failed to persist roles:', e);
+        }
+      }
+      return updated;
+    });
+
+    try {
+      await this.apiFetch('/api/roles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newRole)
+      });
+      await this.loadRolesFromBackend();
+      this.broadcastDataChanged('roles');
+    } catch (err) {
+      console.warn('[Store] Role sync warning:', err);
+    }
   }
 
-  updateRole(roleDef: RoleDefinition) {
-    this.roles.update(r => r.map(item => item.id === roleDef.id ? roleDef : item));
+  async updateRole(roleDef: RoleDefinition): Promise<void> {
+    let roleToPersist: RoleDefinition = roleDef;
+    this.roles.update(r => {
+      const updated = r.map(item => {
+        if (item.id !== roleDef.id) return item;
+        // If system role, enforce that base permissions remain fixed from the original system definition
+        if (item.isSystem) {
+          roleToPersist = {
+            ...item,
+            extraFeatures: roleDef.extraFeatures ?? item.extraFeatures,
+            name: roleDef.name || item.name,
+            description: roleDef.description || item.description
+          };
+          return roleToPersist;
+        }
+        roleToPersist = roleDef;
+        return roleDef;
+      });
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem('doormaster_roles', JSON.stringify(updated));
+        } catch (e) {
+          console.warn('Failed to persist roles:', e);
+        }
+      }
+      return updated;
+    });
+
+    try {
+      await this.apiFetch(`/api/roles/${roleToPersist.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(roleToPersist)
+      });
+      await this.loadRolesFromBackend();
+      this.broadcastDataChanged('roles');
+    } catch (err) {
+      console.warn('[Store] Role update sync warning:', err);
+    }
   }
 
-  deleteCustomRole(roleId: string) {
-    this.roles.update(r => r.filter(item => item.id !== roleId || item.isSystem));
+  async deleteCustomRole(roleId: string): Promise<void> {
+    this.roles.update(r => {
+      const updated = r.filter(item => item.id !== roleId || item.isSystem);
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem('doormaster_roles', JSON.stringify(updated));
+        } catch (e) {
+          console.warn('Failed to persist roles:', e);
+        }
+      }
+      return updated;
+    });
+
+    try {
+      await this.apiFetch(`/api/roles/${roleId}`, {
+        method: 'DELETE'
+      });
+      await this.loadRolesFromBackend();
+      this.broadcastDataChanged('roles');
+    } catch (err) {
+      console.warn('[Store] Role delete sync warning:', err);
+    }
   }
 
   // ============================================================================
@@ -2832,9 +4868,60 @@ export class InstallationStore {
     const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const hasInstaller = !!(jobData.assignedInstallerId || (jobData.assignedInstallerIds && jobData.assignedInstallerIds.length > 0));
 
+    const isShopMgr = this.currentRole() === 'shop_manager';
+    const assignedShop = this.userAssignedShop();
+    const ownBranch = this.managerBranch() || (isShopMgr ? assignedShop : null);
+    const explicitBranchFromData = jobData.shopId
+      ? this.branches().find(b => String(b.id) === jobData.shopId || b.branchCode === jobData.shopId) || null
+      : null;
+    const resolvedBranch =
+      ownBranch ||
+      explicitBranchFromData ||
+      this.findBranchByNameOrCode(jobData.shopBranch, jobData.shopBranchCode || jobData.shopBooking?.branchCode);
+    const effectiveBranchName = resolvedBranch?.shopName || jobData.shopBranch;
+    const dispatchingLocationName = jobData.shopBranch || effectiveBranchName;
+    const effectiveShopId = String(resolvedBranch?.id || jobData.shopId || 'dm-branch-central');
+    const effectiveBranchCode = resolvedBranch?.branchCode || jobData.shopBranchCode || jobData.shopBooking?.branchCode || 'DM-GH-HQ-SPX';
+    const curUser = this.currentUser();
+    const installAndLaborTotal = (jobData.financials.installationFee || 0) + (jobData.financials.laborCost || 0);
+
+    const shopBooking = jobData.shopBooking
+      ? {
+          ...jobData.shopBooking,
+          shopId: effectiveShopId,
+          shopBranch: effectiveBranchName || jobData.shopBooking.shopBranch,
+          branchCode: effectiveBranchCode,
+          amountPaidAtShop: jobData.shopBooking.amountPaidAtShop ?? installAndLaborTotal,
+          bookedByShopManager: isShopMgr
+            ? `${curUser.name} (${curUser.email})`
+            : jobData.shopBooking.bookedByShopManager
+        }
+      : {
+          bookedByShopManager: `${curUser.name} (${curUser.email})`,
+          shopId: effectiveShopId,
+          shopBranch: effectiveBranchName,
+          branchCode: effectiveBranchCode,
+          bookingTimestamp: now,
+          lockModelRequested: jobData.lockModel || 'Doormaster High-Security Smart Lock',
+          amountPaidAtShop: installAndLaborTotal,
+          paymentMethod: 'momo' as const,
+          receiptNumber: `REC-${newId}`,
+          paymentStatus: 'paid_in_full' as const,
+          accountantVerified: false
+        };
+
     const newJob: InstallationJob = {
       ...jobData,
       id: newId,
+      shopId: effectiveShopId,
+      shopBranchCode: effectiveBranchCode,
+      shopBranch: dispatchingLocationName,
+      createdByUserId: curUser.id,
+      shopBooking,
+      financials: {
+        ...jobData.financials,
+        doorPrice: 0
+      },
       installerAssignmentStatus: hasInstaller ? 'pending' : undefined,
       installerAssignedAt: hasInstaller ? (jobData.installerAssignedAt || now) : undefined,
       installerDeadlineAt: hasInstaller ? (jobData.installerDeadlineAt || deadline) : undefined,
@@ -2848,11 +4935,48 @@ export class InstallationStore {
     this.saveJobsLocally();
     this.persistJobToBackend(newJob);
 
+    if (!hasInstaller) {
+      this.createNotification({
+        recipientRole: 'manager',
+        title: 'New Installation Booked — Select Installation Team',
+        message: `${newJob.client.name} booked installation for ${newJob.doorModel} at ${newJob.client.siteAddress} (Dispatch: ${dispatchingLocationName}). Please select an Installation Team (Lead + Assistants).`,
+        type: 'job_assigned',
+        jobId: newId,
+        actionLabel: 'Select Team'
+      });
+    }
+
+    if (shopBooking && shopBooking.amountPaidAtShop > 0) {
+      this.createNotification({
+        recipientRole: 'account_officer',
+        title: 'Installation & Labor Payment Recorded - Audit Required',
+        message: `Receipt ${shopBooking.receiptNumber}: ₵${shopBooking.amountPaidAtShop.toLocaleString()} (Installation & Labor) recorded via ${shopBooking.paymentMethod.toUpperCase()} for ${newJob.doorModel}.`,
+        type: 'shop_payment_recorded',
+        jobId: newId,
+        actionLabel: 'Audit & Disburse Funds'
+      });
+    }
+
+    const branchShopMgr = isShopMgr ? curUser : this.resolveShopManagerForBranch(resolvedBranch);
+    if (branchShopMgr) {
+      this.createNotification({
+        recipientRole: 'shop_manager',
+        recipientUserId: branchShopMgr.id,
+        title: newJob.dispatcherId ? 'Installation Order Registered for Your Shop' : 'Installation Order Registered — Select Dispatcher',
+        message: newJob.dispatcherId
+          ? `Order ${newId} (${newJob.doorModel}) for ${newJob.client.name} has been scheduled under ${effectiveBranchName}.`
+          : `Order ${newId} (${newJob.doorModel}) for ${newJob.client.name} has been scheduled under ${effectiveBranchName}. Please select a dispatcher for delivery.`,
+        type: 'truck_assigned',
+        jobId: newId,
+        actionLabel: newJob.dispatcherId ? 'View Order' : 'Select Dispatcher'
+      });
+    }
+
     const targetInstallerIds = (newJob.assignedInstallerIds && newJob.assignedInstallerIds.length > 0)
       ? newJob.assignedInstallerIds
       : (newJob.assignedInstallerId ? [newJob.assignedInstallerId] : []);
 
-    const assigner = this.currentRole() === 'shop_manager' ? 'Shop Manager' : 'Operations Manager';
+    const assigner = 'Operations Manager';
 
     for (const instId of targetInstallerIds) {
       const tech = this.installers().find(i => i.id === instId);
@@ -2890,6 +5014,8 @@ export class InstallationStore {
     dimensions: string;
     finish: string;
     hardwareSpecs: string;
+    shopId?: string;
+    branchCode?: string;
     shopBranch: string;
     clientName: string;
     clientPhone: string;
@@ -2899,15 +5025,35 @@ export class InstallationStore {
     accessInstructions?: string;
     scheduledDate: string;
     estimatedHours: number;
-    doorPrice: number;
+    doorPrice?: number;
     installationFee: number;
+    laborCost?: number;
     amountPaidAtShop: number;
     paymentMethod: 'cash' | 'momo' | 'pos_card' | 'bank_transfer';
     receiptNumber: string;
   }): InstallationJob {
     const newId = `DM-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
-    const totalOrder = booking.doorPrice + booking.installationFee;
+    const labor = booking.laborCost ?? 450;
+    const totalOrder = booking.installationFee + labor;
     const isPaidInFull = booking.amountPaidAtShop >= totalOrder;
+    const lockedUserShop = this.userAssignedShop();
+    const matchedByExplicitId = booking.shopId
+      ? this.branches().find(b => String(b.id) === booking.shopId || b.branchCode === booking.shopId) || null
+      : null;
+    const matchedBranch =
+      lockedUserShop ||
+      matchedByExplicitId ||
+      this.findBranchByNameOrCode(booking.shopBranch, booking.branchCode || null);
+    const effectiveShopId = String(matchedBranch?.id || booking.shopId || 'dm-branch-central');
+    const effectiveBranchCode = matchedBranch?.branchCode || booking.branchCode || 'DM-GH-HQ-SPX';
+    const effectiveShopName = matchedBranch?.shopName || booking.shopBranch;
+    const branchShopMgr = this.resolveShopManagerForBranch(matchedBranch);
+    const curUser = this.currentUser();
+    const bookedByLabel = lockedUserShop
+      ? `${curUser.name} (${curUser.email})`
+      : matchedBranch?.managerName
+        ? `${matchedBranch.managerName}${matchedBranch.managerEmail ? ` (${matchedBranch.managerEmail})` : ''}`
+        : `${curUser.name} (${curUser.email})`;
 
     const newJob: InstallationJob = {
       id: newId,
@@ -2919,7 +5065,10 @@ export class InstallationStore {
       dimensions: booking.dimensions,
       finish: booking.finish,
       hardwareSpecs: booking.hardwareSpecs,
-      shopBranch: booking.shopBranch,
+      shopId: effectiveShopId,
+      shopBranchCode: effectiveBranchCode,
+      shopBranch: effectiveShopName,
+      createdByUserId: curUser.id,
       client: {
         id: `cli_${Date.now()}`,
         name: booking.clientName,
@@ -2930,8 +5079,10 @@ export class InstallationStore {
         accessInstructions: booking.accessInstructions || 'Site access verified with client'
       },
       shopBooking: {
-        bookedByShopManager: 'DoorMaster Master Shop Manager',
-        shopBranch: booking.shopBranch,
+        bookedByShopManager: bookedByLabel,
+        shopId: effectiveShopId,
+        shopBranch: effectiveShopName,
+        branchCode: effectiveBranchCode,
         bookingTimestamp: new Date().toISOString(),
         lockModelRequested: booking.lockModel || 'Doormaster High-Security Smart Lock',
         amountPaidAtShop: booking.amountPaidAtShop,
@@ -2962,9 +5113,9 @@ export class InstallationStore {
         { id: 'chk_6', label: 'Affix intumescent acoustic weather gasket & customer inspection', required: true, completed: false }
       ],
       financials: {
-        doorPrice: booking.doorPrice,
+        doorPrice: 0,
         installationFee: booking.installationFee,
-        laborCost: 450,
+        laborCost: labor,
         bonusAmount: 220,
         bonusStatus: 'pending',
         depositPaid: booking.amountPaidAtShop > 0,
@@ -2979,11 +5130,11 @@ export class InstallationStore {
 
     this.createNotification({
       recipientRole: 'manager',
-      title: 'New Installation Request Booked by Shop',
-      message: `${booking.clientName} booked installation for ${booking.doorModel} at ${booking.siteAddress}. Payment of ₵${booking.amountPaidAtShop.toLocaleString()} recorded at shop counter. Please configure delivery truck & assign available Installer.`,
-      type: 'truck_assigned',
+      title: 'New Installation Request — Select Installation Team',
+      message: `${booking.clientName} booked installation for ${booking.doorModel} at ${booking.siteAddress}. Payment of ₵${booking.amountPaidAtShop.toLocaleString()} recorded at shop counter. Please select an Installation Team (Lead + Assistants).`,
+      type: 'job_assigned',
       jobId: newId,
-      actionLabel: 'Set Up Truck'
+      actionLabel: 'Select Team'
     });
 
     this.createNotification({
@@ -3004,11 +5155,24 @@ export class InstallationStore {
       jobId: newId
     });
 
+    if (branchShopMgr) {
+      this.createNotification({
+        recipientRole: 'shop_manager',
+        recipientUserId: branchShopMgr.id,
+        title: 'New Shop Booking — Select Dispatcher',
+        message: `Receipt ${booking.receiptNumber}: ${booking.clientName} booked ${booking.doorModel} at ${matchedBranch?.shopName || booking.shopBranch} (₵${booking.amountPaidAtShop.toLocaleString()} paid). Please select a dispatcher for delivery.`,
+        type: 'shop_payment_recorded',
+        jobId: newId,
+        actionLabel: 'Select Dispatcher'
+      });
+    }
+
     this.sendSms({
       recipientRole: 'shop_manager',
-      recipientName: 'Shop Attendant',
+      recipientPhone: branchShopMgr?.phone || matchedBranch?.phone?.split('/')[0]?.trim(),
+      recipientName: branchShopMgr?.name || 'Shop Manager',
       triggerEvent: 'booking_created',
-      messageText: `DoorMaster SMS: New counter booking Ref: ${newId}. Door: ${booking.doorModel}, Lock: ${booking.lockModel || 'Smart Handle'}, Client: ${booking.clientName} (${booking.clientPhone}), Paid: ₵${booking.amountPaidAtShop.toLocaleString()} (${booking.paymentMethod.toUpperCase()}, Ref: ${booking.receiptNumber}). Forwarded to Operations.`,
+      messageText: `DoorMaster SMS: New counter booking Ref: ${newId} (${matchedBranch?.shopName || booking.shopBranch}). Door: ${booking.doorModel}, Lock: ${booking.lockModel || 'Smart Handle'}, Client: ${booking.clientName} (${booking.clientPhone}), Paid: ₵${booking.amountPaidAtShop.toLocaleString()} (${booking.paymentMethod.toUpperCase()}, Ref: ${booking.receiptNumber}). Forwarded to Operations.`,
       jobId: newId
     });
 
@@ -3033,7 +5197,7 @@ export class InstallationStore {
   }
 
   /**
-   * Shop Manager / Operations Manager: Sets up delivery truck, assigns dispatcher & selects available signed-in Installer.
+   * Operations Manager: Sets up delivery truck, assigns dispatcher & selects available signed-in Installer.
    * Dispatches in-app notifications and SMS with 10-minute review countdowns.
    */
   setupTruckAndAssignTechnician(
@@ -3049,7 +5213,7 @@ export class InstallationStore {
     },
     installerId: string | string[]
   ): void {
-    if (!this.currentRoleDefinition().permissions.canAssignInstallers && this.currentRole() !== 'shop_manager' && this.currentRole() !== 'manager') {
+    if (!this.canCurrentRoleAssignInstallers()) {
       this.alert.warning('Access Restricted', 'Your role is not authorized to setup logistics trucks and assign installers.');
       return;
     }
@@ -3057,19 +5221,28 @@ export class InstallationStore {
     const selectedTechs = this.installers().filter(i => installerIds.includes(i.id));
     const leadTech = selectedTechs[0];
     const techNames = selectedTechs.map(t => t.name).join(', ');
+    const now = new Date().toISOString();
+    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const teamMembers: AssignedInstallerTeamMember[] = selectedTechs.map((t, idx) => ({
       id: t.id,
       name: t.name,
       phone: t.phone,
       role: idx === 0 ? 'lead' : 'assistant',
-      avgRating: t.metrics.avgRating
+      position: t.teamPosition || (idx === 0 ? 'Team Lead' : 'Installation Technician'),
+      avatar: t.avatarUrl,
+      teamId: t.teamId,
+      teamName: t.teamName,
+      isTeamLead: idx === 0 || !!t.isTeamLead,
+      avgRating: t.metrics.avgRating,
+      status: 'pending',
+      assignedAt: now,
+      deadlineAt: deadline,
+      autoAccepted: false
     }));
     let updatedJob: InstallationJob | undefined;
 
     this.jobs.update(list => list.map(job => {
       if (job.id === jobId) {
-        const now = new Date().toISOString();
-        const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
         updatedJob = {
           ...job,
           assignedInstallerId: leadTech ? leadTech.id : installerIds[0],
@@ -3141,7 +5314,7 @@ export class InstallationStore {
         jobId
       });
 
-      const assigner = this.currentRole() === 'shop_manager' ? 'Shop Manager' : 'Operations Manager';
+      const assigner = 'Operations Manager';
 
       selectedTechs.forEach(tech => {
         this.createNotification({
@@ -3167,7 +5340,7 @@ export class InstallationStore {
         recipientRole: 'client',
         recipientUserId: job.client.id,
         title: 'Delivery Truck & Installer Assigned',
-        message: `Your DoorMaster logistics truck (${truckData.truckPlate}, Driver: ${truckData.dispatcherName}) and technician (${leadTech?.name || 'Technician'}) have been assigned!`,
+        message: `Your DoorMaster logistics truck (${truckData.truckPlate}, Driver: ${truckData.dispatcherName}) and installer (${leadTech?.name || 'Installer'}) have been assigned!`,
         type: 'truck_assigned',
         jobId: jobId
       });
@@ -3175,30 +5348,42 @@ export class InstallationStore {
   }
 
   /**
-   * Shop Manager / Operations Manager: Assigns single or multiple installers to an installation job.
+   * Operations Manager: Assigns single or multiple installers to an installation job.
    */
   assignInstallersByManager(jobId: string, installerIds: string[], notes?: string): void {
-    if (!this.currentRoleDefinition().permissions.canAssignInstallers && this.currentRole() !== 'shop_manager' && this.currentRole() !== 'manager') {
+    if (!this.canCurrentRoleAssignInstallers()) {
       this.alert.warning('Access Restricted', 'Your role is not authorized to assign installers.');
       return;
     }
     if (!installerIds || installerIds.length === 0) return;
-    const selectedTechs = this.installers().filter(i => installerIds.includes(i.id));
+    const uniqueInstallerIds = Array.from(new Set(installerIds.filter(Boolean)));
+    const selectedTechs = uniqueInstallerIds
+      .map(id => this.installers().find(i => i.id === id))
+      .filter((i): i is InstallerProfile => !!i);
     if (selectedTechs.length === 0) return;
 
     const leadTech = selectedTechs[0];
     const techNames = selectedTechs.map(t => t.name).join(', ');
+    let updatedJob: InstallationJob | undefined;
+    const now = new Date().toISOString();
+    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
     const teamMembers: AssignedInstallerTeamMember[] = selectedTechs.map((t, idx) => ({
       id: t.id,
       name: t.name,
       phone: t.phone,
       role: idx === 0 ? 'lead' : 'assistant',
-      avgRating: t.metrics.avgRating
+      position: t.teamPosition || (idx === 0 ? 'Team Lead' : 'Installation Technician'),
+      avatar: t.avatarUrl,
+      teamId: t.teamId,
+      teamName: t.teamName,
+      isTeamLead: idx === 0 || !!t.isTeamLead,
+      avgRating: t.metrics.avgRating,
+      status: 'pending',
+      assignedAt: now,
+      deadlineAt: deadline,
+      autoAccepted: false
     }));
-
-    let updatedJob: InstallationJob | undefined;
-    const now = new Date().toISOString();
-    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     this.jobs.update(list => list.map(job => {
       if (job.id === jobId) {
@@ -3206,7 +5391,7 @@ export class InstallationStore {
           ...job,
           assignedInstallerId: leadTech.id,
           assignedInstallerName: techNames,
-          assignedInstallerIds: installerIds,
+          assignedInstallerIds: uniqueInstallerIds,
           assignedInstallerNames: selectedTechs.map(t => t.name),
           assignedInstallers: teamMembers,
           assignedAt: now,
@@ -3214,33 +5399,44 @@ export class InstallationStore {
           installerDeadlineAt: deadline,
           installerAssignmentStatus: 'pending',
           installerAutoAccepted: false,
-          status: 'assigned'
+          installerRejectReason: undefined,
+          installerProposedSlot: undefined,
+          installerRespondedAt: undefined,
+          rejectedByInstallerName: undefined,
+          status: job.dispatcherId ? 'truck_assigned' : 'assigned'
         };
         return updatedJob;
       }
       return job;
     }));
+    this.dismissReassignmentPopup(jobId);
+    this.currentInstallerId.set(leadTech.id);
     this.saveJobsLocally();
     if (updatedJob) this.persistJobToBackend(updatedJob);
 
     this.installers.update(techs => techs.map(t => {
-      if (installerIds.includes(t.id)) {
+      if (uniqueInstallerIds.includes(t.id)) {
         return { ...t, activeJobId: jobId, availabilityStatus: 'assigned' };
       }
       return t;
     }));
 
-    const assigner = this.currentRole() === 'shop_manager' ? 'Shop Manager' : 'Operations Manager';
+    // Remove any previous installer assignment notifications for this jobId so reassigned installers don't see stale ones
+    this.notifications.update(list =>
+      list.filter(n => !(n.recipientRole === 'installer' && n.jobId === jobId && n.type === 'job_assigned'))
+    );
+
+    const assigner = 'Operations Manager';
 
     selectedTechs.forEach(tech => {
       this.createNotification({
         recipientRole: 'installer',
         recipientUserId: tech.id,
         title: 'New Installation Assigned (10-Min Action Required)',
-        message: `${assigner} assigned you to install ${updatedJob?.doorModel} at ${updatedJob?.client.siteAddress}. Scheduled for ${updatedJob?.scheduledDate}. You have 10 minutes to reject for reassignment, otherwise auto-accepted for you.`,
+        message: `${assigner} assigned you (${tech.teamPosition || 'Team Member'}) to install ${updatedJob?.doorModel} for ${updatedJob?.client.name} at ${updatedJob?.client.siteAddress}. Scheduled for ${updatedJob?.scheduledDate}. Please Accept or Reject within 10 minutes, otherwise auto-accepted by the system on your behalf.`,
         type: 'job_assigned',
         jobId: jobId,
-        actionLabel: 'Review & Respond'
+        actionLabel: 'Accept or Reject'
       });
 
       this.sendSms({
@@ -3248,10 +5444,42 @@ export class InstallationStore {
         recipientPhone: tech.phone,
         recipientName: tech.name,
         triggerEvent: 'installer_assigned',
-        messageText: `DoorMaster SMS: ${assigner} assigned you to install ${updatedJob?.doorModel} (${jobId}). Scheduled: ${updatedJob?.scheduledDate} at ${updatedJob?.client.siteAddress}. Please reject within 10 mins if unavailable, else auto-accepted for you.`,
+        messageText: `DoorMaster SMS: ${assigner} assigned you to install ${updatedJob?.doorModel} (${jobId}). Scheduled: ${updatedJob?.scheduledDate} at ${updatedJob?.client.siteAddress}. Please accept or reject within 10 mins if unavailable, else auto-accepted for you.`,
         jobId
       });
     });
+
+    if (updatedJob) {
+      const branchShopMgr = this.resolveShopManagerForJob(updatedJob);
+      this.createNotification({
+        recipientRole: 'shop_manager',
+        recipientUserId: branchShopMgr?.id,
+        title: updatedJob.dispatcherId ? 'Installation Team Assigned by Operations' : 'Installer Assigned — Select Dispatcher',
+        message: updatedJob.dispatcherId
+          ? `Operations Manager assigned ${techNames} to job ${jobId} (${updatedJob.doorModel}) for ${updatedJob.client.name}. 10-minute installer acceptance countdown active.`
+          : `Operations Manager assigned ${techNames} to job ${jobId} (${updatedJob.doorModel}). Please select a dispatcher to deliver the door and hardware to site.`,
+        type: 'truck_assigned',
+        jobId: jobId,
+        actionLabel: updatedJob.dispatcherId ? 'View Order' : 'Select Dispatcher'
+      });
+
+      this.createNotification({
+        recipientRole: 'client',
+        recipientUserId: updatedJob.client.id,
+        title: 'Installation Team Assigned',
+        message: `DoorMaster assigned installation team (${techNames}) for your ${updatedJob.doorModel} installation at ${updatedJob.client.siteAddress}.`,
+        type: 'job_assigned',
+        jobId: jobId
+      });
+
+      this.createNotification({
+        recipientRole: 'manager',
+        title: 'Installation Team Dispatched (10-Min Review Active)',
+        message: `Assigned ${techNames} to job ${jobId} (${updatedJob.client.name}). Installers have 10 minutes to accept or decline before auto-acceptance.`,
+        type: 'job_assigned',
+        jobId: jobId
+      });
+    }
   }
 
   // ============================================================================
@@ -3272,39 +5500,81 @@ export class InstallationStore {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newDoor)
-    }).catch(err => console.warn('Background door sync error', err));
+    })
+      .then(async () => {
+        await this.loadDoorsFromBackend();
+        this.broadcastDataChanged('doors');
+      })
+      .catch(err => console.warn('Background door sync error', err));
 
-    this.createNotification({
-      recipientRole: 'shop_manager',
-      title: 'New Door Added to Catalog',
-      message: `${newDoor.name} (${newDoor.modelCode}) has been registered in the catalog with ${newDoor.stockQuantity} units available.`,
-      type: 'door_dispatched',
-      jobId: newDoor.id,
-      actionLabel: 'View Doors Catalog'
-    });
+    if (this.currentRole() === 'shop_manager') {
+      this.createNotification({
+        recipientRole: 'shop_manager',
+        recipientUserId: this.currentUser().id,
+        title: 'New Door Added to Catalog',
+        message: `${newDoor.name} (${newDoor.modelCode}) has been registered in the catalog with ${newDoor.stockQuantity} units available.`,
+        type: 'door_dispatched',
+        jobId: newDoor.id,
+        actionLabel: 'View Doors Catalog'
+      });
+    } else {
+      this.createNotification({
+        recipientRole: 'manager',
+        title: 'New Door Added to Catalog',
+        message: `${newDoor.name} (${newDoor.modelCode}) has been registered in the catalog with ${newDoor.stockQuantity} units available.`,
+        type: 'door_dispatched',
+        jobId: newDoor.id,
+        actionLabel: 'View Doors Catalog'
+      });
+    }
 
     return newDoor;
   }
 
   updateDoor(id: string, partial: Partial<DoorCatalogEntry>) {
     this.doors.update(list => list.map(door => door.id === id ? { ...door, ...partial } : door));
-    this.alert.toastSuccess('Your work has been saved', 'Door specifications & stock synchronized.');
 
     if (partial.stockQuantity !== undefined) {
       this.apiFetch(`/api/doors/${id}/stock`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stockQuantity: partial.stockQuantity, status: partial.status })
-      }).catch(err => console.warn('Stock update sync warning', err));
+      })
+        .then(async res => {
+          const data = await res.json().catch(() => null);
+          await this.loadDoorsFromBackend();
+          this.broadcastDataChanged('doors');
+          this.alert.toastSuccess('Door Updated', data?.message || 'Door specifications & stock updated successfully.');
+        })
+        .catch(() => {
+          this.alert.toastSuccess('Door Updated', 'Door specifications & stock updated.');
+        });
+    } else {
+      this.broadcastDataChanged('doors');
+      this.alert.toastSuccess('Door Updated', 'Door specifications updated successfully.');
     }
   }
 
   deleteDoor(id: string) {
+    const targetDoor = this.doors().find(d => d.id === id);
     this.doors.update(list => list.filter(door => door.id !== id));
-    this.alert.toastSuccess('Door Deleted', 'Door removed from catalog.');
 
     this.apiFetch(`/api/doors/${id}`, { method: 'DELETE' })
-      .catch(err => console.warn('Delete door sync warning', err));
+      .then(async res => {
+        const data = await res.json().catch(() => null);
+        await this.loadDoorsFromBackend();
+        this.broadcastDataChanged('doors');
+        this.alert.toastSuccess(
+          'Door Deleted',
+          data?.message || `"${targetDoor?.name || id}" removed from catalog successfully.`
+        );
+      })
+      .catch(() => {
+        this.alert.toastSuccess(
+          'Door Deleted',
+          `"${targetDoor?.name || id}" removed from catalog.`
+        );
+      });
   }
 
   // ============================================================================
@@ -3313,20 +5583,34 @@ export class InstallationStore {
 
   private createNotification(notif: Omit<NotificationItem, 'id' | 'timestamp' | 'read'>) {
     const id = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const notification: NotificationItem = {
-      id,
-      recipientRole: notif.recipientRole,
-      recipientUserId: notif.recipientUserId,
-      title: notif.title,
-      message: notif.message,
-      type: notif.type as any,
-      jobId: notif.jobId,
-      timestamp: new Date().toISOString(),
-      read: false,
-      actionLabel: notif.actionLabel
-    };
+    const notification = this.normalizeNotificationForManager(
+      this.normalizeNotificationForShopManager({
+        id,
+        recipientRole: notif.recipientRole,
+        recipientUserId: notif.recipientUserId,
+        title: notif.title,
+        message: notif.message,
+        type: notif.type as any,
+        jobId: notif.jobId,
+        timestamp: new Date().toISOString(),
+        read: false,
+        actionLabel: notif.actionLabel
+      })
+    );
 
-    this.notifications.update(list => [notification, ...list]);
+    // Replace any existing duplicate notification for the same recipient + jobId + event type/title
+    this.notifications.update(list => [
+      notification,
+      ...list.filter(existing => {
+        if (!notification.jobId || notification.jobId === 'GENERAL') return true;
+        const sameRecipient =
+          existing.recipientRole === notification.recipientRole &&
+          (existing.recipientUserId || '') === (notification.recipientUserId || '');
+        const sameJob = existing.jobId === notification.jobId;
+        const sameEvent = existing.title === notification.title || existing.type === notification.type;
+        return !(sameRecipient && sameJob && sameEvent);
+      })
+    ]);
 
     this.apiFetch('/api/notifications', {
       method: 'POST',
@@ -3388,8 +5672,12 @@ export class InstallationStore {
         this.applySession(responseData.user, responseData.token || '');
         this.persistSession(responseData.user, responseData.token || '', rememberMe);
 
-        // Refresh the user directory (installers/clients) with the new token.
-        await this.loadUsers();
+        // Refresh the user directory, teams, and roles with the new token.
+        await Promise.all([
+          this.loadUsers(),
+          this.loadTeamsFromBackend(),
+          this.loadRolesFromBackend()
+        ]);
         this.deriveInstallersAndDispatchersFromUsers();
 
         // Start real-time GPS tracking for tracked roles (installer, dispatcher, manager)
@@ -3517,6 +5805,8 @@ export class InstallationStore {
     this.stopGpsTracking();
     this.clearSession();
     // Reload public data now that the token is gone.
+    // Seed default installer teams immediately, then sync live data from API
+    this.deriveInstallersAndDispatchersFromUsers();
     this.loadFromApi();
   }
 
@@ -3794,6 +6084,26 @@ export class InstallationStore {
     deliveryNotes?: string;
     estimatedDeparture?: string;
   }) {
+    if (!this.canCurrentRoleSelectDispatcher()) {
+      this.alert.warning('Access Restricted', 'Dispatch driver selection is managed exclusively by the Shop Manager.');
+      return;
+    }
+    const targetJob = this.jobs().find(j => j.id === jobId);
+    if (!targetJob) return;
+
+    if (!this.canShopManagerAssignDriver(targetJob)) {
+      this.alert.warning('Access Restricted', 'Only the Shop Manager who created this order can assign the Dispatch Driver.');
+      return;
+    }
+
+    if (!this.hasJobAcceptedInstallers(targetJob)) {
+      this.alert.warning(
+        'Installer Acceptance Required',
+        'Dispatch Driver can only be assigned after one or more assigned installers have accepted (or auto-accepted) their assignment from Operations Manager.'
+      );
+      return;
+    }
+
     const dispatcher = this.dispatchers().find(d => d.id === data.dispatcherId);
     if (!dispatcher) return;
 
@@ -3825,7 +6135,7 @@ export class InstallationStore {
             estimatedDepartureTime: data.estimatedDeparture || 'Scheduled',
             deliveryNotes: data.deliveryNotes || ''
           },
-          status: 'truck_assigned'
+          status: job.assignedInstallerId ? 'truck_assigned' : job.status
         };
         return updatedJob;
       }
@@ -3912,6 +6222,7 @@ export class InstallationStore {
     this.saveJobsLocally();
     const updated = this.jobs().find(j => j.id === jobId);
     if (updated) this.persistJobToBackend(updated);
+    this.alert.toastSuccess('Transit Started', `Live GPS dispatch tracking activated for job ${jobId}.`);
   }
 
   /**
@@ -4001,6 +6312,18 @@ export class InstallationStore {
    * Mark all notifications as read.
    */
   async markAllNotificationsRead() {
+    if (this.isBranchScoped()) {
+      const visibleIds = new Set(this.roleNotifications().filter(n => !n.read).map(n => n.id));
+      if (visibleIds.size === 0) return true;
+      this.notifications.update(list => list.map(n => visibleIds.has(n.id) ? { ...n, read: true } : n));
+      await Promise.all(
+        Array.from(visibleIds).map(id =>
+          this.apiFetch(`/api/notifications/${id}/read`, { method: 'PATCH' }).catch(() => null)
+        )
+      );
+      return true;
+    }
+
     try {
       const res = await this.apiFetch('/api/notifications/mark-all-read', {
         method: 'PATCH',
@@ -4009,7 +6332,10 @@ export class InstallationStore {
       });
       const responseData = await res.json()
       if (responseData.success) {
-        this.notifications.update(list => list.map(n => ({ ...n, read: true })));
+        const curRole = this.currentRole();
+        this.notifications.update(list =>
+          list.map(n => (n.recipientRole === curRole || n.recipientRole === 'all') ? { ...n, read: true } : n)
+        );
       }
       return responseData.success;
     } catch (err) {
@@ -4172,23 +6498,25 @@ export class InstallationStore {
       this.saveJobsLocally();
       if (updatedJob) this.persistJobToBackend(updatedJob);
 
-      // In-App Notification to Operations Manager: Urgent Reassignment Required
+      // In-App Notification to Operations Manager (Informational — Shop Manager handles dispatcher selection)
       this.createNotification({
         recipientRole: 'manager',
-        title: 'Driver Rejected - Reassignment Needed',
-        message: `Driver ${rejectedDriverName} rejected delivery run for job ${jobId} (${currentJob.doorModel}) within 10-minute window. Reason: "${rejectReason}". Reassignment required.`,
-        type: 'driver_rejected',
-        jobId: jobId,
-        actionLabel: 'Reassign Driver'
-      });
-
-      // In-App Notification to Shop Manager
-      this.createNotification({
-        recipientRole: 'shop_manager',
-        title: 'Driver Rejection - Run Reassignment Required',
-        message: `Driver ${rejectedDriverName} rejected run for job ${jobId} (${currentJob.doorModel}). Reason: "${rejectReason}". Queued for reassignment.`,
+        title: 'Dispatch Driver Rejected Delivery Run',
+        message: `Driver ${rejectedDriverName} rejected delivery run for job ${jobId} (${currentJob.doorModel}) within 10-minute window. Reason: "${rejectReason}". Shop Manager has been notified to select another dispatcher.`,
         type: 'driver_rejected',
         jobId: jobId
+      });
+
+      // In-App Notification to Shop Manager (scoped to the job's branch)
+      const branchShopMgr = this.resolveShopManagerForJob(currentJob);
+      this.createNotification({
+        recipientRole: 'shop_manager',
+        recipientUserId: branchShopMgr?.id,
+        title: 'Dispatcher Rejected Run — Select Dispatcher',
+        message: `Dispatcher ${rejectedDriverName} rejected run for job ${jobId} (${currentJob.doorModel}). Reason: "${rejectReason}". Please select a dispatcher for reassignment.`,
+        type: 'driver_rejected',
+        jobId: jobId,
+        actionLabel: 'Select Dispatcher'
       });
 
       // SMS Notification to Operations Manager
@@ -4311,80 +6639,116 @@ export class InstallationStore {
 
   /**
    * Automatically accepts an installer assignment if 10-minute rejection window has passed.
+   * Can accept a specific member in a team or all expired pending members.
    */
-  autoAcceptInstallerAssignment(jobId: string) {
+  autoAcceptInstallerAssignment(jobId: string, targetInstallerId?: string) {
     const job = this.jobs().find(j => j.id === jobId);
-    if (!job || job.installerAssignmentStatus !== 'pending' || !job.assignedInstallerId) return;
+    if (!job || (!job.assignedInstallerId && (!job.assignedInstallers || job.assignedInstallers.length === 0))) return;
 
     let updatedJob: InstallationJob | undefined;
     const now = new Date().toISOString();
+
+    const currentTeam: AssignedInstallerTeamMember[] = (job.assignedInstallers && job.assignedInstallers.length > 0)
+      ? [...job.assignedInstallers]
+      : (job.assignedInstallerId ? [{
+          id: job.assignedInstallerId,
+          name: job.assignedInstallerName || 'Technician',
+          role: 'lead' as const,
+          status: job.installerAssignmentStatus || 'pending',
+          assignedAt: job.installerAssignedAt || now,
+          deadlineAt: job.installerDeadlineAt
+        }] : []);
+
+    const autoAcceptedIds: string[] = [];
+    const updatedTeam = currentTeam.map(member => {
+      const isTarget = targetInstallerId ? member.id === targetInstallerId : true;
+      const isPending = !member.status || member.status === 'pending';
+      if (isTarget && isPending) {
+        autoAcceptedIds.push(member.id);
+        return {
+          ...member,
+          status: 'accepted' as const,
+          respondedAt: now,
+          autoAccepted: true
+        };
+      }
+      return member;
+    });
+
+    if (autoAcceptedIds.length === 0) return;
+
+    const anyPending = updatedTeam.some(m => !m.status || m.status === 'pending');
 
     this.jobs.update(list => list.map(j => {
       if (j.id === jobId) {
         updatedJob = {
           ...j,
-          installerAssignmentStatus: 'accepted',
+          assignedInstallers: updatedTeam,
+          installerAssignmentStatus: anyPending ? 'pending' : 'accepted',
           installerAutoAccepted: true,
           installerRespondedAt: now,
-          status: (j.status === 'booked_at_shop' || j.status === 'assigned') ? 'assigned' : j.status
+          acceptedAt: now,
+          status: (j.status === 'booked_at_shop' || j.status === 'assigned') ? 'accepted' : j.status
         };
         return updatedJob;
       }
       return j;
     }));
 
+    this.installers.update(techs => techs.map(t => {
+      if (autoAcceptedIds.includes(t.id)) {
+        return { ...t, activeJobId: job.id, availabilityStatus: 'assigned' };
+      }
+      return t;
+    }));
+
     this.saveJobsLocally();
     if (updatedJob) this.persistJobToBackend(updatedJob);
 
-    const tech = this.installers().find(i => i.id === job.assignedInstallerId);
-    const techPhone = tech?.phone;
-    const techName = job.assignedInstallerName || tech?.name || 'Technician';
+    // In-App & SMS Notification ONLY to the auto-accepted Field Installers
+    autoAcceptedIds.forEach(instId => {
+      const memberTech = this.installers().find(i => i.id === instId);
+      const memberName = memberTech?.name || 'Technician';
+      this.createNotification({
+        recipientRole: 'installer',
+        recipientUserId: instId,
+        title: 'Installation Run Auto-Accepted (10-Min Window Elapsed)',
+        message: `The 10-minute review window for installation ${job.id} (${job.doorModel} for ${job.client.name}) has elapsed with no action. The installation has been automatically accepted and confirmed for you.`,
+        type: 'installer_accepted',
+        jobId: job.id,
+        actionLabel: 'View Work Order'
+      });
 
-    // In-App Notification to Field Installer
-    this.createNotification({
-      recipientRole: 'installer',
-      recipientUserId: job.assignedInstallerId,
-      title: 'Installation Run Auto-Accepted (10-Min Window Elapsed)',
-      message: `The 10-minute rejection window for installation ${job.id} (${job.doorModel} for ${job.client.name}) has elapsed. The installation has been automatically accepted for you. Please prepare your tool set and hardware.`,
-      type: 'installer_accepted',
-      jobId: job.id,
-      actionLabel: 'View Work Order'
+      this.sendSms({
+        recipientRole: 'installer',
+        recipientPhone: memberTech?.phone,
+        recipientName: memberName,
+        triggerEvent: 'installer_accepted',
+        messageText: `DoorMaster SMS: Installation job ${job.id} (${job.doorModel}) was AUTO-ACCEPTED after 10 mins without rejection. Scheduled: ${job.scheduledDate}. Check app for site specs.`,
+        jobId: job.id
+      });
     });
 
-    // SMS Notification to Field Installer
-    this.sendSms({
-      recipientRole: 'installer',
-      recipientPhone: techPhone,
-      recipientName: techName,
-      triggerEvent: 'installer_accepted',
-      messageText: `DoorMaster SMS: Installation job ${job.id} (${job.doorModel}) was AUTO-ACCEPTED after 10 mins without rejection. Scheduled: ${job.scheduledDate}. Check app for site specs.`,
-      jobId: job.id
-    });
-
-    // In-App Notification to Shop Manager
+    // In-App Notification to Shop Manager (scoped to the job's branch)
+    const branchShopMgr = this.resolveShopManagerForJob(job);
+    const techName = job.assignedInstallerName || 'Technician';
     this.createNotification({
       recipientRole: 'shop_manager',
-      title: 'Installer Run Auto-Accepted (10-Min Elapsed)',
-      message: `Technician ${techName} did not reject installation ${job.id} (${job.doorModel}) within 10 minutes. Job was auto-accepted by the system.`,
+      recipientUserId: branchShopMgr?.id,
+      title: job.dispatcherId ? 'Installer Run Auto-Accepted (10-Min Elapsed)' : 'Installer Confirmed — Select Dispatcher',
+      message: job.dispatcherId
+        ? `Installer (${techName}) auto-accepted installation ${job.id} (${job.doorModel}) after 10 minutes elapsed.`
+        : `Installer (${techName}) is confirmed for installation ${job.id} (${job.doorModel}). Please select a dispatcher for delivery.`,
       type: 'installer_accepted',
-      jobId: job.id
+      jobId: job.id,
+      actionLabel: job.dispatcherId ? 'View Order' : 'Select Dispatcher'
     });
 
     // In-App Notification to Operations Manager
     this.createNotification({
       recipientRole: 'manager',
       title: 'Installer Run Auto-Accepted (10-Min Elapsed)',
-      message: `Technician ${techName} did not reject installation ${job.id} (${job.doorModel}) within 10 minutes. Run was auto-accepted by the system.`,
-      type: 'installer_accepted',
-      jobId: job.id
-    });
-
-    // In-App Notification to Client
-    this.createNotification({
-      recipientRole: 'client',
-      recipientUserId: job.client.id,
-      title: 'Technician Confirmed for Installation',
-      message: `Your DoorMaster technician (${techName}) has been confirmed for your door installation.`,
+      message: `Installer (${techName}) auto-accepted installation ${job.id} (${job.doorModel} for ${job.client.name}) after 10 minutes elapsed.`,
       type: 'installer_accepted',
       jobId: job.id
     });
@@ -4395,16 +6759,26 @@ export class InstallationStore {
    */
   checkAndAutoAcceptExpiredInstallerAssignments() {
     const now = Date.now();
-    const pendingJobs = this.jobs().filter(j => 
-      j.assignedInstallerId && 
-      j.installerAssignmentStatus === 'pending' && 
-      j.installerDeadlineAt
-    );
+    for (const job of this.jobs()) {
+      if (!job.assignedInstallerId && (!job.assignedInstallers || job.assignedInstallers.length === 0)) continue;
 
-    for (const job of pendingJobs) {
-      const deadline = new Date(job.installerDeadlineAt!).getTime();
-      if (deadline <= now) {
-        this.autoAcceptInstallerAssignment(job.id);
+      const team = job.assignedInstallers || [];
+      if (team.length > 0) {
+        for (const member of team) {
+          if (!member.status || member.status === 'pending') {
+            const deadline = member.deadlineAt
+              ? new Date(member.deadlineAt).getTime()
+              : (job.installerDeadlineAt ? new Date(job.installerDeadlineAt).getTime() : 0);
+            if (deadline > 0 && deadline <= now) {
+              this.autoAcceptInstallerAssignment(job.id, member.id);
+            }
+          }
+        }
+      } else if (job.installerAssignmentStatus === 'pending') {
+        const deadline = job.installerDeadlineAt ? new Date(job.installerDeadlineAt).getTime() : 0;
+        if (deadline > 0 && deadline <= now) {
+          this.autoAcceptInstallerAssignment(job.id);
+        }
       }
     }
   }
@@ -4413,6 +6787,10 @@ export class InstallationStore {
    * Add an installer to a job's team.
    */
   addInstallerToJob(jobId: string, installerId: string) {
+    if (!this.canCurrentRoleAssignInstallers()) {
+      this.alert.warning('Access Restricted', 'Your role is not authorized to assign installers.');
+      return;
+    }
     const installer = this.installers().find(i => i.id === installerId);
     if (!installer) return;
 
@@ -4430,13 +6808,26 @@ export class InstallationStore {
         const newIds = [...existingIds, installerId];
         const techs = this.installers().filter(i => newIds.includes(i.id));
         const leadTech = techs[0];
-        const teamMembers: AssignedInstallerTeamMember[] = techs.map((t, idx) => ({
-          id: t.id,
-          name: t.name,
-          phone: t.phone,
-          role: idx === 0 ? 'lead' : 'assistant',
-          avgRating: t.metrics.avgRating
-        }));
+        const teamMembers: AssignedInstallerTeamMember[] = techs.map((t, idx) => {
+          const existing = (job.assignedInstallers || []).find(m => m.id === t.id);
+          if (existing) return existing;
+          return {
+            id: t.id,
+            name: t.name,
+            phone: t.phone,
+            role: idx === 0 ? 'lead' : 'assistant',
+            position: t.teamPosition || (idx === 0 ? 'Team Lead' : 'Installation Technician'),
+            avatar: t.avatarUrl,
+            teamId: t.teamId,
+            teamName: t.teamName,
+            isTeamLead: idx === 0 || !!t.isTeamLead,
+            avgRating: t.metrics.avgRating,
+            status: 'pending',
+            assignedAt: now,
+            deadlineAt: deadline,
+            autoAccepted: false
+          };
+        });
 
         updatedJob = {
           ...job,
@@ -4450,7 +6841,9 @@ export class InstallationStore {
           installerDeadlineAt: job.installerDeadlineAt || deadline,
           installerAssignmentStatus: job.installerAssignmentStatus || 'pending',
           installerAutoAccepted: job.installerAutoAccepted ?? false,
-          status: (job.status === 'draft' || job.status === 'booked_at_shop') ? 'assigned' : job.status
+          status: (job.status === 'draft' || job.status === 'booked_at_shop')
+            ? (job.dispatcherId ? 'truck_assigned' : 'assigned')
+            : job.status
         };
         return updatedJob;
       }
@@ -4459,7 +6852,7 @@ export class InstallationStore {
     this.saveJobsLocally();
     if (updatedJob) this.persistJobToBackend(updatedJob);
 
-    const assigner = this.currentRole() === 'shop_manager' ? 'Shop Manager' : 'Operations Manager';
+    const assigner = 'Operations Manager';
 
     this.createNotification({
       recipientRole: 'installer',
@@ -4485,6 +6878,10 @@ export class InstallationStore {
    * Remove an installer from a job's team.
    */
   removeInstallerFromJob(jobId: string, installerId: string) {
+    if (!this.canCurrentRoleAssignInstallers()) {
+      this.alert.warning('Access Restricted', 'Your role is not authorized to remove installers.');
+      return;
+    }
     let updatedJob: InstallationJob | undefined;
 
     this.jobs.update(list => list.map(job => {
@@ -4557,13 +6954,20 @@ export class InstallationStore {
     const updated = this.jobs().find(j => j.id === jobId);
     if (updated) this.persistJobToBackend(updated);
 
+    const branchShopMgr = this.resolveShopManagerForJob(updated);
     this.createNotification({
       recipientRole: 'shop_manager',
+      recipientUserId: branchShopMgr?.id,
       title: 'Shop Payment Verified',
       message: `Payment for job ${jobId} (${updated?.doorModel}) has been verified by Accounts.`,
       type: 'shop_payment_recorded',
       jobId
     });
+
+    this.alert.toastSuccess(
+      'Payment Verified',
+      `Shop payment for job ${jobId} (${updated?.doorModel || 'Door'}) verified and reconciled.`
+    );
   }
 
   /**
@@ -4600,6 +7004,11 @@ export class InstallationStore {
       type: 'site_funds_dispatched',
       jobId
     });
+
+    this.alert.toastSuccess(
+      'Site Funds Disbursed',
+      `₵${data.amount} mobilization stipend released for job ${jobId} (${data.transactionRef || 'Verified'}).`
+    );
   }
 
   /**
@@ -4636,6 +7045,11 @@ export class InstallationStore {
       type: 'door_dispatched',
       jobId
     });
+
+    this.alert.toastSuccess(
+      'Cargo Delivered on Site',
+      `${updated?.doorModel || 'Door'} marked delivered at ${updated?.client.siteAddress || 'client site'}.`
+    );
   }
 
   /**
@@ -4661,5 +7075,8 @@ export class InstallationStore {
       }
       return d;
     }));
+
+    const stageLabel = stage.replace(/_/g, ' ');
+    this.alert.toastSuccess('Trip Stage Updated', `Job ${jobId} updated to "${stageLabel}".`);
   }
 }

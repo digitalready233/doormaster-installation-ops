@@ -60,8 +60,8 @@ export interface MapHubLocation {
             <span class="text-slate-500">·</span>
             @if (mode() === 'client-single') {
               <span>Your Delivery Live Approach · OpenStreetMap</span>
-            } @else if (mode() === 'shop-scoped') {
-              <span>Shop Branch Fleet Live Radar ({{ trackedUnits().length }} Units)</span>
+            } @else if (mode() === 'shop-scoped' || store.currentRole() === 'shop_manager') {
+              <span>{{ store.managerBranch()?.shopName || 'Shop Branch' }} Live Radar ({{ trackedUnits().length }} Units)</span>
             } @else {
               <span>Accra City Fleet Radar · Live OpenStreetMap</span>
             }
@@ -82,8 +82,10 @@ export interface MapHubLocation {
             class="bg-slate-800 text-slate-100 text-[11px] font-mono px-2 py-1 rounded-lg border border-slate-600 focus:outline-none focus:border-emerald-500 cursor-pointer max-w-[150px] sm:max-w-[210px] truncate"
             title="Jump to DoorMaster Shop Branch on Map"
           >
-            <option value="all">🗺️ All 14 Branches (Ghana)</option>
-            @for (b of store.branches(); track b.branchCode) {
+            @if (store.currentRole() !== 'shop_manager' && mode() !== 'shop-scoped') {
+              <option value="all">🗺️ All {{ visibleBranches().length }} Branches (Ghana)</option>
+            }
+            @for (b of visibleBranches(); track b.branchCode) {
               <option [value]="b.branchCode">🏪 {{ b.shopName.replace('DoorMaster ', '') }} ({{ b.region }})</option>
             }
           </select>
@@ -93,8 +95,8 @@ export interface MapHubLocation {
             type="button" 
             (click)="fitAllBranches()"
             class="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
-            title="Fit All 14 Branches on Map"
-            aria-label="Fit All Branches on Map"
+            [title]="store.currentRole() === 'shop_manager' ? 'Center on My Shop Branch' : 'Fit All Branches on Map'"
+            aria-label="Fit Branches on Map"
           >
             <mat-icon class="!text-sm">crop_free</mat-icon>
           </button>
@@ -239,8 +241,29 @@ export class OsmLiveMap implements AfterViewInit, OnDestroy {
   private polylineLayers = new Map<string, LType.Polyline>();
   private resizeObserver: ResizeObserver | null = null;
 
-  // Tracked units computed from live GPS locations
-  readonly trackedUnits = computed(() => this.store.liveLocations());
+  readonly visibleBranches = computed(() => {
+    if (this.store.currentRole() === 'shop_manager' || this.mode() === 'shop-scoped') {
+      const own = this.store.managerBranch();
+      return own ? [own] : [];
+    }
+    return this.store.branches();
+  });
+
+  // Tracked units computed from live GPS locations (strictly scoped to shop for shop_manager)
+  readonly trackedUnits = computed(() => {
+    const allUnits = this.store.liveLocations();
+    if (this.store.currentRole() === 'shop_manager' || this.mode() === 'shop-scoped') {
+      const selfId = this.store.currentUser().id;
+      const dispIds = new Set(this.store.branchDispatchers().map(d => d.id));
+      const jobIds = this.store.branchJobIds();
+      return allUnits.filter(u =>
+        u.userId === selfId ||
+        dispIds.has(u.userId) ||
+        (u.jobId ? jobIds.has(u.jobId) : false)
+      );
+    }
+    return allUnits;
+  });
 
   // Key static hubs for Greater Accra corridor
   readonly staticHubs: MapHubLocation[] = [
@@ -253,17 +276,16 @@ export class OsmLiveMap implements AfterViewInit, OnDestroy {
   ];
 
   readonly scopedJobs = computed(() => {
-    const all = this.store.jobs();
     const mode = this.mode();
     if (mode === 'client-single') {
       const target = this.targetJob();
+      const all = this.store.jobs();
       return target ? [target] : (all.length > 0 ? [all[0]] : []);
     }
-    if (mode === 'shop-scoped') {
-      const branch = this.shopBranchFilter() || 'DoorMaster Flagship Showroom - Accra Central';
-      return all.filter(j => j.shopBranch === branch || (j.shopBooking && j.shopBooking.shopBranch === branch));
+    if (mode === 'shop-scoped' || this.store.currentRole() === 'shop_manager') {
+      return this.store.branchJobs();
     }
-    return all;
+    return this.store.jobs();
   });
 
   constructor() {
@@ -275,17 +297,21 @@ export class OsmLiveMap implements AfterViewInit, OnDestroy {
       }
     });
 
-    // React to branches directory changes
+    // React to branches directory or scoped jobs changes
     effect(() => {
-      this.store.branches();
+      const branches = this.visibleBranches();
+      this.scopedJobs();
       if (this.map) {
         this.renderStaticMarkersAndRoutes();
+        if ((this.store.currentRole() === 'shop_manager' || this.mode() === 'shop-scoped') && branches.length === 1) {
+          this.fitAllBranches();
+        }
       }
     });
 
     // Re-render markers when live locations change
     effect(() => {
-      const locations = this.store.liveLocations();
+      this.trackedUnits();
       if (this.map) {
         this.updateMovingMarkersOnMap();
       }
@@ -346,7 +372,7 @@ export class OsmLiveMap implements AfterViewInit, OnDestroy {
       return;
     }
 
-    // Centered around Greater Accra Corridor (or client site for client-single mode)
+    // Centered around Greater Accra Corridor (or client site / shop branch)
     let centerLat = 5.6020;
     let centerLng = -0.1600;
     let zoomLevel = this.mode() === 'client-single' ? 14 : 12;
@@ -361,6 +387,13 @@ export class OsmLiveMap implements AfterViewInit, OnDestroy {
         centerLat = this.store.myLiveLocation()!.latitude;
         centerLng = this.store.myLiveLocation()!.longitude;
         zoomLevel = 15;
+      }
+    } else if (this.store.currentRole() === 'shop_manager' || this.mode() === 'shop-scoped') {
+      const ownBranch = this.store.managerBranch();
+      if (ownBranch) {
+        centerLat = ownBranch.latitude;
+        centerLng = ownBranch.longitude;
+        zoomLevel = 13;
       }
     } else if (this.store.myLiveLocation()) {
       centerLat = this.store.myLiveLocation()!.latitude;
@@ -423,14 +456,21 @@ export class OsmLiveMap implements AfterViewInit, OnDestroy {
     const leaflet = L;
     if (!this.map || !leaflet) return;
 
-    // Clear existing static markers
+    // Clear existing static branch & destination markers and polylines
     this.polylineLayers.forEach(poly => this.map?.removeLayer(poly));
     this.polylineLayers.clear();
+    for (const [key, marker] of Array.from(this.markerLayers.entries())) {
+      if (key.startsWith('branch_') || key.startsWith('dest_')) {
+        this.map.removeLayer(marker);
+        this.markerLayers.delete(key);
+      }
+    }
 
-    // Render DoorMaster Shop Branch markers (all active branches in Ghana)
-    const branches = this.store.branches();
+    // Render DoorMaster Shop Branch markers (visible branches for current role)
+    const branches = this.visibleBranches();
     branches.forEach(branch => {
-      const isSelected = this.store.shopLocation().id === branch.id || this.store.shopLocation().branchCode === branch.branchCode;
+      const activeBranch = this.store.currentRole() === 'shop_manager' ? this.store.managerBranch() : this.store.shopLocation();
+      const isSelected = activeBranch?.id === branch.id || activeBranch?.branchCode === branch.branchCode;
       const isPrimary = branch.isPrimary;
       const bg = isPrimary ? '#059669' : (isSelected ? '#0284c7' : '#0f172a');
       const border = isSelected ? '#38bdf8' : (isPrimary ? '#34d399' : '#64748b');
@@ -483,8 +523,8 @@ export class OsmLiveMap implements AfterViewInit, OnDestroy {
     // Render client destination markers for shop-scoped/all-fleet modes
     const jobs = this.scopedJobs();
     jobs.forEach(j => {
-      const clientLat = (j.client as any)?.latitude || 5.5840;
-      const clientLng = (j.client as any)?.longitude || -0.1780;
+      const clientLat = j.client?.coordinates?.lat || (j.client as any)?.latitude || 5.5840;
+      const clientLng = j.client?.coordinates?.lng || (j.client as any)?.longitude || -0.1780;
       const clientName = j.client?.name || 'Client Residence';
       const doorModel = j.doorModel || 'Architectural Door';
 
@@ -613,9 +653,21 @@ export class OsmLiveMap implements AfterViewInit, OnDestroy {
   fitAllBranches() {
     const leaflet = L;
     if (!this.map || !leaflet) return;
-    const branches = this.store.branches();
+    const branches = this.visibleBranches();
     if (branches.length === 0) return;
-    const bounds = leaflet.latLngBounds(branches.map(b => [b.latitude, b.longitude]));
+    const coords: [number, number][] = branches.map(b => [b.latitude, b.longitude]);
+    if (this.store.currentRole() === 'shop_manager' || this.mode() === 'shop-scoped') {
+      this.scopedJobs().forEach(j => {
+        const lat = j.client?.coordinates?.lat || (j.client as any)?.latitude;
+        const lng = j.client?.coordinates?.lng || (j.client as any)?.longitude;
+        if (lat && lng) coords.push([lat, lng]);
+      });
+    }
+    if (coords.length === 1) {
+      this.map.setView(coords[0], 14);
+      return;
+    }
+    const bounds = leaflet.latLngBounds(coords);
     this.map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
   }
 
@@ -634,7 +686,7 @@ export class OsmLiveMap implements AfterViewInit, OnDestroy {
     if (val === 'all') {
       this.fitAllBranches();
     } else {
-      const b = this.store.branches().find(br => br.branchCode === val || br.id === val);
+      const b = this.visibleBranches().find(br => br.branchCode === val || br.id === val);
       if (b) {
         this.focusBranch(b);
       }

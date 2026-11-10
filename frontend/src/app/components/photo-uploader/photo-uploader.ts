@@ -38,7 +38,7 @@ import { InstallationPhoto } from '../../models/installation.model';
             <mat-icon>photo_camera</mat-icon>
           </div>
           <p class="text-xs font-medium text-slate-700">No site photos uploaded yet</p>
-          <p class="text-[11px] text-slate-400 mt-0.5 mb-3">Upload before & after photos to earn the management quality bonus (+$25)</p>
+          <p class="text-[11px] text-slate-400 mt-0.5 mb-3">Upload before & after photos for installation quality documentation & verification</p>
           <button 
             type="button"
             (click)="showUploadModal.set(true)"

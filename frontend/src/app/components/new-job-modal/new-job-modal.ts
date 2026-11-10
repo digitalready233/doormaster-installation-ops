@@ -1,17 +1,21 @@
 import { 
+  afterNextRender,
   ChangeDetectionStrategy, 
   Component, 
   computed, 
+  effect,
+  ElementRef,
   inject, 
   output, 
-  signal 
+  signal,
+  viewChild
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { ReactiveFormsModule, FormGroup, FormControl, Validators, FormsModule } from '@angular/forms';
 import { InstallationStore } from '../../services/installation.store';
 import { AlertService } from '../../services/alert.service';
-import { AssignedInstallerTeamMember, DoorCategory, InstallerTeam, JobDoorItem } from '../../models/installation.model';
+import { JobDoorItem } from '../../models/installation.model';
 
 import { ClientLocationMap, ClientLocationResult } from '../client-location-map/client-location-map';
 
@@ -37,7 +41,7 @@ export interface EditableDoorItem extends JobDoorItem {
               <div class="flex items-center gap-2">
                 <h3 class="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight">Book New Door Installation</h3>
                 <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  Shop Manager Desk
+                  {{ store.currentRoleDefinition().name }}
                 </span>
               </div>
               <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -71,22 +75,8 @@ export interface EditableDoorItem extends JobDoorItem {
                   1
                 </div>
                 <h4 class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                  Selected Doors for Installation ({{ totalDoorsCount() }} Total Units)
+                  Selected Doors for Installation
                 </h4>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                  Doors Total: ₵{{ totalDoorsPrice().toLocaleString() }}
-                </span>
-                <button 
-                  type="button" 
-                  (click)="addDoorFromCatalog()"
-                  class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
-                >
-                  <mat-icon class="!text-xs !w-3.5 !h-3.5">add</mat-icon>
-                  <span>+ Add Door</span>
-                </button>
               </div>
             </div>
 
@@ -240,28 +230,24 @@ export interface EditableDoorItem extends JobDoorItem {
                         </select>
                       </div>
 
-                      <!-- Door Category & Model Title -->
+                      <!-- Door Category & Model Title (Read-Only) -->
                       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <div class="flex items-center justify-between mb-1">
                             <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                               Door Category
                             </label>
-                            <span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200/80 dark:border-emerald-800/60 px-1.5 py-0.5 rounded shadow-2xs">
-                              <mat-icon class="!text-[11px] !w-3 !h-3">auto_awesome</mat-icon>
-                              <span>Auto-Selected</span>
+                            <span class="inline-flex items-center gap-1 text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded">
+                              <mat-icon class="!text-[11px] !w-3 !h-3">lock</mat-icon>
+                              <span>Read-Only</span>
                             </span>
                           </div>
-                          <select 
-                            [ngModel]="door.doorCategory"
-                            (ngModelChange)="updateDoorField(i, 'doorCategory', $event)"
-                            [ngModelOptions]="{standalone: true}"
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium cursor-pointer"
-                          >
-                            @for (cat of getCategoryList(door.doorCategory); track cat) {
-                              <option [value]="cat">{{ cat }}</option>
-                            }
-                          </select>
+                          <input 
+                            type="text"
+                            [value]="door.doorCategory"
+                            readonly
+                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 font-medium cursor-default focus:outline-none"
+                          />
                         </div>
 
                         <div>
@@ -270,16 +256,14 @@ export interface EditableDoorItem extends JobDoorItem {
                           </label>
                           <input 
                             type="text"
-                            [ngModel]="door.doorModel"
-                            (ngModelChange)="onDoorModelInputChange(i, $event)"
-                            [ngModelOptions]="{standalone: true}"
-                            placeholder="e.g. AeroPivot 900 Walnut & Anodized Steel" 
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            [value]="door.doorModel"
+                            readonly
+                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 cursor-default focus:outline-none"
                           />
                         </div>
                       </div>
 
-                      <!-- Dimensions & Finish -->
+                      <!-- Dimensions & Finish (Read-Only) -->
                       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
@@ -287,11 +271,9 @@ export interface EditableDoorItem extends JobDoorItem {
                           </label>
                           <input 
                             type="text"
-                            [ngModel]="door.dimensions"
-                            (ngModelChange)="updateDoorField(i, 'dimensions', $event)"
-                            [ngModelOptions]="{standalone: true}"
-                            placeholder="e.g. 2400mm × 1200mm × 55mm" 
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            [value]="door.dimensions"
+                            readonly
+                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 cursor-default focus:outline-none"
                           />
                         </div>
 
@@ -301,16 +283,14 @@ export interface EditableDoorItem extends JobDoorItem {
                           </label>
                           <input 
                             type="text"
-                            [ngModel]="door.finish"
-                            (ngModelChange)="updateDoorField(i, 'finish', $event)"
-                            [ngModelOptions]="{standalone: true}"
-                            placeholder="e.g. Smoked European Oak with Matt Black PVD" 
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            [value]="door.finish"
+                            readonly
+                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 cursor-default focus:outline-none"
                           />
                         </div>
                       </div>
 
-                      <!-- Hardware & Mortise Specifications & Optional Lock -->
+                      <!-- Hardware & Mortise Specifications & Lock (Read-Only) -->
                       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
@@ -318,11 +298,9 @@ export interface EditableDoorItem extends JobDoorItem {
                           </label>
                           <input 
                             type="text"
-                            [ngModel]="door.hardwareSpecs"
-                            (ngModelChange)="updateDoorField(i, 'hardwareSpecs', $event)"
-                            [ngModelOptions]="{standalone: true}"
-                            placeholder="e.g. FritsJurgens System M+ Pivot, 3-Point Magnetic Mortise Lock" 
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            [value]="door.hardwareSpecs"
+                            readonly
+                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 cursor-default focus:outline-none"
                           />
                         </div>
 
@@ -330,33 +308,26 @@ export interface EditableDoorItem extends JobDoorItem {
                           <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                             Smart Lock / Handle
                           </label>
-                          <select 
-                            [ngModel]="door.lockModel"
-                            (ngModelChange)="updateDoorField(i, 'lockModel', $event)"
-                            [ngModelOptions]="{standalone: true}"
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                          >
-                            <option value="Doormaster Smart Lock Handle F35 (Biometric & RFID)">Doormaster Smart Lock Handle F35 (Biometric & RFID)</option>
-                            <option value="Doormaster High-Security Italian Mortise Lock">Doormaster High-Security Italian Mortise Lock</option>
-                            <option value="Doormaster Keypad Digital Smart Cylinder">Doormaster Keypad Digital Smart Cylinder</option>
-                            <option value="Heavy-Duty Multi-Point Deadbolt System">Heavy-Duty Multi-Point Deadbolt System</option>
-                            <option value="Standard Mechanical Handle & Cylinder">Standard Mechanical Handle & Cylinder</option>
-                          </select>
+                          <input 
+                            type="text"
+                            [value]="door.lockModel || 'Doormaster Smart Lock Handle F35 (Biometric & RFID)'"
+                            readonly
+                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 cursor-default focus:outline-none"
+                          />
                         </div>
                       </div>
 
-                      <!-- Unit Price and Quantity for this Door Item -->
+                      <!-- Unit Price and Quantity for this Door Item (Read-Only Specs) -->
                       <div class="grid grid-cols-2 gap-3 pt-1">
                         <div>
                           <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                            Unit Price (₵)
+                            Catalog Unit Price (₵)
                           </label>
                           <input 
-                            type="number"
-                            [ngModel]="door.unitPrice"
-                            (ngModelChange)="updateDoorField(i, 'unitPrice', +$event)"
-                            [ngModelOptions]="{standalone: true}"
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
+                            type="text"
+                            [value]="'₵' + door.unitPrice.toLocaleString()"
+                            readonly
+                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 font-bold cursor-default focus:outline-none"
                           />
                         </div>
 
@@ -366,11 +337,9 @@ export interface EditableDoorItem extends JobDoorItem {
                           </label>
                           <input 
                             type="number"
-                            min="1"
-                            [ngModel]="door.quantity"
-                            (ngModelChange)="updateDoorField(i, 'quantity', Math.max(1, +$event))"
-                            [ngModelOptions]="{standalone: true}"
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
+                            [value]="door.quantity"
+                            readonly
+                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 font-bold cursor-default focus:outline-none"
                           />
                         </div>
                       </div>
@@ -379,6 +348,21 @@ export interface EditableDoorItem extends JobDoorItem {
                   }
                 </div>
               }
+            </div>
+
+            <!-- Units Summary & Add Door Action (After Selected Doors) -->
+            <div class="flex items-center justify-between gap-2 pt-1">
+              <span class="text-xs font-mono font-bold text-slate-600 dark:text-slate-400">
+                {{ totalDoorsCount() }} Unit(s)
+              </span>
+              <button 
+                type="button" 
+                (click)="addDoorFromCatalog()"
+                class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
+              >
+                <mat-icon class="!text-xs !w-3.5 !h-3.5">add</mat-icon>
+                <span>+ Add Door</span>
+              </button>
             </div>
           </div>
 
@@ -492,7 +476,7 @@ export interface EditableDoorItem extends JobDoorItem {
           </div>
 
           <!-- ========================================================================= -->
-          <!-- SECTION 3: SCHEDULE & INSTALLER DISPATCH                                  -->
+          <!-- SECTION 3: SCHEDULE & FIELD INSTALLER DISPATCH                             -->
           <!-- ========================================================================= -->
           <div class="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
             <div class="flex items-center gap-2">
@@ -504,174 +488,81 @@ export interface EditableDoorItem extends JobDoorItem {
               </h4>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label for="jobScheduledDate" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            <div class="flex flex-nowrap items-end gap-3">
+              <div class="shrink-0">
+                <label for="jobScheduledDate" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 whitespace-nowrap">
                   Scheduled Installation Date *
                 </label>
                 <input 
                   id="jobScheduledDate"
                   type="date" 
                   formControlName="scheduledDate"
-                  class="w-full text-xs px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-200 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                  class="w-fit text-xs px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-200 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
                 />
               </div>
 
-              <div>
-                <label for="jobEstimatedHours" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <div class="shrink-0">
+                <label for="jobEstimatedHours" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 whitespace-nowrap">
                   Est. Duration (Hours)
                 </label>
                 <input 
                   id="jobEstimatedHours"
                   type="number" 
                   step="0.5"
+                  min="0.5"
                   formControlName="estimatedHours"
                   class="w-full text-xs px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-200 font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
               </div>
 
-              <div>
-                <label for="jobShopBranch" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <div class="min-w-0 flex-1">
+                <label for="jobShopBranch" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 whitespace-nowrap">
                   Dispatching Shop Branch *
                 </label>
                 <select 
+                  #shopBranchSelect
                   id="jobShopBranch"
                   formControlName="shopBranch"
-                  class="w-full text-xs px-2.5 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium cursor-pointer"
+                  class="w-full max-w-fit text-xs px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium cursor-pointer truncate"
                 >
-                  @for (b of store.branches(); track b.branchCode) {
-                    <option [value]="b.shopName">
-                      🏪 {{ b.shopName.replace('DoorMaster ', '') }} ({{ b.branchCode }})
-                    </option>
-                  }
+                  <optgroup label="DoorMaster Branches">
+                    @for (b of allBranches(); track b.branchCode) {
+                      <option [value]="b.shopName" [selected]="jobForm.controls.shopBranch.value === b.shopName">
+                        🏪 {{ b.shopName }} ({{ b.branchCode }})
+                      </option>
+                    }
+                  </optgroup>
+                  <optgroup label="DoorMaster Warehouses">
+                    @for (w of allWarehouses(); track w.branchCode + w.shopName) {
+                      <option [value]="w.shopName" [selected]="jobForm.controls.shopBranch.value === w.shopName">
+                        🏭 {{ w.shopName }} ({{ w.branchCode }})
+                      </option>
+                    }
+                  </optgroup>
                 </select>
               </div>
             </div>
-
-            <!-- Multi-Installer Team Selection (Shop Manager & Operations Manager) -->
-            @if (store.currentRole() === 'shop_manager' || store.currentRole() === 'manager' || store.currentRoleDefinition().permissions.canAssignInstallers) {
-              <div class="space-y-2 pt-1">
-                <div class="flex items-center justify-between">
-                  <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <mat-icon class="!text-sm text-emerald-600">group</mat-icon>
-                    <span>Assign Installation Team (Lead + Assistants)</span>
-                  </label>
-                  <span class="text-[11px] font-mono px-2 py-0.5 rounded-full"
-                    [class]="selectedInstallerIds().length > 0 ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-500'">
-                    @if (selectedInstallerIds().length > 0) {
-                      {{ selectedInstallerIds().length }} selected · 10-Min Review Dispatched
-                    } @else {
-                      Unassigned (Shop Manager Assigns)
-                    }
-                  </span>
-                </div>
-
-                <!-- Quick Team Assignment Buttons (Team Alpha / Team Bravo with Team Leads) -->
-                <div class="flex items-center gap-2 flex-wrap pb-1">
-                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Team:</span>
-                  @for (team of store.installerTeams(); track team.id) {
-                    <button
-                      type="button"
-                      (click)="assignTeam(team)"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer"
-                      [class]="isTeamFullySelected(team) 
-                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs' 
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300'"
-                    >
-                      <mat-icon class="!text-xs !w-3 !h-3">group</mat-icon>
-                      <span>{{ team.code }}: {{ team.name.split(' - ')[0] }} (3 Techs)</span>
-                      <span class="text-[9px] opacity-80 font-mono">· Lead: {{ team.leadName.split(' ')[0] }}</span>
-                    </button>
-                  }
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
-                  @for (installer of store.installers(); track installer.id) {
-                    <div 
-                      role="button"
-                      tabindex="0"
-                      (click)="toggleInstaller(installer.id)"
-                      (keydown.enter)="toggleInstaller(installer.id)"
-                      (keydown.space)="$event.preventDefault(); toggleInstaller(installer.id)"
-                      class="p-2.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between gap-2"
-                      [class]="isInstallerSelected(installer.id) ? 'border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/40 shadow-xs ring-1 ring-emerald-600' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750'"
-                    >
-                      <div class="flex items-center gap-2 min-w-0">
-                        <div class="w-7 h-7 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center font-bold text-xs shrink-0">
-                          {{ installer.name.charAt(0) }}
-                        </div>
-                        <div class="min-w-0">
-                          <div class="flex items-center gap-1.5 flex-wrap">
-                            <span class="font-bold text-xs text-slate-900 dark:text-white truncate">{{ installer.name }}</span>
-                            @if (installer.teamName) {
-                              <span class="text-[9px] font-bold px-1.5 py-0.2 rounded"
-                                [class]="installer.teamId === 'team-alpha' 
-                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300' 
-                                  : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'">
-                                {{ installer.teamId === 'team-alpha' ? 'Alpha' : 'Bravo' }} {{ installer.isTeamLead ? '★ Lead' : '' }}
-                              </span>
-                            }
-                            @if (isInstallerSelected(installer.id)) {
-                              <span class="text-[9px] font-black px-1.5 py-0.2 rounded uppercase"
-                                [class]="selectedInstallerIds()[0] === installer.id ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'">
-                                {{ selectedInstallerIds()[0] === installer.id ? 'Assigned Lead' : 'Asst.' }}
-                              </span>
-                            }
-                          </div>
-                          <span class="text-[10px] text-slate-500 dark:text-slate-400">
-                            ★{{ installer.metrics.avgRating }} · {{ installer.isSignedIn ? 'Online' : 'Offline' }}
-                          </span>
-                        </div>
-                      </div>
-
-                      <input 
-                        type="checkbox"
-                        [checked]="isInstallerSelected(installer.id)"
-                        (click)="$event.stopPropagation()"
-                        (change)="toggleInstaller(installer.id)"
-                        class="w-4 h-4 text-emerald-600 rounded border-slate-300 dark:border-slate-600 cursor-pointer shrink-0"
-                      />
-                    </div>
-                  }
-                </div>
-              </div>
-            } @else {
-              <!-- Restricted notice for Shop Manager -->
-              <div class="p-3.5 bg-amber-500/10 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 rounded-xl text-xs space-y-1.5">
-                <div class="flex items-center gap-2 font-extrabold text-amber-900 dark:text-amber-200">
-                  <mat-icon class="!text-base text-amber-600 dark:text-amber-400">lock</mat-icon>
-                  <span>Technician Assignment Governed by Operations Manager</span>
-                </div>
-                <p class="text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
-                  Shop Managers are restricted from assigning installers. This installation job will be booked and routed to the Operations Governance queue as <strong>Shop Booked</strong> for technician dispatch.
-                </p>
-              </div>
-            }
           </div>
 
           <!-- ========================================================================= -->
-          <!-- SECTION 4: FINANCIALS & ORDER SUMMARY                                     -->
+          <!-- SECTION 4: JOB FINANCIALS & ORDER SUMMARY (INSTALLATION FEE & LABOR ONLY)  -->
           <!-- ========================================================================= -->
           <div class="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-            <div class="flex items-center gap-2">
-              <div class="w-5 h-5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xs">
-                4
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div class="flex items-center gap-2">
+                <div class="w-5 h-5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xs">
+                  4
+                </div>
+                <h4 class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                  Job Financials & Order Summary
+                </h4>
               </div>
-              <h4 class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                Job Financials & Order Summary
-              </h4>
+              <span class="text-[10px] font-mono font-semibold text-slate-500 dark:text-slate-400">
+                Installation Fee & Labor Only (Excludes Door Price)
+              </span>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-              <div>
-                <label class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Total Doors Price (₵)
-                </label>
-                <div class="text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 pt-1">
-                  ₵{{ totalDoorsPrice().toLocaleString() }}
-                </div>
-              </div>
-
               <div>
                 <label for="jobInstallationFee" class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
                   Installation Fee (₵) *
@@ -679,6 +570,7 @@ export interface EditableDoorItem extends JobDoorItem {
                 <input 
                   id="jobInstallationFee" 
                   type="number" 
+                  min="0"
                   formControlName="installationFee" 
                   class="w-full text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold" 
                 />
@@ -686,22 +578,39 @@ export interface EditableDoorItem extends JobDoorItem {
 
               <div>
                 <label for="jobLaborCost" class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Est. Tech Labor (₵)
+                  Labor Cost (₵) *
                 </label>
                 <input 
                   id="jobLaborCost" 
                   type="number" 
+                  min="0"
                   formControlName="laborCost" 
                   class="w-full text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold" 
                 />
               </div>
 
               <div>
-                <label class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Grand Total (₵)
+                <label for="jobPaymentMethod" class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Payment Method *
                 </label>
-                <div class="text-sm font-black font-mono text-slate-900 dark:text-white pt-1">
-                  ₵{{ (totalDoorsPrice() + (jobForm.value.installationFee || 0)).toLocaleString() }}
+                <select 
+                  id="jobPaymentMethod"
+                  formControlName="paymentMethod"
+                  class="w-full text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium cursor-pointer"
+                >
+                  <option value="momo">MTN / Telecel MoMo</option>
+                  <option value="cash">Counter Cash</option>
+                  <option value="pos_card">POS Terminal (Card)</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Total (₵)
+                </label>
+                <div class="text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 pt-1">
+                  ₵{{ ((+(jobForm.value.installationFee || 0)) + (+(jobForm.value.laborCost || 0))).toLocaleString() }}
                 </div>
               </div>
             </div>
@@ -712,10 +621,10 @@ export interface EditableDoorItem extends JobDoorItem {
           <!-- Sticky Modal Footer -->
           <div class="px-4 sm:px-6 py-3 sm:py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md shrink-0 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 z-10 shadow-lg">
             <div class="flex items-center gap-2 text-[11px] sm:text-xs font-mono text-slate-500 dark:text-slate-400">
-              <span class="font-bold text-slate-900 dark:text-white">{{ totalDoorsCount() }} Doors</span>
+              <span class="font-bold text-slate-900 dark:text-white">{{ totalDoorsCount() }} Door(s)</span>
               <span>·</span>
               <span class="text-emerald-600 dark:text-emerald-400 font-bold">
-                ₵{{ (totalDoorsPrice() + (jobForm.value.installationFee || 0)).toLocaleString() }} Total
+                ₵{{ ((+(jobForm.value.installationFee || 0)) + (+(jobForm.value.laborCost || 0))).toLocaleString() }} Installation & Labor
               </span>
             </div>
 
@@ -747,7 +656,9 @@ export class NewJobModal {
   readonly alert = inject(AlertService);
   closed = output<void>();
 
-  // List of selected doors for this installation request
+  readonly shopBranchSelectRef = viewChild<ElementRef<HTMLSelectElement>>('shopBranchSelect');
+
+  // List of selected doors for this installation request (collapsed initially)
   readonly selectedDoors = signal<EditableDoorItem[]>([
     {
       id: `door_${Date.now()}_1`,
@@ -759,19 +670,24 @@ export class NewJobModal {
       lockModel: 'Doormaster Smart Lock Handle F35 (Biometric & RFID)',
       unitPrice: 6200,
       quantity: 1,
-      isExpanded: true
+      isExpanded: false
     }
   ]);
-
-  readonly totalDoorsPrice = computed(() => {
-    return this.selectedDoors().reduce((acc, d) => acc + (d.unitPrice * d.quantity), 0);
-  });
 
   readonly totalDoorsCount = computed(() => {
     return this.selectedDoors().reduce((acc, d) => acc + d.quantity, 0);
   });
 
-  readonly Math = Math;
+  readonly allBranches = computed(() => this.store.branches());
+  readonly allWarehouses = computed(() => this.store.allWarehouses());
+
+  readonly defaultDispatchBranchName = computed(() => {
+    const assigned = this.store.managerBranch() || this.store.userAssignedShop();
+    if (assigned?.shopName) {
+      return assigned.shopName;
+    }
+    return this.store.shopLocation().shopName;
+  });
 
   readonly jobForm = new FormGroup({
     clientName: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -780,45 +696,12 @@ export class NewJobModal {
     siteAddress: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     accessInstructions: new FormControl('', { nonNullable: true }),
     scheduledDate: new FormControl(new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], { nonNullable: true, validators: [Validators.required] }),
-    estimatedHours: new FormControl(4, { nonNullable: true, validators: [Validators.required, Validators.min(1)] }),
-    shopBranch: new FormControl(this.store.shopLocation().shopName, { nonNullable: true }),
-    installationFee: new FormControl(1200, { nonNullable: true, validators: [Validators.required] }),
-    laborCost: new FormControl(480, { nonNullable: true, validators: [Validators.required] })
+    estimatedHours: new FormControl(4, { nonNullable: true, validators: [Validators.required, Validators.min(0.5)] }),
+    shopBranch: new FormControl(this.defaultDispatchBranchName(), { nonNullable: true }),
+    installationFee: new FormControl(1200, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
+    laborCost: new FormControl(480, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
+    paymentMethod: new FormControl<'cash' | 'momo' | 'pos_card' | 'bank_transfer'>('momo', { nonNullable: true })
   });
-
-  readonly selectedInstallerIds = signal<string[]>([]);
-
-  toggleInstaller(installerId: string) {
-    if (!this.store.currentRoleDefinition().permissions.canAssignInstallers && this.store.currentRole() !== 'shop_manager' && this.store.currentRole() !== 'manager') {
-      this.alert.warning('Restricted Action', 'Your role is not authorized to assign installation technicians.');
-      return;
-    }
-    this.selectedInstallerIds.update(ids => {
-      if (ids.includes(installerId)) {
-        return ids.filter(id => id !== installerId);
-      }
-      return [...ids, installerId];
-    });
-  }
-
-  isInstallerSelected(installerId: string): boolean {
-    return this.selectedInstallerIds().includes(installerId);
-  }
-
-  assignTeam(team: InstallerTeam) {
-    if (!this.store.currentRoleDefinition().permissions.canAssignInstallers && this.store.currentRole() !== 'shop_manager' && this.store.currentRole() !== 'manager') {
-      this.alert.warning('Restricted Action', 'Your role is not authorized to assign installation technicians.');
-      return;
-    }
-    // Put team lead first, then other members
-    const ids = [team.leadId, ...team.memberIds.filter(id => id !== team.leadId)];
-    this.selectedInstallerIds.set(ids);
-    this.alert.toastInfo('Team Selected', `${team.name} (${ids.length} Technicians, Lead: ${team.leadName}) selected for this installation.`);
-  }
-
-  isTeamFullySelected(team: InstallerTeam): boolean {
-    return team.memberIds.length > 0 && team.memberIds.every(id => this.selectedInstallerIds().includes(id));
-  }
 
   // Client site coordinates tracked from location map
   readonly selectedSiteCoordinates = signal<{ lat: number; lng: number }>({ lat: 5.6020, lng: -0.1870 });
@@ -832,7 +715,31 @@ export class NewJobModal {
     }
   }
 
+  private syncShopBranchControl(branchName: string) {
+    if (!branchName || this.jobForm.controls.shopBranch.dirty) return;
+    if (this.jobForm.controls.shopBranch.value !== branchName) {
+      this.jobForm.controls.shopBranch.setValue(branchName, { emitEvent: false });
+    }
+    queueMicrotask(() => {
+      const selectEl = this.shopBranchSelectRef()?.nativeElement;
+      if (selectEl && !this.jobForm.controls.shopBranch.dirty && selectEl.value !== branchName) {
+        selectEl.value = branchName;
+      }
+    });
+  }
+
   constructor() {
+    afterNextRender(() => {
+      this.syncShopBranchControl(this.defaultDispatchBranchName());
+    });
+
+    effect(() => {
+      this.allBranches();
+      this.allWarehouses();
+      const targetBranch = this.defaultDispatchBranchName();
+      this.syncShopBranchControl(targetBranch);
+    });
+
     const firstDoor = this.store.doors()[0];
     if (firstDoor) {
       this.selectedDoors.set([
@@ -847,7 +754,7 @@ export class NewJobModal {
           lockModel: 'Doormaster Smart Lock Handle F35 (Biometric & RFID)',
           unitPrice: firstDoor.unitPrice,
           quantity: 1,
-          isExpanded: true
+          isExpanded: false
         }
       ]);
     }
@@ -912,92 +819,6 @@ export class NewJobModal {
     });
   }
 
-  // Dynamic list of categories from scraped catalog & standards
-  readonly categoryOptions = computed(() => {
-    const dbCats = this.store.availableCategories().map(c => c.name);
-    const doorCats = this.store.doors().map(d => d.category);
-    const standardCats = [
-      'Premium Villa Series',
-      'Royal Series',
-      'Smart Lock Doors',
-      'Turkey interior series',
-      'DM Interior Series',
-      'Economy doors',
-      'Antifade doors',
-      'Mechanical Lock Doors',
-      'DM Smart Lock Handle',
-      'Reeded glass doors',
-      'Architectural Entrance Pivot Door',
-      'Solid Hardwood Double Entrance',
-      'Acoustic Glazed Bi-Fold Patio Suite',
-      'FD30 / FD60 Commercial Fire Door',
-      'Concealed Cavity Pocket Sliding Door',
-      'Frameless Glass Pivot Door'
-    ];
-    const set = new Set<string>();
-    [...dbCats, ...doorCats, ...standardCats].forEach(c => {
-      if (c && c.trim()) set.add(c.trim());
-    });
-    return Array.from(set);
-  });
-
-  getCategoryList(currentCat?: string): string[] {
-    const list = [...this.categoryOptions()];
-    if (currentCat && !list.includes(currentCat)) {
-      list.unshift(currentCat);
-    }
-    return list;
-  }
-
-  inferCategoryFromModel(title: string): string | null {
-    if (!title) return null;
-    const trimmed = title.trim().toLowerCase();
-
-    // 1. Direct match with catalog doors in store
-    const matchedDoor = this.store.doors().find(d => 
-      d.name.toLowerCase() === trimmed || 
-      (d.modelCode && trimmed.includes(d.modelCode.toLowerCase())) ||
-      trimmed.includes(d.name.toLowerCase())
-    );
-    if (matchedDoor && matchedDoor.category) {
-      return matchedDoor.category;
-    }
-
-    // 2. Keyword pattern matching for known lines
-    if (trimmed.includes('turkey')) return 'Turkey interior series';
-    if (trimmed.includes('antifade') || trimmed.includes('anti-fade') || trimmed.includes('antirust')) return 'Antifade doors';
-    if (trimmed.includes('villa') || trimmed.includes('aeropivot')) return 'Premium Villa Series';
-    if (trimmed.includes('royal')) return 'Royal Series';
-    if (trimmed.includes('smart lock handle') || trimmed.includes('lock handle') || trimmed.includes('f35') || trimmed.includes('f15') || trimmed.includes('f20')) return 'DM Smart Lock Handle';
-    if (trimmed.includes('smart lock') || trimmed.includes('biometric') || trimmed.includes('digital lock')) return 'Smart Lock Doors';
-    if (trimmed.includes('mechanical') || trimmed.includes('dm-l')) return 'Mechanical Lock Doors';
-    if (trimmed.includes('reeded') || trimmed.includes('fluted')) return 'Reeded glass doors';
-    if (trimmed.includes('economy') || trimmed.includes('china') || trimmed.includes('g805')) return 'Economy doors';
-    if (trimmed.includes('interior')) return 'DM Interior Series';
-    if (trimmed.includes('pivot')) return 'Architectural Entrance Pivot Door';
-    if (trimmed.includes('wood') || trimmed.includes('hardwood') || trimmed.includes('timber')) return 'Solid Hardwood Double Entrance';
-    if (trimmed.includes('bi-fold') || trimmed.includes('bifold') || trimmed.includes('patio')) return 'Acoustic Glazed Bi-Fold Patio Suite';
-    if (trimmed.includes('fire') || trimmed.includes('fd30') || trimmed.includes('fd60')) return 'FD30 / FD60 Commercial Fire Door';
-    if (trimmed.includes('pocket') || trimmed.includes('sliding') || trimmed.includes('cavity')) return 'Concealed Cavity Pocket Sliding Door';
-    if (trimmed.includes('frameless')) return 'Frameless Glass Pivot Door';
-
-    return null;
-  }
-
-  onDoorModelInputChange(index: number, newTitle: string) {
-    const inferred = this.inferCategoryFromModel(newTitle);
-    this.selectedDoors.update(doors => {
-      return doors.map((d, i) => {
-        if (i !== index) return d;
-        return {
-          ...d,
-          doorModel: newTitle,
-          doorCategory: inferred || d.doorCategory
-        };
-      });
-    });
-  }
-
   onDoorCatalogPick(index: number, event: Event) {
     const doorId = (event.target as HTMLSelectElement).value;
     if (!doorId) return;
@@ -1019,17 +840,6 @@ export class NewJobModal {
         };
       });
     });
-
-    this.alert.toastSuccess('Door Preset Applied', `Category auto-selected: ${catDoor.category}`);
-  }
-
-  updateDoorField(index: number, field: keyof JobDoorItem, value: any) {
-    this.selectedDoors.update(doors => {
-      return doors.map((d, i) => {
-        if (i !== index) return d;
-        return { ...d, [field]: value };
-      });
-    });
   }
 
   handleCreateJob() {
@@ -1042,27 +852,17 @@ export class NewJobModal {
     const val = this.jobForm.getRawValue();
     const doors = this.selectedDoors();
     const primaryDoor = doors[0];
-    const canAssign = this.store.currentRole() === 'shop_manager' || this.store.currentRole() === 'manager' || this.store.currentRoleDefinition().permissions.canAssignInstallers;
-    const installerIds = canAssign ? this.selectedInstallerIds() : [];
-    const selectedTechs = this.store.installers().filter(i => installerIds.includes(i.id));
-    const leadTech = selectedTechs[0];
-    const techNames = selectedTechs.map(t => t.name).join(', ');
-    const teamMembers: AssignedInstallerTeamMember[] = selectedTechs.map((t, idx) => ({
-      id: t.id,
-      name: t.name,
-      phone: t.phone,
-      role: idx === 0 ? 'lead' : 'assistant',
-      avgRating: t.metrics.avgRating
-    }));
 
     // Summary title reflecting multiple door count
     const doorSummary = doors.length === 1 
       ? primaryDoor.doorModel 
       : `${doors.length} Doors (${doors.map(d => `${d.quantity > 1 ? d.quantity + 'x ' : ''}${d.doorModel.split(' ')[0]}`).join(', ')})`;
 
-    const totalPrice = this.totalDoorsPrice();
+    const installationFee = Number(val.installationFee) || 0;
+    const laborCost = Number(val.laborCost) || 0;
+    const totalInstallAndLabor = installationFee + laborCost;
     const now = new Date().toISOString();
-    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const receiptRef = `SHP-REC-${Math.floor(10000 + Math.random() * 90000)}`;
 
     const createdJob = this.store.createJob({
       title: `${doorSummary} Installation - ${val.clientName}`,
@@ -1085,16 +885,25 @@ export class NewJobModal {
       hardwareSpecs: primaryDoor.hardwareSpecs,
       lockModel: primaryDoor.lockModel,
       shopBranch: val.shopBranch || this.store.shopLocation().shopName,
-      status: (canAssign && selectedTechs.length > 0) ? 'assigned' : 'booked_at_shop',
-      assignedInstallerId: canAssign && leadTech ? leadTech.id : null,
-      assignedInstallerName: canAssign ? (techNames || null) : null,
-      assignedInstallerIds: canAssign ? installerIds : [],
-      assignedInstallerNames: canAssign ? selectedTechs.map(t => t.name) : [],
-      assignedInstallers: canAssign ? teamMembers : [],
-      installerAssignmentStatus: (canAssign && selectedTechs.length > 0) ? 'pending' : undefined,
-      installerAssignedAt: (canAssign && selectedTechs.length > 0) ? now : undefined,
-      installerDeadlineAt: (canAssign && selectedTechs.length > 0) ? deadline : undefined,
+      status: 'booked_at_shop',
+      assignedInstallerId: null,
+      assignedInstallerName: null,
+      assignedInstallerIds: [],
+      assignedInstallerNames: [],
+      assignedInstallers: [],
+      installerAssignmentStatus: 'pending',
       installerAutoAccepted: false,
+      shopBooking: {
+        bookedByShopManager: `${this.store.currentUser().name} (${this.store.currentUser().email})`,
+        shopBranch: val.shopBranch || this.store.shopLocation().shopName,
+        bookingTimestamp: now,
+        lockModelRequested: primaryDoor.lockModel || 'Doormaster Smart Lock Handle F35 (Biometric & RFID)',
+        amountPaidAtShop: totalInstallAndLabor,
+        paymentMethod: val.paymentMethod,
+        receiptNumber: receiptRef,
+        paymentStatus: 'paid_in_full',
+        accountantVerified: false
+      },
       client: {
         id: `cli_${Date.now()}`,
         name: val.clientName,
@@ -1109,24 +918,27 @@ export class NewJobModal {
       hardwareChecklist: [
         { id: 'step_1', label: 'Verify rough opening plumb, square & level tolerance (±1.5mm)', required: true, completed: false },
         { id: 'step_2', label: 'Mount FritsJurgens / pivot floor plate with structural anchors', required: true, completed: false },
-        { id: 'step_3', label: 'Fit top ceiling pivot pivot box with structural timber blocking', required: true, completed: false },
+        { id: 'step_3', label: 'Fit top ceiling pivot box with structural timber blocking', required: true, completed: false },
         { id: 'step_4', label: 'Hang architectural door slab and tune 3-axis alignment', required: true, completed: false },
         { id: 'step_5', label: 'Install multi-point magnetic mortise lockset & smart cylinder', required: true, completed: false },
         { id: 'step_6', label: 'Calibrate closing dampening speed & 90-degree hold-open pressure', required: true, completed: false },
         { id: 'step_7', label: 'Fit perimeter acoustic brush seals & drop-down draught excluder', required: true, completed: false }
       ],
       financials: {
-        doorPrice: totalPrice,
-        installationFee: val.installationFee,
-        laborCost: val.laborCost,
+        doorPrice: 0,
+        installationFee,
+        laborCost,
         bonusAmount: 220,
         bonusStatus: 'pending',
         depositPaid: true,
-        balancePaid: false
+        balancePaid: true
       }
     });
 
-    this.alert.success('Installation Booked!', `Job #${createdJob.id} has been registered and scheduled for ${val.clientName}.`);
+    this.alert.success(
+      'Installation Booked!',
+      `Job #${createdJob.id} booked for ${val.clientName} (₵${totalInstallAndLabor.toLocaleString()} Installation & Labor). Routed to Operations Manager for team assignment.`
+    );
     this.closed.emit();
   }
 }

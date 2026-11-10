@@ -21,7 +21,7 @@ import { InstallationJob } from '../../models/installation.model';
             </div>
             <div>
               <h3 class="text-sm font-bold text-slate-900 dark:text-white">Management Bonus Policy & Authorization</h3>
-              <p class="text-xs text-slate-500 dark:text-slate-400">Configure incentive rules & approve technician disbursements</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Configure incentive rules & approve installer disbursements</p>
             </div>
           </div>
           <button (click)="closed.emit()" class="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded">
@@ -53,7 +53,7 @@ import { InstallationJob } from '../../models/installation.model';
                         <span class="text-xs text-slate-600 dark:text-slate-300">· {{ job.doorModel }}</span>
                       </div>
                       <p class="text-[11px] text-slate-500 dark:text-slate-400">
-                        Technician: <strong class="text-slate-700 dark:text-slate-200">{{ job.assignedInstallerName }}</strong> · Customer Rating: 
+                        Installer: <strong class="text-slate-700 dark:text-slate-200">{{ job.assignedInstallerName }}</strong> · Customer Rating: 
                         <strong class="text-amber-600 dark:text-amber-400">{{ job.customerSignoff?.rating || 5 }}.0 ★</strong> · On-site: {{ job.actualHours || 3 }} hrs
                       </p>
                     </div>
@@ -61,7 +61,7 @@ import { InstallationJob } from '../../models/installation.model';
                     <div class="flex items-center gap-3">
                       <div class="text-right">
                         <span class="text-sm font-bold text-emerald-700 dark:text-emerald-400 font-mono tabular-nums">
-                          +&#36;{{ job.financials.bonusAmount }}
+                          +GH₵{{ job.financials.bonusAmount }}
                         </span>
                         <span class="block text-[10px] text-slate-400 dark:text-slate-500 uppercase">Eligible Bonus</span>
                       </div>
@@ -101,13 +101,13 @@ import { InstallationJob } from '../../models/installation.model';
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-800">
                   <span class="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block mb-1">Standard Door Base</span>
-                  <span class="text-lg font-bold font-mono text-slate-900 dark:text-white tabular-nums">&#36;{{ store.bonusRules().baseBonusStandardDoor }}</span>
+                  <span class="text-lg font-bold font-mono text-slate-900 dark:text-white tabular-nums">GH₵{{ store.bonusRules().baseBonusStandardDoor }}</span>
                   <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Pass initial QA inspection</p>
                 </div>
 
                 <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-800">
                   <span class="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block mb-1">Architectural / Pivot</span>
-                  <span class="text-lg font-bold font-mono text-slate-900 dark:text-white tabular-nums">&#36;{{ store.bonusRules().baseBonusArchitecturalDoor }}</span>
+                  <span class="text-lg font-bold font-mono text-slate-900 dark:text-white tabular-nums">GH₵{{ store.bonusRules().baseBonusArchitecturalDoor }}</span>
                   <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Heavy doors, Bi-folds & Pivots</p>
                 </div>
 
@@ -119,7 +119,7 @@ import { InstallationJob } from '../../models/installation.model';
 
                 <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-800">
                   <span class="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block mb-1">On-Time & Photo Bonus</span>
-                  <span class="text-lg font-bold font-mono text-slate-900 dark:text-white tabular-nums">+&#36;{{ store.bonusRules().onTimeBonusAmount + store.bonusRules().cleanPhotoBonusAmount }}</span>
+                  <span class="text-lg font-bold font-mono text-slate-900 dark:text-white tabular-nums">+GH₵{{ store.bonusRules().onTimeBonusAmount + store.bonusRules().cleanPhotoBonusAmount }}</span>
                   <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Punctual clock out & clear photos</p>
                 </div>
               </div>
@@ -127,19 +127,19 @@ import { InstallationJob } from '../../models/installation.model';
               <form [formGroup]="configForm" (ngSubmit)="saveConfig()" class="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
                 <div class="grid grid-cols-2 gap-3">
                   <div>
-                    <label for="baseStandardInput" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Standard Door Base ($)</label>
+                    <label for="baseStandardInput" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Standard Door Base (GH₵)</label>
                     <input id="baseStandardInput" type="number" formControlName="baseStandard" class="w-full text-xs px-3 py-1.5 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
                   </div>
                   <div>
-                    <label for="baseArchitecturalInput" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Architectural Pivot Base ($)</label>
+                    <label for="baseArchitecturalInput" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Architectural Pivot Base (GH₵)</label>
                     <input id="baseArchitecturalInput" type="number" formControlName="baseArchitectural" class="w-full text-xs px-3 py-1.5 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
                   </div>
                   <div>
-                    <label for="onTimeAmountInput" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">On-Time Bonus ($)</label>
+                    <label for="onTimeAmountInput" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">On-Time Bonus (GH₵)</label>
                     <input id="onTimeAmountInput" type="number" formControlName="onTimeAmount" class="w-full text-xs px-3 py-1.5 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
                   </div>
                   <div>
-                    <label for="photoAmountInput" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Clean Photo Bonus ($)</label>
+                    <label for="photoAmountInput" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Clean Photo Bonus (GH₵)</label>
                     <input id="photoAmountInput" type="number" formControlName="photoAmount" class="w-full text-xs px-3 py-1.5 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
                   </div>
                 </div>
@@ -210,6 +210,6 @@ export class BonusModal {
 
   authorizeBonus(job: InstallationJob) {
     this.store.approveBonus(job.id, 'Management Committee');
-    this.alert.toastSuccess('Bonus Authorized', `Disbursed $${job.financials.bonusAmount} performance bonus to ${job.assignedInstallerName || 'Technician'}.`);
+    this.alert.toastSuccess('Bonus Authorized', `Disbursed GH₵${job.financials.bonusAmount} performance bonus to ${job.assignedInstallerName || 'Installer'}.`);
   }
 }

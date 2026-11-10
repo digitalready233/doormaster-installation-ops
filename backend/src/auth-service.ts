@@ -1,5 +1,6 @@
 import prisma from './prisma';
 import { hashPassword, needsPasswordRehash, verifyPassword } from './db';
+import { syncUserTeamAssignment } from './teams-service';
 import * as crypto from 'node:crypto';
 
 export interface UserRecord {
@@ -9,6 +10,10 @@ export interface UserRecord {
   role: string;
   phone: string;
   status: 'active' | 'pending' | 'rejected' | 'deactivated' | string;
+  shopId?: string | null;
+  teamId?: string | null;
+  teamRole?: string | null;
+  teamPosition?: string | null;
   avatarUrl?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -21,6 +26,7 @@ export interface AuthTokenPayload {
   role: string;
   phone: string;
   status: string;
+  shopId?: string | null;
   iss: string;
   aud: string;
   iat: number;
@@ -62,6 +68,7 @@ export function generateToken(user: UserRecord): string {
       role: user.role,
       phone: user.phone,
       status: user.status,
+      shopId: user.shopId ?? null,
       iss: JWT_ISSUER,
       aud: JWT_AUDIENCE,
       iat: now,
@@ -126,6 +133,10 @@ function toUserRecord(row: {
   role: string;
   phone: string | null;
   status?: string | null;
+  shopId?: string | null;
+  teamId?: string | null;
+  teamRole?: string | null;
+  teamPosition?: string | null;
   avatarUrl: string | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
@@ -137,6 +148,10 @@ function toUserRecord(row: {
     role: row.role,
     phone: row.phone || '+233 24 555 0100',
     status: row.status || 'active',
+    shopId: row.shopId || null,
+    teamId: row.teamId || null,
+    teamRole: row.teamRole || null,
+    teamPosition: row.teamPosition || null,
     avatarUrl: row.avatarUrl || undefined,
     createdAt: row.createdAt ? row.createdAt.toISOString() : new Date().toISOString(),
     updatedAt: row.updatedAt ? row.updatedAt.toISOString() : undefined,
@@ -253,6 +268,7 @@ export async function registerUser(data: {
   phone?: string;
   avatarUrl?: string;
   status?: string;
+  shopId?: string | null;
 }): Promise<{ success: boolean; user?: UserRecord; token?: string; message: string }> {
   try {
     const cleanEmail = data.email.trim().toLowerCase();
@@ -276,6 +292,7 @@ export async function registerUser(data: {
     const phone = data.phone || '+233 24 555 0199';
     const avatar = data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
     const status = data.status || 'pending';
+    const cleanShopId = data.shopId && data.shopId.trim() ? data.shopId.trim() : null;
 
     const created = await prisma.user.create({
       data: {
@@ -286,6 +303,7 @@ export async function registerUser(data: {
         role: data.role,
         phone,
         status,
+        shopId: cleanShopId,
         avatarUrl: avatar,
       },
     });
@@ -297,6 +315,7 @@ export async function registerUser(data: {
       role: created.role,
       phone: created.phone || phone,
       status: (created as any).status || status,
+      shopId: created.shopId || null,
       avatarUrl: created.avatarUrl || avatar,
       createdAt: created.createdAt.toISOString(),
     };
@@ -333,6 +352,10 @@ export async function createUserByManager(data: {
   phone?: string;
   avatarUrl?: string;
   status?: string;
+  shopId?: string | null;
+  teamId?: string | null;
+  teamRole?: string | null;
+  teamPosition?: string | null;
 }): Promise<{ success: boolean; user?: UserRecord; message: string }> {
   try {
     const cleanEmail = data.email.trim().toLowerCase();
@@ -355,6 +378,8 @@ export async function createUserByManager(data: {
     const phone = data.phone || '+233 24 555 0100';
     const avatar = data.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80';
     const status = data.status || 'active';
+    const cleanShopId = data.shopId && data.shopId.trim() ? data.shopId.trim() : null;
+    const cleanTeamId = data.teamId && data.teamId.trim() ? data.teamId.trim() : null;
 
     const created = await prisma.user.create({
       data: {
@@ -365,20 +390,21 @@ export async function createUserByManager(data: {
         role: data.role,
         phone,
         status,
+        shopId: cleanShopId,
         avatarUrl: avatar,
       },
     });
 
-    const user: UserRecord = {
-      id: created.id,
-      name: created.name,
-      email: created.email,
-      role: created.role,
-      phone: created.phone || phone,
-      status: (created as any).status || status,
-      avatarUrl: created.avatarUrl || avatar,
-      createdAt: created.createdAt.toISOString(),
-    };
+    if (cleanTeamId) {
+      await syncUserTeamAssignment(created.id, {
+        teamId: cleanTeamId,
+        teamRole: data.teamRole || 'assistant',
+        teamPosition: data.teamPosition || undefined,
+      });
+    }
+
+    const refreshed = await prisma.user.findUnique({ where: { id: created.id } });
+    const user = toUserRecord(refreshed || created);
 
     return {
       success: true,
@@ -415,17 +441,7 @@ export async function updateUserStatus(
       data: { status },
     });
 
-    const user: UserRecord = {
-      id: updated.id,
-      name: updated.name,
-      email: updated.email,
-      role: updated.role,
-      phone: updated.phone || '+233 24 555 0100',
-      status: (updated as any).status || status,
-      avatarUrl: updated.avatarUrl || undefined,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt ? updated.updatedAt.toISOString() : new Date().toISOString(),
-    };
+    const user = toUserRecord(updated);
 
     const actionText = status === 'active' 
       ? 'approved & activated' 
@@ -450,11 +466,22 @@ export async function updateUserStatus(
 }
 
 /**
- * Update user profile details (name, email, phone, avatarUrl)
+ * Update user profile details (name, email, phone, avatarUrl, team assignment)
  */
 export async function updateUserProfile(
   userId: string,
-  data: { name?: string; email?: string; phone?: string; avatarUrl?: string; role?: string; status?: string }
+  data: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    avatarUrl?: string;
+    role?: string;
+    status?: string;
+    shopId?: string | null;
+    teamId?: string | null;
+    teamRole?: string | null;
+    teamPosition?: string | null;
+  }
 ): Promise<{ success: boolean; user?: UserRecord; message: string }> {
   try {
     const existing = await prisma.user.findUnique({
@@ -482,21 +509,30 @@ export async function updateUserProfile(
         ...(data.phone ? { phone: data.phone.trim() } : {}),
         ...(data.role ? { role: data.role.trim() } : {}),
         ...(data.status ? { status: data.status.trim() } : {}),
+        ...(data.shopId !== undefined ? { shopId: data.shopId && data.shopId.trim() ? data.shopId.trim() : null } : {}),
         ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
       },
     });
 
-    const user: UserRecord = {
-      id: updated.id,
-      name: updated.name,
-      email: updated.email,
-      role: updated.role,
-      phone: updated.phone || '+233 24 555 0100',
-      status: (updated as any).status || 'active',
-      avatarUrl: updated.avatarUrl || undefined,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt ? updated.updatedAt.toISOString() : new Date().toISOString(),
-    };
+    if (data.teamId !== undefined) {
+      const cleanTeamId = data.teamId && data.teamId.trim() ? data.teamId.trim() : null;
+      await syncUserTeamAssignment(userId, {
+        teamId: cleanTeamId,
+        teamRole: data.teamRole ?? existing.teamRole ?? 'assistant',
+        teamPosition: data.teamPosition ?? existing.teamPosition ?? undefined,
+      });
+    } else if (data.teamPosition !== undefined || data.teamRole !== undefined) {
+      if (existing.teamId) {
+        await syncUserTeamAssignment(userId, {
+          teamId: existing.teamId,
+          teamRole: data.teamRole ?? existing.teamRole ?? 'assistant',
+          teamPosition: data.teamPosition ?? existing.teamPosition ?? undefined,
+        });
+      }
+    }
+
+    const refreshed = await prisma.user.findUnique({ where: { id: userId } });
+    const user = toUserRecord(refreshed || updated);
 
     return {
       success: true,
@@ -524,6 +560,10 @@ export async function deleteUser(userId: string): Promise<{ success: boolean; me
       return { success: false, message: `User "${userId}" not found.` };
     }
 
+    if (existing.teamId) {
+      await syncUserTeamAssignment(userId, { teamId: null });
+    }
+
     await prisma.user.delete({
       where: { id: userId },
     });
@@ -549,17 +589,7 @@ export async function getAllUsers(): Promise<UserRecord[]> {
     const rows = await prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      email: r.email,
-      role: r.role,
-      phone: r.phone || '+233 24 555 0100',
-      status: (r as any).status || 'active',
-      avatarUrl: r.avatarUrl || undefined,
-      createdAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString(),
-      updatedAt: r.updatedAt ? r.updatedAt.toISOString() : new Date().toISOString(),
-    }));
+    return rows.map((r) => toUserRecord(r));
   } catch (err) {
     console.error('[AuthService] Failed fetching users:', err);
     return [];

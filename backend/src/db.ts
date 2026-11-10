@@ -2,6 +2,7 @@ import prisma from './prisma';
 import * as crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import path from 'node:path';
+import { seedTeamsAndRolesIfNeeded } from './teams-service';
 
 // Load environment variables. The second call supports starting the server
 // from the repository root instead of the backend directory.
@@ -92,6 +93,15 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
     const defaultPasswordHash = hashPassword('DoorMaster2026!*');
     const seedUsers = [
         {
+          id: 'USR-ADM-01',
+          name: 'Alexander Cross (Super Administrator)',
+          email: 'admin@doormasterops.com',
+          passwordHash: defaultPasswordHash,
+          role: 'admin',
+          phone: '+233 24 555 0100',
+          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        },
+        {
           id: 'USR-MGR-01',
           name: 'Sarah Sterling (Ops Director)',
           email: 'manager@doormasterops.com',
@@ -181,6 +191,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-central',
           phone: '+233 24 555 0105',
           avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         },
@@ -190,6 +201,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.obeyeyie@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-obeyeyie',
           phone: '0203169184',
           avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
         },
@@ -199,6 +211,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.pobiman-turkey@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-pobiman-turkey',
           phone: '0207867882',
           avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
         },
@@ -208,6 +221,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.pobiman-economy@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-pobiman-economy',
           phone: '0502584180',
           avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
         },
@@ -217,6 +231,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.acp@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-acp',
           phone: '0201705689',
           avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
         },
@@ -226,6 +241,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.nsawam-overhead@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-nsawam-overhead',
           phone: '0505892144',
           avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
         },
@@ -235,6 +251,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.nsawam-hospital@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-nsawam-hospital',
           phone: '0535825645',
           avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
         },
@@ -244,6 +261,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.tema@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-tema',
           phone: '0502290982',
           avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
         },
@@ -253,6 +271,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.suhum@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-suhum',
           phone: '0201752755',
           avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
         },
@@ -262,6 +281,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.ashalaja@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-ashalaja',
           phone: '0504725294',
           avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
         },
@@ -271,6 +291,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.kumasi-ahinsan@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-kumasi-ahinsan',
           phone: '0535829827',
           avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
         },
@@ -280,6 +301,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.kasoa-tipa@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-kasoa-tipa',
           phone: '0533739756',
           avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
         },
@@ -289,6 +311,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.amrahia@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-amrahia',
           phone: '0531025779',
           avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         },
@@ -298,6 +321,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.tseaddo@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-tseaddo',
           phone: '0591952205',
           avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
         },
@@ -307,6 +331,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'shop.kronum@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
+          shopId: 'dm-branch-kronum',
           phone: '0531025775',
           avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
         },
@@ -317,6 +342,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-central',
           phone: '+233 24 555 0106',
           avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
         },
@@ -326,6 +352,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.obeyeyie@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-obeyeyie',
           phone: '0203169185',
           avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
         },
@@ -335,6 +362,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.pobiman-turkey@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-pobiman-turkey',
           phone: '0207867883',
           avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
         },
@@ -344,6 +372,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.pobiman-economy@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-pobiman-economy',
           phone: '0502584181',
           avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
         },
@@ -353,6 +382,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.acp@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-acp',
           phone: '0201705690',
           avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
         },
@@ -362,6 +392,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.nsawam-overhead@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-nsawam-overhead',
           phone: '0505892145',
           avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80',
         },
@@ -371,6 +402,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.nsawam-hospital@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-nsawam-hospital',
           phone: '0535825646',
           avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
         },
@@ -380,6 +412,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.tema@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-tema',
           phone: '0502290983',
           avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
         },
@@ -389,6 +422,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.suhum@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-suhum',
           phone: '0201752756',
           avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
         },
@@ -398,6 +432,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.ashalaja@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-ashalaja',
           phone: '0504725295',
           avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
         },
@@ -407,6 +442,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.kumasi-ahinsan@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-kumasi-ahinsan',
           phone: '0535829828',
           avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
         },
@@ -416,6 +452,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.kasoa-tipa@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-kasoa-tipa',
           phone: '0533739757',
           avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80',
         },
@@ -425,6 +462,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.amrahia@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-amrahia',
           phone: '0531025780',
           avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
         },
@@ -434,6 +472,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.tseaddo@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-tseaddo',
           phone: '0591952206',
           avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
         },
@@ -443,26 +482,31 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
           email: 'dispatch.kronum@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
+          shopId: 'dm-branch-kronum',
           phone: '0531025776',
           avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
         },
       ];
 
     for (const u of seedUsers) {
+      const existing = await prisma.user.findUnique({ where: { email: u.email } });
       await prisma.user.upsert({
         where: { email: u.email },
         update: {
           name: u.name,
           phone: u.phone,
           avatarUrl: u.avatarUrl,
-          role: u.role
+          role: u.role,
+          ...(!existing?.shopId && (u as any).shopId ? { shopId: (u as any).shopId } : {}),
         },
         create: u,
       });
     }
     console.log(`[Prisma] Seeded/verified ${seedUsers.length} persona accounts.`);
 
-    const tables = ['doors', 'categories', 'users', 'installation_jobs', 'sms_logs'];
+    await seedTeamsAndRolesIfNeeded();
+
+    const tables = ['doors', 'categories', 'users', 'installation_teams', 'role_definitions', 'installation_jobs', 'sms_logs'];
 
     return {
       success: true,

@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject, output } from '@angular/core';
+import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
+import { AlertService } from '../../services/alert.service';
 import { NotificationItem } from '../../models/installation.model';
 
 @Component({
@@ -57,7 +59,7 @@ import { NotificationItem } from '../../models/installation.model';
               <div class="text-center py-12 text-slate-400 dark:text-slate-500">
                 <mat-icon class="!text-3xl mb-2 text-slate-300 dark:text-slate-600">notifications_none</mat-icon>
                 <p class="text-xs font-medium text-slate-600 dark:text-slate-300">No active alerts for {{ store.currentRoleDefinition().name }}</p>
-                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Assignments, site clock-ins, client acceptances and bonus awards will appear here in real time.</p>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Assignments, site clock-ins, client acceptances and operational milestones will appear here in real time.</p>
               </div>
             } @else {
               @for (notif of store.roleNotifications(); track notif.id) {
@@ -91,23 +93,40 @@ import { NotificationItem } from '../../models/installation.model';
                     </span>
 
                     <div class="flex items-center gap-2">
-                      @if (!notif.read) {
-                        <button 
+                      @if (canInstallerRespond(notif)) {
+                        <button
                           type="button"
-                          (click)="store.markNotificationRead(notif.id)"
-                          class="text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                          (click)="acceptInstallerFromDrawer(notif)"
+                          class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold cursor-pointer"
                         >
-                          Dismiss
+                          Accept Now
                         </button>
-                      }
-                      @if (notif.actionLabel) {
-                        <button 
+                        <button
                           type="button"
-                          (click)="handleAction(notif)"
-                          class="text-[11px] font-semibold text-slate-900 dark:text-white hover:underline"
+                          (click)="declineInstallerFromDrawer(notif)"
+                          class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold cursor-pointer"
                         >
-                          {{ notif.actionLabel }} →
+                          Reject
                         </button>
+                      } @else {
+                        @if (!notif.read) {
+                          <button 
+                            type="button"
+                            (click)="store.markNotificationRead(notif.id)"
+                            class="text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                          >
+                            Dismiss
+                          </button>
+                        }
+                        @if (notif.actionLabel) {
+                          <button 
+                            type="button"
+                            (click)="handleAction(notif)"
+                            class="text-[11px] font-semibold text-slate-900 dark:text-white hover:underline"
+                          >
+                            {{ notif.actionLabel }} →
+                          </button>
+                        }
                       }
                     </div>
                   </div>
@@ -134,14 +153,46 @@ import { NotificationItem } from '../../models/installation.model';
 })
 export class NotificationDrawer {
   readonly store = inject(InstallationStore);
+  private readonly router = inject(Router);
+  private readonly alert = inject(AlertService);
   closed = output<void>();
   jobSelected = output<string>();
+
+  canInstallerRespond(notif: NotificationItem): boolean {
+    if (this.store.currentRole() !== 'installer' || !notif.jobId) return false;
+    const job = this.store.jobs().find(j => j.id === notif.jobId);
+    if (!job || !this.store.isInstallerPendingAcceptance(job)) {
+      return false;
+    }
+    return true;
+  }
+
+  acceptInstallerFromDrawer(notif: NotificationItem) {
+    if (!notif.jobId) return;
+    this.store.markNotificationRead(notif.id);
+    this.store.respondInstallerAssignment(notif.jobId, true);
+    this.alert.success('Installation Accepted', `Job ${notif.jobId} confirmed for you.`);
+    this.closed.emit();
+  }
+
+  declineInstallerFromDrawer(notif: NotificationItem) {
+    if (!notif.jobId) return;
+    this.store.markNotificationRead(notif.id);
+    this.store.respondInstallerAssignment(notif.jobId, false, 'Declined from notification drawer');
+    this.alert.warning('Installation Declined', `Job ${notif.jobId} declined. Operations Manager alerted.`);
+    this.closed.emit();
+    this.router.navigate(['/map']);
+  }
 
   getIcon(type: NotificationItem['type']): string {
     switch (type) {
       case 'job_assigned': return 'assignment_ind';
+      case 'truck_assigned': return 'local_shipping';
       case 'installer_accepted': return 'handshake';
+      case 'driver_accepted': return 'check_circle';
+      case 'driver_rejected': return 'cancel';
       case 'door_dispatched': return 'local_shipping';
+      case 'shop_payment_recorded': return 'receipt_long';
       case 'technician_clocked_in': return 'login';
       case 'technician_clocked_out': return 'logout';
       case 'signoff_required': return 'draw';
@@ -154,8 +205,12 @@ export class NotificationDrawer {
   getBadgeStyle(type: NotificationItem['type']): string {
     switch (type) {
       case 'job_assigned': return 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-400';
+      case 'truck_assigned': return 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-400';
       case 'installer_accepted': return 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-400';
+      case 'driver_accepted': return 'bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-400 font-bold';
+      case 'driver_rejected': return 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-400 font-bold';
       case 'door_dispatched': return 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-400';
+      case 'shop_payment_recorded': return 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-400';
       case 'technician_clocked_in': return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-400';
       case 'signoff_required': return 'bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-400';
       case 'installation_verified': return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-400';
@@ -175,6 +230,22 @@ export class NotificationDrawer {
 
   handleAction(notif: NotificationItem) {
     this.store.markNotificationRead(notif.id);
+    if (notif.jobId) {
+      const job = this.store.jobs().find(j => j.id === notif.jobId);
+      if (
+        this.store.canCurrentRoleAssignInstallers() &&
+        (job?.installerAssignmentStatus === 'rejected' || notif.title.toLowerCase().includes('declined'))
+      ) {
+        this.store.openReassignmentPopup(notif.jobId);
+        this.closed.emit();
+        return;
+      }
+      if (this.store.currentRole() === 'installer' && notif.type === 'job_assigned') {
+        this.closed.emit();
+        this.router.navigate(['/map']);
+        return;
+      }
+    }
     this.jobSelected.emit(notif.jobId);
     this.closed.emit();
   }

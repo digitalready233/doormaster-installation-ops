@@ -5,8 +5,6 @@ import { SignUp } from './views/sign-up/sign-up';
 import { DashboardLayout } from './layouts/dashboard-layout/dashboard-layout';
 import { Overview } from './views/overview/overview';
 import { DoorsCatalog } from './views/doors-catalog/doors-catalog';
-import { InstallerPortal } from './views/installer-portal/installer-portal';
-import { ClientPortal } from './views/client-portal/client-portal';
 import { ShopPortal } from './views/shop-portal/shop-portal';
 import { DispatcherPortal } from './views/dispatcher-portal/dispatcher-portal';
 import { DeliveryMap } from './views/delivery-map/delivery-map';
@@ -58,13 +56,13 @@ export const routes: Routes = [
       },
       {
         path: 'installer',
-        component: InstallerPortal,
-        title: 'Technician Field Operations - DoorMaster'
+        redirectTo: 'map',
+        pathMatch: 'full'
       },
       {
         path: 'client',
-        component: ClientPortal,
-        title: 'Client Live Tracking - DoorMaster'
+        redirectTo: 'map',
+        pathMatch: 'full'
       },
       {
         path: 'shop',
@@ -79,7 +77,7 @@ export const routes: Routes = [
       {
         path: 'map',
         component: DeliveryMap,
-        title: 'Delivery Route Map - DoorMaster'
+        title: 'Map - DoorMaster'
       },
       {
         path: 'performance',

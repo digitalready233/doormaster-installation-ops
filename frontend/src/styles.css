@@ -236,31 +236,46 @@
   width: 360px !important;
   max-width: calc(100vw - 1rem) !important;
   box-sizing: border-box !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.22), 0 2px 6px -2px rgba(0, 0, 0, 0.12) !important;
-  border: none !important;
-  padding: 0.75em 1em !important;
+  border-radius: 10px !important;
+  box-shadow: 0 12px 28px -6px rgba(15, 23, 42, 0.38), 0 4px 12px -2px rgba(15, 23, 42, 0.22) !important;
+  padding: 0.8em 1.05em !important;
+  color: #ffffff !important;
 }
 
-/* Exact recipe gallery colors for each alert state */
+/* Vibrant, high-contrast alert background colors */
 .colored-toast.swal2-icon-success {
-  background-color: #a5dc86 !important;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  background-color: #059669 !important;
+  border: 1px solid rgba(52, 211, 153, 0.45) !important;
+  box-shadow: 0 12px 26px -6px rgba(5, 150, 105, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
 }
 
 .colored-toast.swal2-icon-error {
-  background-color: #f27474 !important;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+  background-color: #dc2626 !important;
+  border: 1px solid rgba(252, 165, 165, 0.45) !important;
+  box-shadow: 0 12px 26px -6px rgba(220, 38, 38, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
 }
 
 .colored-toast.swal2-icon-warning {
-  background-color: #f8bb86 !important;
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+  background-color: #d97706 !important;
+  border: 1px solid rgba(252, 211, 77, 0.45) !important;
+  box-shadow: 0 12px 26px -6px rgba(217, 119, 6, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
 }
 
 .colored-toast.swal2-icon-info {
-  background-color: #3fc3ee !important;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+  background-color: #0284c7 !important;
+  border: 1px solid rgba(125, 211, 252, 0.45) !important;
+  box-shadow: 0 12px 26px -6px rgba(2, 132, 199, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
 }
 
 .colored-toast.swal2-icon-question {
-  background-color: #87adbd !important;
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+  background-color: #4f46e5 !important;
+  border: 1px solid rgba(165, 180, 252, 0.45) !important;
+  box-shadow: 0 12px 26px -6px rgba(79, 70, 229, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
 }
 
 /* White text, close buttons, and html container */
@@ -290,10 +305,10 @@
   overflow: visible !important;
 }
 
-/* Progress bar in semi-transparent white */
+/* Progress bar in crisp semi-transparent white */
 .colored-toast .swal2-timer-progress-bar,
 .colored-toast-progress {
-  background: rgba(255, 255, 255, 0.5) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
   height: 3px !important;
 }
 

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -33,12 +33,8 @@ export interface AvatarPreset {
               <span>Identity Hub</span>
             </span>
           </div>
-          <h1 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-            <span>My Profile</span>
-            <span class="text-xs uppercase font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>{{ store.isAuthenticated() ? 'Live MySQL Account' : 'Active Persona Profile' }}</span>
-            </span>
+          <h1 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            My Profile
           </h1>
           <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
             Manage your credentials, custom avatar photo, contact phone, and real-time GPS telemetry broadcast.
@@ -362,7 +358,9 @@ export class Profile {
   });
 
   constructor() {
-    this.resetFormToCurrent();
+    effect(() => {
+      this.resetFormToCurrent();
+    });
   }
 
   resetFormToCurrent() {
@@ -377,7 +375,6 @@ export class Profile {
 
   selectAvatarPreset(url: string) {
     this.profileForm.patchValue({ avatarUrl: url });
-    this.alert.toastSuccess('Avatar Selected', 'Click "Save & Update Profile" to apply.');
   }
 
   readonly registeredDate = computed(() => {
@@ -393,6 +390,7 @@ export class Profile {
   readonly roleBadgeClass = computed(() => {
     const role = this.currentUser().role;
     switch (role) {
+      case 'admin': return 'bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200 border border-purple-200 dark:border-purple-800';
       case 'manager': return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700';
       case 'installer': return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800';
       case 'client': return 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800';
@@ -406,7 +404,8 @@ export class Profile {
   readonly roleIcon = computed(() => {
     const role = this.currentUser().role;
     switch (role) {
-      case 'manager': return 'admin_panel_settings';
+      case 'admin': return 'admin_panel_settings';
+      case 'manager': return 'shield_person';
       case 'installer': return 'handyman';
       case 'client': return 'person_pin_circle';
       case 'account_officer': return 'account_balance_wallet';
@@ -426,6 +425,7 @@ export class Profile {
   readonly roleLabel = computed(() => {
     const role = this.currentUser().role;
     switch (role) {
+      case 'admin': return 'System Administrator';
       case 'manager': return 'Operations Manager';
       case 'installer': return 'Master Field Installer';
       case 'client': return 'Client / Site Owner';
@@ -486,9 +486,9 @@ export class Profile {
     this.isSaving.set(false);
 
     if (res.success) {
-      this.alert.success('Your work has been saved', 'User profile details and credentials updated successfully.');
+      this.alert.success('Profile Updated', res.message || 'User profile details and credentials updated successfully.');
     } else {
-      this.alert.error('Update Notice', res.message || 'Could not update profile.');
+      this.alert.error('Update Failed', res.message || 'Could not update profile.');
     }
   }
 

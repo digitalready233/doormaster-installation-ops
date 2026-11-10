@@ -5,6 +5,7 @@ export interface DbInstallationJob {
   id: string;
   jobNumber: string;
   title?: string;
+  clientId?: string;
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
@@ -19,7 +20,10 @@ export interface DbInstallationJob {
   finish?: string;
   hardwareSpecs?: string;
   lockModel?: string;
+  shopId?: string | null;
+  shopBranchCode?: string | null;
   shopBranch?: string;
+  createdByUserId?: string | null;
   depositAmount: number;
   balanceDue: number;
   status: string;
@@ -32,6 +36,14 @@ export interface DbInstallationJob {
   assignedInstallerNames?: string[];
   assignedInstallers?: any;
   installerAssignmentStatus?: string;
+  installerAssignedAt?: string;
+  installerDeadlineAt?: string;
+  installerAutoAccepted?: boolean;
+  installerRejectReason?: string;
+  installerProposedSlot?: string;
+  installerRespondedAt?: string;
+  rejectedByInstallerName?: string;
+  acceptedAt?: string;
   operationsApproved?: boolean;
   scheduledTime?: string;
   notes?: string;
@@ -124,12 +136,153 @@ export interface DbCustomerSignoff {
   signedAt?: string;
 }
 
+function normalizeBranchSearchLabel(val?: string | null): string {
+  return (val || '')
+    .toLowerCase()
+    .replace(/doormaster|branch|section|showroom|&|\(|\)|,|\./g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export async function resolveShopLocationReference(input: {
+  shopId?: string | null;
+  shopBranchCode?: string | null;
+  shopBranch?: string | null;
+  shopBooking?: any;
+}): Promise<{ id: string; shopName: string; branchCode: string } | null> {
+  const branches = await getShopLocationsFromDb().catch(() =>
+    DEFAULT_DOORMASTER_BRANCHES.map(b => ({
+      ...b,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }))
+  );
+
+  const candidateId = (input.shopId || input.shopBooking?.shopId || '').toString().trim();
+  if (candidateId) {
+    const byId = branches.find(
+      b => b.id.toLowerCase() === candidateId.toLowerCase() || (b.branchCode || '').toLowerCase() === candidateId.toLowerCase()
+    );
+    if (byId) {
+      return { id: byId.id, shopName: byId.shopName, branchCode: byId.branchCode || 'DM-GH-HQ-SPX' };
+    }
+  }
+
+  const candidateCode = (input.shopBranchCode || input.shopBooking?.branchCode || '').toString().trim().toLowerCase();
+  if (candidateCode) {
+    const byCode = branches.find(b => (b.branchCode || '').toLowerCase() === candidateCode);
+    if (byCode) {
+      return { id: byCode.id, shopName: byCode.shopName, branchCode: byCode.branchCode || 'DM-GH-HQ-SPX' };
+    }
+  }
+
+  const rawNames = [input.shopBooking?.shopBranch, input.shopBranch].filter((v): v is string => !!v && !!v.trim());
+  for (const raw of rawNames) {
+    const norm = normalizeBranchSearchLabel(raw);
+    if (norm) {
+      const exact = branches.find(b => normalizeBranchSearchLabel(b.shopName) === norm);
+      if (exact) {
+        return { id: exact.id, shopName: exact.shopName, branchCode: exact.branchCode || 'DM-GH-HQ-SPX' };
+      }
+      const partials = branches.filter(b => {
+        const bNorm = normalizeBranchSearchLabel(b.shopName);
+        return bNorm && (norm.includes(bNorm) || bNorm.includes(norm));
+      });
+      if (partials.length === 1) {
+        return { id: partials[0].id, shopName: partials[0].shopName, branchCode: partials[0].branchCode || 'DM-GH-HQ-SPX' };
+      }
+    }
+
+    const lower = raw.toLowerCase();
+    if (
+      lower.includes('flagship') ||
+      lower.includes('spintex') ||
+      lower.includes('atelier main') ||
+      lower.includes('central showroom') ||
+      lower.includes('central atelier') ||
+      lower.includes('downtown atelier') ||
+      lower.includes('accra central')
+    ) {
+      const primary = branches.find(b => b.isPrimary) || branches[0];
+      if (primary) {
+        return { id: primary.id, shopName: primary.shopName, branchCode: primary.branchCode || 'DM-GH-HQ-SPX' };
+      }
+    }
+  }
+
+  return null;
+}
+
+export async function backfillJobShopReferences(): Promise<void> {
+  try {
+    const jobsMissingShop = await prisma.installationJob.findMany({
+      where: {
+        OR: [{ shopId: null }, { shopId: '' }, { shopId: 'shop_loc_main' }]
+      }
+    });
+    for (const row of jobsMissingShop) {
+      const cleanShopId = row.shopId === 'shop_loc_main' ? null : row.shopId;
+      const cleanBranchCode = row.shopBranchCode === 'DM-ACC-01' ? null : row.shopBranchCode;
+      const cleanedBooking =
+        row.shopBooking && typeof row.shopBooking === 'object' && !Array.isArray(row.shopBooking)
+          ? {
+              ...(row.shopBooking as Record<string, unknown>),
+              shopId: (row.shopBooking as any).shopId === 'shop_loc_main' ? undefined : (row.shopBooking as any).shopId,
+              branchCode: (row.shopBooking as any).branchCode === 'DM-ACC-01' ? undefined : (row.shopBooking as any).branchCode
+            }
+          : row.shopBooking;
+
+      const resolved = await resolveShopLocationReference({
+        shopId: cleanShopId,
+        shopBranchCode: cleanBranchCode,
+        shopBranch: row.shopBranch,
+        shopBooking: cleanedBooking
+      });
+      if (resolved) {
+        const updatedBooking =
+          row.shopBooking && typeof row.shopBooking === 'object' && !Array.isArray(row.shopBooking)
+            ? {
+                ...(row.shopBooking as Record<string, unknown>),
+                shopId: resolved.id,
+                branchCode: resolved.branchCode,
+                shopBranch: resolved.shopName
+              }
+            : row.shopBooking ?? Prisma.JsonNull;
+
+        await prisma.installationJob.update({
+          where: { id: row.id },
+          data: {
+            shopId: resolved.id,
+            shopBranchCode: resolved.branchCode,
+            shopBranch: resolved.shopName,
+            shopBooking: updatedBooking
+          }
+        });
+      }
+    }
+    if (jobsMissingShop.length > 0) {
+      console.log(`[JobsService] Backfilled shop_id references on ${jobsMissingShop.length} installation job(s).`);
+    }
+  } catch (err) {
+    console.warn('[JobsService] Backfill shop references notice:', (err as Error).message);
+  }
+}
+
 /**
- * Fetch all installation jobs using Prisma
+ * Fetch all installation jobs using Prisma (optionally filtered by shopId)
  */
-export async function getJobsFromDb(): Promise<DbInstallationJob[]> {
+export async function getJobsFromDb(filterShopId?: string): Promise<DbInstallationJob[]> {
   try {
     const rows = await prisma.installationJob.findMany({
+      ...(filterShopId ? { where: { shopId: filterShopId } } : {}),
+      include: {
+        clientRel: true,
+        door: true,
+        shop: true,
+        assignedInstaller: true,
+        assignedDriver: true,
+        createdByUser: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -159,77 +312,201 @@ export async function getJobsFromDb(): Promise<DbInstallationJob[]> {
         }).catch(err => console.warn('[JobsService] Driver auto-accept update failed for job:', r.id, err));
       }
 
-      // 10-Minute Installer Auto-Acceptance Check:
-      const assignedInstallers = r.assignedInstallers as any;
-      const instDeadline = (r as any).installerDeadlineAt 
-        ? new Date((r as any).installerDeadlineAt)
-        : (assignedInstallers?.[0]?.deadlineAt ? new Date(assignedInstallers[0].deadlineAt) : null);
-      if (
-        r.assignedInstallerId &&
-        r.installerAssignmentStatus === 'pending' &&
-        instDeadline &&
-        instDeadline.getTime() <= now.getTime()
-      ) {
-        r.installerAssignmentStatus = 'accepted';
+      // 10-Minute Installer Auto-Acceptance & Deadline Sync Check:
+      const assignedInstallers = Array.isArray(r.assignedInstallers) ? (r.assignedInstallers as any[]) : [];
+      const rawShopBooking = (r.shopBooking && typeof r.shopBooking === 'object' && !Array.isArray(r.shopBooking))
+        ? (r.shopBooking as Record<string, any>)
+        : {};
+      const installerMeta: Record<string, any> = {
+        ...(rawShopBooking.installerMeta || {})
+      };
+
+      let instAssignedAt: string | undefined =
+        (r as any).installerAssignedAt ||
+        installerMeta.installerAssignedAt ||
+        assignedInstallers[0]?.assignedAt ||
+        undefined;
+      let instDeadlineStr: string | undefined =
+        (r as any).installerDeadlineAt ||
+        installerMeta.installerDeadlineAt ||
+        assignedInstallers[0]?.deadlineAt ||
+        undefined;
+
+      // Backfill 10-minute deadline if a job has an assigned installer in 'pending' state without a deadline yet
+      if (r.assignedInstallerId && r.installerAssignmentStatus === 'pending' && !instDeadlineStr) {
+        instAssignedAt = now.toISOString();
+        instDeadlineStr = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
+        installerMeta.installerAssignedAt = instAssignedAt;
+        installerMeta.installerDeadlineAt = instDeadlineStr;
+        installerMeta.installerAutoAccepted = false;
+
+        const updatedInstallers = assignedInstallers.map((inst: any) => ({
+          ...inst,
+          assignedAt: inst.assignedAt || instAssignedAt,
+          deadlineAt: inst.deadlineAt || instDeadlineStr,
+          status: inst.status || 'pending'
+        }));
+        const updatedBooking = {
+          ...rawShopBooking,
+          installerMeta
+        };
+        r.assignedInstallers = updatedInstallers as any;
+        r.shopBooking = updatedBooking as any;
+
         prisma.installationJob.update({
           where: { id: r.id },
           data: {
-            installerAssignmentStatus: 'accepted'
+            assignedInstallers: updatedInstallers,
+            shopBooking: updatedBooking
+          }
+        }).catch(err => console.warn('[JobsService] Installer deadline backfill failed for job:', r.id, err));
+      }
+
+      const instDeadline = instDeadlineStr ? new Date(instDeadlineStr) : null;
+      const hasExpiredPendingMember = assignedInstallers.some((inst: any) => {
+        if (inst.status === 'accepted' || inst.status === 'rejected') return false;
+        const dStr = inst.deadlineAt || instDeadlineStr;
+        const d = dStr ? new Date(dStr) : null;
+        return d ? d.getTime() <= now.getTime() : false;
+      }) || (r.installerAssignmentStatus === 'pending' && instDeadline && instDeadline.getTime() <= now.getTime());
+
+      if (r.assignedInstallerId && hasExpiredPendingMember) {
+        const respondedAtIso = now.toISOString();
+        installerMeta.installerAutoAccepted = true;
+        installerMeta.installerRespondedAt = respondedAtIso;
+        installerMeta.acceptedAt = respondedAtIso;
+
+        const updatedInstallers = assignedInstallers.map((inst: any) => {
+          if (inst.status === 'accepted' || inst.status === 'rejected') {
+            return inst;
+          }
+          const dStr = inst.deadlineAt || instDeadlineStr;
+          const d = dStr ? new Date(dStr) : instDeadline;
+          if (d && d.getTime() <= now.getTime()) {
+            return {
+              ...inst,
+              assignedAt: inst.assignedAt || instAssignedAt,
+              deadlineAt: inst.deadlineAt || instDeadlineStr,
+              status: 'accepted',
+              respondedAt: respondedAtIso,
+              autoAccepted: true
+            };
+          }
+          return inst;
+        });
+
+        const anyPending = updatedInstallers.some((inst: any) => !inst.status || inst.status === 'pending');
+        r.installerAssignmentStatus = anyPending ? 'pending' : 'accepted';
+        if (!anyPending && (r.status === 'booked_at_shop' || r.status === 'assigned')) {
+          r.status = 'accepted';
+        }
+
+        const updatedBooking = {
+          ...rawShopBooking,
+          installerMeta
+        };
+        r.assignedInstallers = updatedInstallers as any;
+        r.shopBooking = updatedBooking as any;
+
+        prisma.installationJob.update({
+          where: { id: r.id },
+          data: {
+            status: r.status,
+            installerAssignmentStatus: r.installerAssignmentStatus,
+            assignedInstallers: updatedInstallers,
+            shopBooking: updatedBooking
           }
         }).catch(err => console.warn('[JobsService] Installer auto-accept update failed for job:', r.id, err));
       }
     }
 
-    return rows.map((r) => ({
-      id: r.id,
-      jobNumber: r.jobNumber,
-      title: r.title || `${r.doorName} - ${r.clientName}`,
-      clientName: r.clientName,
-      clientPhone: r.clientPhone,
-      clientEmail: r.clientEmail || '',
-      address: r.address,
-      lat: Number(r.lat),
-      lng: Number(r.lng),
-      doorId: r.doorId || undefined,
-      doorName: r.doorName,
-      doorCategory: r.doorCategory || 'General Doors',
-      doorModelCode: r.doorModelCode || '',
-      doorDimensions: r.doorDimensions || '2100 × 900 × 50mm',
-      finish: r.finish || '',
-      hardwareSpecs: r.hardwareSpecs || '',
-      lockModel: r.lockModel || 'DoorMaster Smart Lock',
-      shopBranch: r.shopBranch || 'Accra Flagship Showroom',
-      depositAmount: Number(r.depositAmount),
-      balanceDue: Number(r.balanceDue),
-      status: r.status,
-      assignedDriverId: r.assignedDriverId,
-      assignedDriverName: r.assignedDriverName || undefined,
-      driverAssignmentStatus: r.driverAssignmentStatus || 'pending',
-      assignedInstallerId: r.assignedInstallerId,
-      assignedInstallerName: r.assignedInstallerName || undefined,
-      assignedInstallerIds: (r.assignedInstallerIds as any) || undefined,
-      assignedInstallerNames: (r.assignedInstallerNames as any) || undefined,
-      assignedInstallers: (r.assignedInstallers as any) || undefined,
-      installerAssignmentStatus: r.installerAssignmentStatus || 'pending',
-      operationsApproved: r.operationsApproved,
-      scheduledTime: r.scheduledTime || 'Today, 2:00 PM',
-      notes: r.notes || '',
+    return rows.map((r) => {
+      const assignedInstallers = Array.isArray(r.assignedInstallers) ? (r.assignedInstallers as any[]) : undefined;
+      const installerMeta = (r.shopBooking as any)?.installerMeta || {};
+      const clientRel = r.clientRel;
+      const doorRel = r.door;
+      const shopRel = r.shop;
+      const installerRel = r.assignedInstaller;
+      const driverRel = r.assignedDriver;
 
-      // JSON columns
-      doors: r.doors || undefined,
-      client: r.client || undefined,
-      shopBooking: r.shopBooking || undefined,
-      technicianSiteFunds: r.technicianSiteFunds || undefined,
-      logisticsTruck: r.logisticsTruck || undefined,
-      clockSessions: r.clockSessions || undefined,
-      hardwareChecklist: r.hardwareChecklist || undefined,
-      photos: r.photos || undefined,
-      customerSignoff: r.customerSignoff || undefined,
-      financials: r.financials || undefined,
+      const clientObj = clientRel
+        ? {
+            id: clientRel.id,
+            name: clientRel.name,
+            phone: clientRel.phone,
+            email: clientRel.email || '',
+            siteAddress: clientRel.siteAddress,
+            accessInstructions: clientRel.accessInstructions || undefined,
+            coordinates: {
+              lat: Number(clientRel.lat),
+              lng: Number(clientRel.lng),
+            },
+          }
+        : (r.client as any) || undefined;
 
-      createdAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString(),
-      updatedAt: r.updatedAt ? r.updatedAt.toISOString() : new Date().toISOString(),
-    }));
+      return {
+        id: r.id,
+        jobNumber: r.jobNumber,
+        title: r.title || `${doorRel?.name || r.doorName} - ${clientRel?.name || r.clientName}`,
+        clientId: r.clientId || clientRel?.id || undefined,
+        clientName: clientRel?.name || r.clientName,
+        clientPhone: clientRel?.phone || r.clientPhone,
+        clientEmail: (clientRel?.email !== undefined ? clientRel.email : r.clientEmail) || '',
+        address: clientRel?.siteAddress || r.address,
+        lat: Number(clientRel ? clientRel.lat : r.lat),
+        lng: Number(clientRel ? clientRel.lng : r.lng),
+        doorId: r.doorId || doorRel?.id || undefined,
+        doorName: doorRel?.name || r.doorName,
+        doorCategory: doorRel?.category || r.doorCategory || 'General Doors',
+        doorModelCode: doorRel?.modelCode || r.doorModelCode || '',
+        doorDimensions: doorRel?.dimensions || r.doorDimensions || '2100 × 900 × 50mm',
+        finish: doorRel?.finish || r.finish || '',
+        hardwareSpecs: doorRel?.hardwareSpecs || r.hardwareSpecs || '',
+        lockModel: r.lockModel || 'DoorMaster Smart Lock',
+        shopId: r.shopId || shopRel?.id || (r.shopBooking as any)?.shopId || null,
+        shopBranchCode: r.shopBranchCode || shopRel?.branchCode || (r.shopBooking as any)?.branchCode || null,
+        shopBranch: shopRel?.shopName || r.shopBranch || 'Accra Flagship Showroom',
+        createdByUserId: r.createdByUserId || null,
+        depositAmount: Number(r.depositAmount),
+        balanceDue: Number(r.balanceDue),
+        status: r.status,
+        assignedDriverId: r.assignedDriverId || driverRel?.id || null,
+        assignedDriverName: driverRel?.name || r.assignedDriverName || undefined,
+        driverAssignmentStatus: r.driverAssignmentStatus || 'pending',
+        assignedInstallerId: r.assignedInstallerId || installerRel?.id || null,
+        assignedInstallerName: installerRel?.name || r.assignedInstallerName || undefined,
+        assignedInstallerIds: (r.assignedInstallerIds as any) || undefined,
+        assignedInstallerNames: (r.assignedInstallerNames as any) || undefined,
+        assignedInstallers,
+        installerAssignmentStatus: r.installerAssignmentStatus || 'pending',
+        installerAssignedAt: installerMeta.installerAssignedAt || assignedInstallers?.[0]?.assignedAt || undefined,
+        installerDeadlineAt: installerMeta.installerDeadlineAt || assignedInstallers?.[0]?.deadlineAt || undefined,
+        installerAutoAccepted: installerMeta.installerAutoAccepted ?? assignedInstallers?.[0]?.autoAccepted ?? false,
+        installerRejectReason: installerMeta.installerRejectReason || undefined,
+        installerProposedSlot: installerMeta.installerProposedSlot || undefined,
+        installerRespondedAt: installerMeta.installerRespondedAt || assignedInstallers?.[0]?.respondedAt || undefined,
+        rejectedByInstallerName: installerMeta.rejectedByInstallerName || undefined,
+        acceptedAt: installerMeta.acceptedAt || undefined,
+        operationsApproved: r.operationsApproved,
+        scheduledTime: r.scheduledTime || 'Today, 2:00 PM',
+        notes: r.notes || '',
+
+        // JSON columns
+        doors: r.doors || undefined,
+        client: clientObj,
+        shopBooking: r.shopBooking || undefined,
+        technicianSiteFunds: r.technicianSiteFunds || undefined,
+        logisticsTruck: r.logisticsTruck || undefined,
+        clockSessions: r.clockSessions || undefined,
+        hardwareChecklist: r.hardwareChecklist || undefined,
+        photos: r.photos || undefined,
+        customerSignoff: r.customerSignoff || undefined,
+        financials: r.financials || undefined,
+
+        createdAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString(),
+        updatedAt: r.updatedAt ? r.updatedAt.toISOString() : new Date().toISOString(),
+      };
+    });
   } catch (err) {
     console.error('[JobsService] Failed fetching jobs from Prisma:', err);
     return [];
@@ -244,8 +521,115 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
     const id = job.id || `DM-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
     const jobNumber = job.jobNumber || id;
 
-    const dataPayload: Prisma.InstallationJobUpdateInput = {
+    const existingJob = await prisma.installationJob.findUnique({ where: { id } });
+
+    const resolvedShop = await resolveShopLocationReference({
+      shopId: existingJob?.shopId || job.shopId,
+      shopBranchCode: existingJob?.shopBranchCode || job.shopBranchCode,
+      shopBranch: existingJob?.shopBranch || job.shopBranch,
+      shopBooking: job.shopBooking ?? existingJob?.shopBooking
+    });
+
+    const effectiveShopId = existingJob?.shopId || resolvedShop?.id || job.shopId || 'dm-branch-central';
+    const effectiveBranchCode = existingJob?.shopBranchCode || resolvedShop?.branchCode || job.shopBranchCode || (job.shopBooking as any)?.branchCode || 'DM-GH-HQ-SPX';
+    const effectiveShopBranch = (existingJob?.shopId ? existingJob.shopBranch : null) || resolvedShop?.shopName || job.shopBranch || existingJob?.shopBranch || 'DoorMaster Central Showroom & Atelier';
+    const effectiveCreatedByUserId = existingJob?.createdByUserId || job.createdByUserId || null;
+
+    const existingMeta = ((existingJob?.shopBooking as any)?.installerMeta) || {};
+    const incomingMeta = ((job.shopBooking as any)?.installerMeta) || {};
+    const firstInstaller = Array.isArray(job.assignedInstallers) ? job.assignedInstallers[0] : undefined;
+
+    const mergedInstallerMeta: Record<string, any> = {
+      ...existingMeta,
+      ...incomingMeta,
+      ...(job.installerAssignedAt !== undefined ? { installerAssignedAt: job.installerAssignedAt } : (firstInstaller?.assignedAt ? { installerAssignedAt: firstInstaller.assignedAt } : {})),
+      ...(job.installerDeadlineAt !== undefined ? { installerDeadlineAt: job.installerDeadlineAt } : (firstInstaller?.deadlineAt ? { installerDeadlineAt: firstInstaller.deadlineAt } : {})),
+      ...(job.installerAutoAccepted !== undefined ? { installerAutoAccepted: job.installerAutoAccepted } : {}),
+      ...(job.installerRejectReason !== undefined ? { installerRejectReason: job.installerRejectReason } : {}),
+      ...(job.installerProposedSlot !== undefined ? { installerProposedSlot: job.installerProposedSlot } : {}),
+      ...(job.installerRespondedAt !== undefined ? { installerRespondedAt: job.installerRespondedAt } : {}),
+      ...(job.rejectedByInstallerName !== undefined ? { rejectedByInstallerName: job.rejectedByInstallerName } : {}),
+      ...(job.acceptedAt !== undefined ? { acceptedAt: job.acceptedAt } : {}),
+    };
+
+    // If an installer is newly assigned in 'pending' state and no deadline was provided, set 10-minute deadline automatically
+    if (job.assignedInstallerId && (job.installerAssignmentStatus === 'pending' || !job.installerAssignmentStatus)) {
+      if (!mergedInstallerMeta.installerAssignedAt) {
+        mergedInstallerMeta.installerAssignedAt = new Date().toISOString();
+      }
+      if (!mergedInstallerMeta.installerDeadlineAt) {
+        mergedInstallerMeta.installerDeadlineAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      }
+    }
+
+    const enrichedAssignedInstallers = Array.isArray(job.assignedInstallers)
+      ? job.assignedInstallers.map((inst: any) => ({
+          ...inst,
+          assignedAt: inst.assignedAt || mergedInstallerMeta.installerAssignedAt,
+          deadlineAt: inst.deadlineAt || mergedInstallerMeta.installerDeadlineAt,
+          status: inst.status || job.installerAssignmentStatus || 'pending'
+        }))
+      : job.assignedInstallers;
+
+    const baseBooking =
+      job.shopBooking && typeof job.shopBooking === 'object'
+        ? job.shopBooking
+        : (existingJob?.shopBooking && typeof existingJob.shopBooking === 'object' ? existingJob.shopBooking : {});
+
+    const enrichedShopBooking = {
+      ...(baseBooking as Record<string, any>),
+      shopId: effectiveShopId,
+      branchCode: (baseBooking as any).branchCode || effectiveBranchCode,
+      shopBranch: (baseBooking as any).shopBranch || effectiveShopBranch,
+      installerMeta: mergedInstallerMeta
+    };
+
+    // Resolve / normalize client in `clients` table to eliminate data redundancy
+    const rawClient = job.client && typeof job.client === 'object' && !Array.isArray(job.client) ? (job.client as Record<string, any>) : {};
+    const clientName = (job.clientName || rawClient.name || existingJob?.clientName || 'Valued Client').trim();
+    const clientPhone = (job.clientPhone || rawClient.phone || existingJob?.clientPhone || '+233 24 555 0100').trim();
+    const clientEmail = (job.clientEmail || rawClient.email || existingJob?.clientEmail || '').trim();
+    const clientAddress = (job.address || rawClient.siteAddress || existingJob?.address || 'Accra, Ghana').trim();
+    const clientAccess = (rawClient.accessInstructions || '').trim();
+    const clientLat = job.lat !== undefined ? Number(job.lat) : (rawClient.coordinates?.lat ?? (existingJob ? Number(existingJob.lat) : 5.6037));
+    const clientLng = job.lng !== undefined ? Number(job.lng) : (rawClient.coordinates?.lng ?? (existingJob ? Number(existingJob.lng) : -0.1870));
+
+    let effectiveClientId = existingJob?.clientId || job.clientId || rawClient.id;
+    if (!effectiveClientId) {
+      const cleanPhone = clientPhone.replace(/[^0-9]/g, '');
+      effectiveClientId = cleanPhone ? `CLI-${cleanPhone}` : `CLI-${id}`;
+    }
+
+    try {
+      await prisma.client.upsert({
+        where: { id: effectiveClientId },
+        update: {
+          name: clientName,
+          phone: clientPhone,
+          ...(clientEmail ? { email: clientEmail } : {}),
+          siteAddress: clientAddress,
+          ...(clientAccess ? { accessInstructions: clientAccess } : {}),
+          lat: new Prisma.Decimal(clientLat),
+          lng: new Prisma.Decimal(clientLng),
+        },
+        create: {
+          id: effectiveClientId,
+          name: clientName,
+          phone: clientPhone,
+          email: clientEmail,
+          siteAddress: clientAddress,
+          accessInstructions: clientAccess,
+          lat: new Prisma.Decimal(clientLat),
+          lng: new Prisma.Decimal(clientLng),
+        }
+      });
+    } catch (clientErr) {
+      console.warn('[JobsService] Client upsert notice:', (clientErr as Error).message);
+    }
+
+    const dataPayload: Prisma.InstallationJobUncheckedUpdateInput = {
       title: job.title || undefined,
+      clientId: effectiveClientId,
       clientName: job.clientName,
       clientPhone: job.clientPhone,
       clientEmail: job.clientEmail,
@@ -259,7 +643,10 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       finish: job.finish || undefined,
       hardwareSpecs: job.hardwareSpecs || undefined,
       lockModel: job.lockModel || undefined,
-      shopBranch: job.shopBranch || undefined,
+      shopId: effectiveShopId,
+      shopBranchCode: effectiveBranchCode,
+      shopBranch: effectiveShopBranch,
+      ...(effectiveCreatedByUserId ? { createdByUserId: effectiveCreatedByUserId } : {}),
       depositAmount: job.depositAmount !== undefined ? new Prisma.Decimal(job.depositAmount) : undefined,
       balanceDue: job.balanceDue !== undefined ? new Prisma.Decimal(job.balanceDue) : undefined,
       status: job.status,
@@ -270,7 +657,7 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       assignedInstallerName: job.assignedInstallerName,
       assignedInstallerIds: job.assignedInstallerIds !== undefined ? (job.assignedInstallerIds ?? Prisma.JsonNull) : undefined,
       assignedInstallerNames: job.assignedInstallerNames !== undefined ? (job.assignedInstallerNames ?? Prisma.JsonNull) : undefined,
-      assignedInstallers: job.assignedInstallers !== undefined ? (job.assignedInstallers ?? Prisma.JsonNull) : undefined,
+      assignedInstallers: enrichedAssignedInstallers !== undefined ? (enrichedAssignedInstallers ?? Prisma.JsonNull) : undefined,
       installerAssignmentStatus: job.installerAssignmentStatus,
       operationsApproved: job.operationsApproved !== undefined ? Boolean(job.operationsApproved) : undefined,
       scheduledTime: job.scheduledTime,
@@ -279,7 +666,7 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       // JSON payload fields
       doors: job.doors !== undefined ? job.doors : undefined,
       client: job.client !== undefined ? job.client : undefined,
-      shopBooking: job.shopBooking !== undefined ? job.shopBooking : undefined,
+      shopBooking: enrichedShopBooking !== undefined ? enrichedShopBooking : undefined,
       technicianSiteFunds: job.technicianSiteFunds !== undefined ? job.technicianSiteFunds : undefined,
       logisticsTruck: job.logisticsTruck !== undefined ? job.logisticsTruck : undefined,
       clockSessions: job.clockSessions !== undefined ? job.clockSessions : undefined,
@@ -289,10 +676,11 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       financials: job.financials !== undefined ? job.financials : undefined,
     };
 
-    const createPayload: Prisma.InstallationJobCreateInput = {
+    const createPayload: Prisma.InstallationJobUncheckedCreateInput = {
       id,
       jobNumber,
       title: job.title || `${job.doorName || 'Door Installation'} - ${job.clientName || 'Client'}`,
+      clientId: effectiveClientId,
       clientName: job.clientName || 'Valued Client',
       clientPhone: job.clientPhone || '+233 24 555 0100',
       clientEmail: job.clientEmail || '',
@@ -307,7 +695,10 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       finish: job.finish || 'Architectural Matte Finish',
       hardwareSpecs: job.hardwareSpecs || 'DormaKaba Heavy Duty Pivot, Magnetic Lock',
       lockModel: job.lockModel || 'DoorMaster Smart Lock',
-      shopBranch: job.shopBranch || 'Accra Flagship Showroom',
+      shopId: effectiveShopId,
+      shopBranchCode: effectiveBranchCode,
+      shopBranch: effectiveShopBranch,
+      createdByUserId: effectiveCreatedByUserId,
       depositAmount: new Prisma.Decimal(job.depositAmount || 0),
       balanceDue: new Prisma.Decimal(job.balanceDue || 0),
       status: job.status || 'booked_at_shop',
@@ -318,7 +709,7 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       assignedInstallerName: job.assignedInstallerName || null,
       assignedInstallerIds: job.assignedInstallerIds !== undefined ? (job.assignedInstallerIds ?? Prisma.JsonNull) : Prisma.JsonNull,
       assignedInstallerNames: job.assignedInstallerNames !== undefined ? (job.assignedInstallerNames ?? Prisma.JsonNull) : Prisma.JsonNull,
-      assignedInstallers: job.assignedInstallers !== undefined ? (job.assignedInstallers ?? Prisma.JsonNull) : Prisma.JsonNull,
+      assignedInstallers: enrichedAssignedInstallers !== undefined ? (enrichedAssignedInstallers ?? Prisma.JsonNull) : Prisma.JsonNull,
       installerAssignmentStatus: job.installerAssignmentStatus || 'pending',
       operationsApproved: Boolean(job.operationsApproved),
       scheduledTime: job.scheduledTime || 'Today, 2:00 PM',
@@ -327,7 +718,7 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       // JSON fields
       doors: job.doors || Prisma.JsonNull,
       client: job.client || Prisma.JsonNull,
-      shopBooking: job.shopBooking || Prisma.JsonNull,
+      shopBooking: enrichedShopBooking || Prisma.JsonNull,
       technicianSiteFunds: job.technicianSiteFunds || Prisma.JsonNull,
       logisticsTruck: job.logisticsTruck || Prisma.JsonNull,
       clockSessions: job.clockSessions || Prisma.JsonNull,
@@ -343,10 +734,14 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       create: createPayload,
     });
 
+    const savedMeta = (saved.shopBooking as any)?.installerMeta || mergedInstallerMeta;
+    const savedInstallers = Array.isArray(saved.assignedInstallers) ? (saved.assignedInstallers as any[]) : undefined;
+
     return {
       id: saved.id,
       jobNumber: saved.jobNumber,
       title: saved.title || undefined,
+      clientId: saved.clientId || effectiveClientId,
       clientName: saved.clientName,
       clientPhone: saved.clientPhone,
       clientEmail: saved.clientEmail || '',
@@ -361,7 +756,10 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       finish: saved.finish || undefined,
       hardwareSpecs: saved.hardwareSpecs || undefined,
       lockModel: saved.lockModel || 'DoorMaster Smart Lock',
+      shopId: saved.shopId || null,
+      shopBranchCode: saved.shopBranchCode || null,
       shopBranch: saved.shopBranch || undefined,
+      createdByUserId: saved.createdByUserId || null,
       depositAmount: Number(saved.depositAmount),
       balanceDue: Number(saved.balanceDue),
       status: saved.status,
@@ -372,8 +770,16 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       assignedInstallerName: saved.assignedInstallerName || undefined,
       assignedInstallerIds: (saved.assignedInstallerIds as any) || undefined,
       assignedInstallerNames: (saved.assignedInstallerNames as any) || undefined,
-      assignedInstallers: (saved.assignedInstallers as any) || undefined,
+      assignedInstallers: savedInstallers,
       installerAssignmentStatus: saved.installerAssignmentStatus || 'pending',
+      installerAssignedAt: savedMeta.installerAssignedAt || savedInstallers?.[0]?.assignedAt || undefined,
+      installerDeadlineAt: savedMeta.installerDeadlineAt || savedInstallers?.[0]?.deadlineAt || undefined,
+      installerAutoAccepted: savedMeta.installerAutoAccepted ?? savedInstallers?.[0]?.autoAccepted ?? false,
+      installerRejectReason: savedMeta.installerRejectReason || undefined,
+      installerProposedSlot: savedMeta.installerProposedSlot || undefined,
+      installerRespondedAt: savedMeta.installerRespondedAt || savedInstallers?.[0]?.respondedAt || undefined,
+      rejectedByInstallerName: savedMeta.rejectedByInstallerName || undefined,
+      acceptedAt: savedMeta.acceptedAt || undefined,
       operationsApproved: saved.operationsApproved,
       scheduledTime: saved.scheduledTime || 'Today, 2:00 PM',
       notes: saved.notes || '',
@@ -770,7 +1176,74 @@ export interface DbNotification {
   createdAt: string;
 }
 
-export async function getNotificationsFromDb(role?: string): Promise<DbNotification[]> {
+function normalizeRoleNotificationFields<
+  T extends { recipientRole: string; title: string; message: string; actionLabel?: string | null }
+>(n: T): T {
+  if (n.recipientRole === 'manager') {
+    let title = n.title || '';
+    let message = n.message || '';
+    let actionLabel = n.actionLabel ?? null;
+
+    if (actionLabel && /assign\s+team|set\s*up\s*truck|select\s+installer/i.test(actionLabel)) {
+      actionLabel = 'Select Team';
+    } else if (actionLabel && /reassign\s+driver|select\s+dispatcher/i.test(actionLabel)) {
+      actionLabel = null;
+    }
+
+    title = title
+      .replace(/Assign\s+Installation\s+Team\s*&\s*Truck/gi, 'Select Installation Team')
+      .replace(/Driver\s+Rejected\s*-\s*Reassignment\s+Needed/gi, 'Dispatch Driver Rejected Delivery Run');
+
+    message = message
+      .replace(/Please\s+configure\s+delivery\s+truck\s*&\s*assign\s+available\s+Installer\.?/gi, 'Please select an Installation Team (Lead + Assistants).')
+      .replace(/Please\s+assign\s+Installation\s+Team\s*\(Lead\s*\+\s*Assistants\)\s*and\s+delivery\s+truck\.?/gi, 'Please select an Installation Team (Lead + Assistants).')
+      .replace(/Reassignment\s+required\.$/i, 'Shop Manager has been notified to select another dispatcher.');
+
+    return {
+      ...n,
+      title,
+      message,
+      actionLabel
+    };
+  }
+
+  if (n.recipientRole !== 'shop_manager') return n;
+
+  let title = n.title || '';
+  let message = n.message || '';
+  let actionLabel = n.actionLabel ?? null;
+
+  if (actionLabel && /installer|team|driver/i.test(actionLabel)) {
+    actionLabel = 'Select Dispatcher';
+  }
+
+  if (/installer\s+rejection/i.test(title) || /queued\s+for\s+shop\s+manager\s+reassignment/i.test(message)) {
+    title = 'Select Dispatcher for Installation Order';
+    message = message
+      .replace(/Queued for Shop Manager reassignment\.?/gi, 'Please select a store dispatcher for delivery.')
+      .replace(/installer\s+reassignment/gi, 'dispatcher selection');
+    actionLabel = 'Select Dispatcher';
+  }
+
+  if (/(select|assign)\s+(an?\s+)?installer/i.test(title)) {
+    title = title.replace(/(select|assign)\s+(an?\s+)?installer/gi, 'Select Dispatcher');
+    actionLabel = actionLabel || 'Select Dispatcher';
+  }
+
+  if (/(select|assign)\s+(an?\s+)?installer/i.test(message)) {
+    message = message.replace(/(select|assign)\s+(an?\s+)?installer/gi, 'select a dispatcher');
+    actionLabel = actionLabel || 'Select Dispatcher';
+  }
+
+  return {
+    ...n,
+    title,
+    message,
+    actionLabel
+  };
+}
+
+export async function getNotificationsFromDb(role?: string, userId?: string): Promise<DbNotification[]> {
   try {
     const where: Prisma.NotificationWhereInput = {};
     if (role && role !== 'all') {
@@ -779,25 +1252,45 @@ export async function getNotificationsFromDb(role?: string): Promise<DbNotificat
         { recipientRole: 'all' }
       ];
     }
+    if (userId) {
+      where.recipientUserId = userId;
+    }
 
     const rows = await prisma.notification.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      take: 100
+      take: 150
     });
 
-    return rows.map(r => ({
-      id: r.id,
-      recipientRole: r.recipientRole,
-      recipientUserId: r.recipientUserId,
-      title: r.title,
-      message: r.message,
-      type: r.type,
-      jobId: r.jobId,
-      read: r.read,
-      actionLabel: r.actionLabel,
-      createdAt: r.createdAt.toISOString()
-    }));
+    const seenKeys = new Set<string>();
+    const deduplicated: DbNotification[] = [];
+
+    for (const r of rows) {
+      if (['client', 'installer', 'shop_manager'].includes(r.recipientRole) && r.type === 'bonus_awarded') {
+        continue;
+      }
+      const norm = normalizeRoleNotificationFields({
+        id: r.id,
+        recipientRole: r.recipientRole,
+        recipientUserId: r.recipientUserId,
+        title: r.title,
+        message: r.message,
+        type: r.type,
+        jobId: r.jobId,
+        read: r.read,
+        actionLabel: r.actionLabel,
+        createdAt: r.createdAt.toISOString()
+      });
+
+      const dedupKey = `${norm.recipientRole}|${norm.recipientUserId || ''}|${norm.jobId || ''}|${norm.type}|${norm.title}`;
+      if (seenKeys.has(dedupKey)) {
+        continue;
+      }
+      seenKeys.add(dedupKey);
+      deduplicated.push(norm);
+    }
+
+    return deduplicated.slice(0, 100);
   } catch (err) {
     console.error('[JobsService] Failed fetching notifications via Prisma:', err);
     return [];
@@ -807,17 +1300,42 @@ export async function getNotificationsFromDb(role?: string): Promise<DbNotificat
 export async function saveNotificationToDb(notif: Partial<DbNotification>): Promise<DbNotification | null> {
   try {
     const id = notif.id || `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const normalized = normalizeRoleNotificationFields({
+      recipientRole: notif.recipientRole || 'all',
+      title: notif.title || 'Notification',
+      message: notif.message || '',
+      actionLabel: notif.actionLabel || null
+    });
+    const jobId = notif.jobId || 'GENERAL';
+    const recipientUserId = notif.recipientUserId || null;
+    const notifType = notif.type || 'job_assigned';
+
+    // Ensure uniqueness per recipient + job + event so installers never receive duplicate notifications
+    if (jobId !== 'GENERAL') {
+      await prisma.notification.deleteMany({
+        where: {
+          recipientRole: normalized.recipientRole,
+          recipientUserId,
+          jobId,
+          OR: [
+            { title: normalized.title },
+            { type: notifType }
+          ]
+        }
+      }).catch(() => {});
+    }
+
     const saved = await prisma.notification.create({
       data: {
         id,
-        recipientRole: notif.recipientRole || 'all',
-        recipientUserId: notif.recipientUserId || null,
-        title: notif.title || 'Notification',
-        message: notif.message || '',
-        type: notif.type || 'job_assigned',
-        jobId: notif.jobId || 'GENERAL',
+        recipientRole: normalized.recipientRole,
+        recipientUserId,
+        title: normalized.title,
+        message: normalized.message,
+        type: notifType,
+        jobId,
         read: Boolean(notif.read),
-        actionLabel: notif.actionLabel || null
+        actionLabel: normalized.actionLabel
       }
     });
 
@@ -1210,6 +1728,11 @@ export async function getPrimaryShopLocationFromDb(): Promise<DbShopLocation> {
 }
 
 export async function seedAllBranches(): Promise<void> {
+  try {
+    await prisma.shopLocation.deleteMany({ where: { id: 'shop_loc_main' } });
+  } catch {
+    // ignore if not present
+  }
   for (const b of DEFAULT_DOORMASTER_BRANCHES) {
     try {
       await prisma.shopLocation.upsert({
@@ -1480,7 +2003,7 @@ export async function getLiveLocationByUserId(userId: string): Promise<DbLiveLoc
  */
 export async function setLiveLocationOffline(userId: string): Promise<boolean> {
   try {
-    await prisma.liveLocation.update({
+    await prisma.liveLocation.updateMany({
       where: { userId },
       data: { status: 'offline', updatedAt: new Date() }
     });
@@ -1489,3 +2012,215 @@ export async function setLiveLocationOffline(userId: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Normalized Client entity with related jobs
+ */
+export interface DbClientWithJobs {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  siteAddress: string;
+  accessInstructions?: string;
+  lat: number;
+  lng: number;
+  createdAt: string;
+  updatedAt: string;
+  jobsCount: number;
+  totalSpend: number;
+  jobs: {
+    id: string;
+    jobNumber: string;
+    doorName: string;
+    status: string;
+    depositAmount: number;
+    balanceDue: number;
+    scheduledTime?: string;
+    createdAt: string;
+  }[];
+}
+
+/**
+ * Fetch all normalized clients joined with their related jobs (Zero data redundancy)
+ */
+export async function getClientsFromDb(): Promise<DbClientWithJobs[]> {
+  try {
+    const clients = await prisma.client.findMany({
+      include: {
+        jobs: {
+          select: {
+            id: true,
+            jobNumber: true,
+            doorName: true,
+            status: true,
+            depositAmount: true,
+            balanceDue: true,
+            scheduledTime: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return clients.map(c => {
+      const totalSpend = c.jobs.reduce((sum, j) => sum + Number(j.depositAmount) + Number(j.balanceDue), 0);
+      return {
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        email: c.email || '',
+        siteAddress: c.siteAddress,
+        accessInstructions: c.accessInstructions || undefined,
+        lat: Number(c.lat),
+        lng: Number(c.lng),
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+        jobsCount: c.jobs.length,
+        totalSpend,
+        jobs: c.jobs.map(j => ({
+          id: j.id,
+          jobNumber: j.jobNumber,
+          doorName: j.doorName,
+          status: j.status,
+          depositAmount: Number(j.depositAmount),
+          balanceDue: Number(j.balanceDue),
+          scheduledTime: j.scheduledTime || undefined,
+          createdAt: j.createdAt.toISOString()
+        }))
+      };
+    });
+  } catch (err) {
+    console.error('[JobsService] Failed fetching clients with relations:', err);
+    return [];
+  }
+}
+
+/**
+ * Fetch a single client by ID with their complete related job history
+ */
+export async function getClientByIdFromDb(clientId: string): Promise<DbClientWithJobs | null> {
+  try {
+    const c = await prisma.client.findUnique({
+      where: { id: clientId },
+      include: {
+        jobs: {
+          select: {
+            id: true,
+            jobNumber: true,
+            doorName: true,
+            status: true,
+            depositAmount: true,
+            balanceDue: true,
+            scheduledTime: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+
+    if (!c) return null;
+
+    const totalSpend = c.jobs.reduce((sum, j) => sum + Number(j.depositAmount) + Number(j.balanceDue), 0);
+    return {
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+      email: c.email || '',
+      siteAddress: c.siteAddress,
+      accessInstructions: c.accessInstructions || undefined,
+      lat: Number(c.lat),
+      lng: Number(c.lng),
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+      jobsCount: c.jobs.length,
+      totalSpend,
+      jobs: c.jobs.map(j => ({
+        id: j.id,
+        jobNumber: j.jobNumber,
+        doorName: j.doorName,
+        status: j.status,
+        depositAmount: Number(j.depositAmount),
+        balanceDue: Number(j.balanceDue),
+        scheduledTime: j.scheduledTime || undefined,
+        createdAt: j.createdAt.toISOString()
+      }))
+    };
+  } catch (err) {
+    console.error('[JobsService] Failed fetching client by id:', err);
+    return null;
+  }
+}
+
+/**
+ * Fetch installation job by ID with full relational joins (client, door, shop, technician, driver, sessions)
+ */
+export async function getJobByIdWithRelations(id: string) {
+  try {
+    const r = await prisma.installationJob.findUnique({
+      where: { id },
+      include: {
+        clientRel: true,
+        door: true,
+        shop: true,
+        assignedInstaller: {
+          select: { id: true, name: true, phone: true, role: true, avatarUrl: true, status: true, teamId: true }
+        },
+        assignedDriver: {
+          select: { id: true, name: true, phone: true, role: true, avatarUrl: true, status: true }
+        },
+        createdByUser: {
+          select: { id: true, name: true, role: true, email: true }
+        },
+        trackSessions: true,
+        dispatchTrackings: true,
+        customerSignoffRecord: true,
+        notifications: {
+          orderBy: { createdAt: 'desc' },
+          take: 10
+        }
+      }
+    });
+
+    if (!r) return null;
+
+    return {
+      ...r,
+      lat: Number(r.lat),
+      lng: Number(r.lng),
+      depositAmount: Number(r.depositAmount),
+      balanceDue: Number(r.balanceDue),
+      client: r.clientRel ? {
+        id: r.clientRel.id,
+        name: r.clientRel.name,
+        phone: r.clientRel.phone,
+        email: r.clientRel.email || '',
+        siteAddress: r.clientRel.siteAddress,
+        accessInstructions: r.clientRel.accessInstructions || undefined,
+        coordinates: {
+          lat: Number(r.clientRel.lat),
+          lng: Number(r.clientRel.lng)
+        }
+      } : r.client
+    };
+  } catch (err) {
+    console.error('[JobsService] Failed fetching job with relations:', err);
+    return null;
+  }
+}
+
+export async function deleteJobFromDb(id: string): Promise<boolean> {
+  try {
+    await prisma.installationJob.delete({
+      where: { id }
+    });
+    return true;
+  } catch (error) {
+    console.warn(`[JobsService] Could not delete job ${id}:`, error);
+    return false;
+  }
+}
+
