@@ -432,15 +432,85 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
       @if (activeTab() === 'phones') {
         <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-7 shadow-xs space-y-6">
           <div class="pb-4 border-b border-slate-100 dark:border-slate-800">
-            <h2 class="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <span>User Phone Directory & SMS Routing</span>
+            <h2 class="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+              <span>User Phone Directory &amp; SMS Routing</span>
               <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 font-bold">
                 Automated SMS Delivery
               </span>
             </h2>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Each user persona has a verified mobile number. When a shop manager books an order, an installer is assigned, or a driver departs, automated SMS messages route instantly to these phones.
+              All users are listed under their respective roles and selected by default to receive SMS notifications. Uncheck any user (or use Select All per role) to stop sending SMS notifications to them.
             </p>
+          </div>
+
+          <!-- Users Grouped by Role with Select All & Per-User SMS Checkboxes -->
+          <div class="space-y-4">
+            @for (group of roleUserDirectoryGroups(); track group.roleId) {
+              <div class="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50/40 dark:bg-slate-950/40">
+                <div class="px-4 py-3 bg-slate-100/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="text-xs font-black text-slate-900 dark:text-white">{{ group.roleName }}</span>
+                    <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold">
+                      {{ group.users.length }} {{ group.users.length === 1 ? 'user' : 'users' }}
+                    </span>
+                  </div>
+
+                  @if (group.users.length > 0) {
+                    <label class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        [checked]="store.isRoleAllSmsEnabled(group.roleId)"
+                        [indeterminate]="store.isRoleSomeSmsEnabled(group.roleId)"
+                        (change)="toggleRoleSms(group.roleId, $event)"
+                        class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <span>Select All</span>
+                    </label>
+                  }
+                </div>
+
+                @if (group.users.length === 0) {
+                  <div class="px-4 py-3 text-xs text-slate-400 dark:text-slate-500 italic">
+                    No users assigned to this role yet.
+                  </div>
+                } @else {
+                  <div class="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+                    @for (user of group.users; track user.id) {
+                      @let smsOn = store.isUserSmsEnabled(user.id);
+                      <label class="px-3 py-2 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/70 flex items-center justify-between gap-2 hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer select-none">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            [checked]="smsOn"
+                            (change)="toggleUserSms(user.id, $event)"
+                            class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
+                          />
+                          <div class="min-w-0">
+                            <p class="text-xs font-bold text-slate-900 dark:text-white truncate">{{ user.name }}</p>
+                            <p class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">{{ user.phone || 'No phone number' }}</p>
+                          </div>
+                        </div>
+
+                        <span
+                          class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border shrink-0"
+                          [class]="smsOn
+                            ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'"
+                        >
+                          {{ smsOn ? 'SMS Active' : 'SMS Off' }}
+                        </span>
+                      </label>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="pt-2 border-t border-slate-100 dark:border-slate-800">
+            <h3 class="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-3">
+              Default Role Fallback Numbers
+            </h3>
           </div>
 
           <form [formGroup]="phonesForm" (ngSubmit)="savePhones()" class="space-y-5 text-xs">
@@ -640,19 +710,33 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
               </label>
             </div>
 
-            <div class="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <button 
-                type="button" 
-                (click)="sendTestSms()"
-                class="px-4 py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                <mat-icon class="!text-sm text-amber-500">send</mat-icon>
-                <span>Send Test SMS Ping</span>
-              </button>
+            <div class="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+              <div class="flex flex-col sm:flex-row sm:items-end gap-2.5 w-full lg:w-auto">
+                <div class="w-full sm:w-64">
+                  <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Test SMS Recipient Phone
+                  </label>
+                  <app-phone-input
+                    [ngModel]="testSmsPhone()"
+                    (ngModelChange)="testSmsPhone.set($event)"
+                    [ngModelOptions]="{standalone: true}"
+                    placeholder="24 100 0001"
+                  ></app-phone-input>
+                </div>
+
+                <button 
+                  type="button" 
+                  (click)="sendTestSms()"
+                  class="px-4 py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <mat-icon class="!text-sm text-amber-500">send</mat-icon>
+                  <span>Send Test SMS Ping</span>
+                </button>
+              </div>
 
               <button 
                 type="submit" 
-                class="px-6 py-2.5 bg-cyan-700 hover:bg-cyan-800 text-white font-bold rounded-xl shadow-sm flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
+                class="px-6 py-2.5 bg-cyan-700 hover:bg-cyan-800 text-white font-bold rounded-xl shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shrink-0"
               >
                 <mat-icon class="!text-sm">save</mat-icon>
                 <span>Save Gateway Settings</span>
@@ -871,6 +955,45 @@ export class Settings {
     });
   }
 
+  readonly roleUserDirectoryGroups = computed(() => {
+    const users = this.store.users();
+    const roles = this.store.roles();
+    const groups: { roleId: string; roleName: string; users: typeof users }[] = [];
+    const seenRoleIds = new Set<string>();
+
+    for (const r of roles) {
+      seenRoleIds.add(r.id);
+      groups.push({
+        roleId: r.id,
+        roleName: r.name,
+        users: users.filter(u => u.role === r.id)
+      });
+    }
+
+    for (const u of users) {
+      if (!seenRoleIds.has(u.role)) {
+        seenRoleIds.add(u.role);
+        groups.push({
+          roleId: u.role,
+          roleName: u.role,
+          users: users.filter(x => x.role === u.role)
+        });
+      }
+    }
+
+    return groups;
+  });
+
+  toggleUserSms(userId: string, event: Event) {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.store.setUserSmsEnabled(userId, checked);
+  }
+
+  toggleRoleSms(roleId: string, event: Event) {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.store.setRoleSmsEnabled(roleId, checked);
+  }
+
   selectBranchPreset(b: any) {
     this.shopLocationForm.patchValue({
       shopName: b.shopName,
@@ -988,19 +1111,24 @@ export class Settings {
     this.alert.success('Your work has been saved', `Gateway set to provider ${val.provider.toUpperCase()} with Sender ID "${val.senderId}".`);
   }
 
+  readonly testSmsPhone = signal<string>(
+    this.store.currentUser().phone || this.store.userPhones().manager || '+233 24 100 0001'
+  );
+
   sendTestSms() {
     const role = this.store.currentRole();
     const phones = this.store.userPhones();
+    const enteredPhone = (this.testSmsPhone() || '').trim();
     if (role === 'shop_manager') {
       const ownBranch = this.store.managerBranch();
-      const phone = this.store.currentUser().phone || ownBranch?.phone?.split('/')[0]?.trim() || phones.shop_manager;
+      const phone = enteredPhone || this.store.currentUser().phone || ownBranch?.phone?.split('/')[0]?.trim() || phones.shop_manager;
       const shopLabel = ownBranch?.shopName || 'Shop Branch';
       this.store.sendTestSmsPing(phone, `DoorMaster Automated SMS Gateway: Verification test ping for ${shopLabel} (${ownBranch?.branchCode || role}) successful. 200 OK.`);
       this.feedbackMessage.set(`Test SMS ping dispatched to ${phone}. Check the My Shop SMS Logs tab.`);
       this.alert.toastSuccess('Test SMS Dispatched', `Verification test SMS dispatched to ${phone}.`);
       return;
     }
-    const phone = (phones as unknown as Record<string, string>)[role] || phones.manager;
+    const phone = enteredPhone || (phones as unknown as Record<string, string>)[role] || phones.manager;
     this.store.sendTestSmsPing(phone, `DoorMaster Automated SMS Gateway: Verification test ping for ${role} successful. 200 OK.`);
     this.feedbackMessage.set(`Test SMS ping dispatched to ${phone}. Check the Live SMS Logs tab.`);
     this.alert.toastSuccess('Test SMS Dispatched', `Verification test SMS dispatched to ${phone}. Check Live SMS Logs tab.`);

@@ -727,6 +727,73 @@ export class InstallationStore {
   // Sent SMS Logs (live from MySQL via /api/sms/logs)
   readonly smsLogs = signal<SmsLogEntry[]>([]);
 
+  // Persisted SMS opt-out (unchecked) user IDs — all users are selected (enabled) by default
+  readonly smsMutedUserIds = signal<Set<string>>(this.readMutedSmsUserIds());
+
+  private readMutedSmsUserIds(): Set<string> {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const raw = window.localStorage.getItem('dm_sms_muted_user_ids_v1');
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? new Set(parsed.map(String)) : new Set();
+    } catch {
+      return new Set();
+    }
+  }
+
+  private persistMutedSmsUserIds(ids: Set<string>) {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem('dm_sms_muted_user_ids_v1', JSON.stringify(Array.from(ids)));
+    } catch {
+      // Ignore storage write error
+    }
+  }
+
+  isUserSmsEnabled(userId: string): boolean {
+    return !this.smsMutedUserIds().has(userId);
+  }
+
+  setUserSmsEnabled(userId: string, enabled: boolean) {
+    this.smsMutedUserIds.update(prev => {
+      const next = new Set(prev);
+      if (enabled) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      this.persistMutedSmsUserIds(next);
+      return next;
+    });
+  }
+
+  setRoleSmsEnabled(roleId: string, enabled: boolean) {
+    const roleUsers = this.users().filter(u => u.role === roleId);
+    this.smsMutedUserIds.update(prev => {
+      const next = new Set(prev);
+      for (const u of roleUsers) {
+        if (enabled) {
+          next.delete(u.id);
+        } else {
+          next.add(u.id);
+        }
+      }
+      this.persistMutedSmsUserIds(next);
+      return next;
+    });
+  }
+
+  isRoleAllSmsEnabled(roleId: string): boolean {
+    const roleUsers = this.users().filter(u => u.role === roleId);
+    return roleUsers.length > 0 && roleUsers.every(u => this.isUserSmsEnabled(u.id));
+  }
+
+  isRoleSomeSmsEnabled(roleId: string): boolean {
+    const roleUsers = this.users().filter(u => u.role === roleId);
+    return roleUsers.some(u => this.isUserSmsEnabled(u.id)) && !this.isRoleAllSmsEnabled(roleId);
+  }
+
   // DoorMaster Workshop Branches Directory (all 11 active branches)
   readonly branches = signal<ShopLocationSettings[]>(DEFAULT_DOORMASTER_BRANCHES);
   readonly warehouses = signal<ShopLocationSettings[]>(DOORMASTER_WAREHOUSES);
@@ -5791,6 +5858,10 @@ export class InstallationStore {
     }).catch(err => console.warn('Notification sync warning:', err));
   }
 
+  private normalizePhoneDigits(phone?: string): string {
+    return (phone || '').replace(/\D/g, '').slice(-9);
+  }
+
   private sendSms(sms: {
     recipientRole: RoleType;
     recipientPhone?: string;
@@ -5800,6 +5871,23 @@ export class InstallationStore {
     jobId?: string;
   }) {
     const recipientPhone = sms.recipientPhone || this.userPhones()[sms.recipientRole as keyof UserPhoneDirectory] || '';
+    const targetDigits = this.normalizePhoneDigits(recipientPhone);
+    const targetName = (sms.recipientName || '').trim().toLowerCase();
+
+    const allUsers = this.users();
+    const matchedUser = allUsers.find(u =>
+      (targetDigits && this.normalizePhoneDigits(u.phone) === targetDigits) ||
+      (targetName && u.name.trim().toLowerCase() === targetName && u.role === sms.recipientRole)
+    );
+    if (matchedUser && !this.isUserSmsEnabled(matchedUser.id)) {
+      return;
+    }
+    if (!sms.recipientPhone) {
+      const roleUsers = allUsers.filter(u => u.role === sms.recipientRole);
+      if (roleUsers.length > 0 && roleUsers.every(u => !this.isUserSmsEnabled(u.id))) {
+        return;
+      }
+    }
 
     const smsLog: SmsLogEntry = {
       id: `SMS-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
