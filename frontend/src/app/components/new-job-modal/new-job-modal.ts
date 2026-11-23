@@ -1,12 +1,12 @@
-import { 
+import {
   afterNextRender,
-  ChangeDetectionStrategy, 
-  Component, 
-  computed, 
+  ChangeDetectionStrategy,
+  Component,
+  computed,
   effect,
   ElementRef,
-  inject, 
-  output, 
+  inject,
+  output,
   signal,
   viewChild
 } from '@angular/core';
@@ -18,15 +18,223 @@ import { AlertService } from '../../services/alert.service';
 import { JobDoorItem } from '../../models/installation.model';
 
 import { ClientLocationMap, ClientLocationResult } from '../client-location-map/client-location-map';
+import { PhoneInputComponent } from '../phone-input/phone-input';
+
+export interface InstallationRateVariant {
+  label: string;
+  keyword: string;
+  price: number;
+}
+
+export interface InstallationRateOption {
+  series: string;
+  variants: InstallationRateVariant[];
+}
+
+export const INSTALLATION_RATE_OPTIONS: InstallationRateOption[] = [
+  {
+    series: 'Turkey Doors',
+    variants: [
+      { label: 'Pivot — ₵700', keyword: 'Turkey Pivot', price: 700 },
+      { label: '2x (Double) — ₵550', keyword: 'Turkey 2x', price: 550 },
+      { label: 'OH (One & Half) — ₵450', keyword: 'Turkey OH', price: 450 },
+      { label: 'Sin (Single) — ₵350', keyword: 'Turkey Single', price: 350 },
+      { label: 'Turkey Interior — ₵250', keyword: 'Turkey interior', price: 250 }
+    ]
+  },
+  {
+    series: 'Economy',
+    variants: [
+      { label: '2x (Double) — ₵350', keyword: 'Economy 2x', price: 350 },
+      { label: 'OH (One & Half) — ₵250', keyword: 'Economy OH', price: 250 },
+      { label: 'Sin (Single) — ₵200', keyword: 'Economy Single', price: 200 }
+    ]
+  },
+  {
+    series: 'Glass / Wooden Metal',
+    variants: [
+      { label: 'Standard — ₵200', keyword: 'Glass Wooden Metal', price: 200 }
+    ]
+  },
+  {
+    series: 'Door-in-Door',
+    variants: [
+      { label: 'Single — ₵450', keyword: 'Door-in-Door Single', price: 450 },
+      { label: 'OH (One & Half) — ₵550', keyword: 'Door-in-Door OH', price: 550 },
+      { label: 'Double — ₵650', keyword: 'Door-in-Door Double', price: 650 }
+    ]
+  },
+  {
+    series: 'Royal Series',
+    variants: [
+      { label: 'Double with Pillars — ₵2,000', keyword: 'Royal Double with pillars', price: 2000 },
+      { label: 'Economic Double — ₵1,500', keyword: 'Royal Economic double', price: 1500 },
+      { label: 'One & Half — ₵500', keyword: 'Royal One & Half', price: 500 },
+      { label: 'Single — ₵400', keyword: 'Royal Single', price: 400 }
+    ]
+  },
+  {
+    series: 'Special Series',
+    variants: [
+      { label: 'Single — ₵400', keyword: 'Special Series Single', price: 400 },
+      { label: 'One and Half — ₵500', keyword: 'Special Series One and Half', price: 500 },
+      { label: 'Double — ₵600', keyword: 'Special Series Double', price: 600 }
+    ]
+  },
+  {
+    series: 'DM Interior',
+    variants: [
+      { label: 'Standard — ₵250', keyword: 'DM Interior', price: 250 }
+    ]
+  }
+];
+
+export function computeDefaultInstallationPrice(name: string, category: string): number {
+  const n = (name || '').toLowerCase();
+  const c = (category || '').toLowerCase();
+  const text = `${c} ${n}`;
+
+  if (text.includes('dm interior') || text.includes('doormaster interior') || text.includes('turkey interior')) {
+    return 250;
+  }
+  if (text.includes('royal') || text.includes('villa')) {
+    if (text.includes('pillar')) return 2000;
+    if (text.includes('economic') || text.includes('double') || text.includes('2x')) return 1500;
+    if (text.includes('one & half') || text.includes('one and half') || text.includes('1.5') || /\boh\b/.test(text)) return 500;
+    if (text.includes('single') || /\bsin\b/.test(text)) return 400;
+    return 1500;
+  }
+  if (text.includes('special series') || text.includes('special')) {
+    if (text.includes('double') || text.includes('2x')) return 600;
+    if (text.includes('one & half') || text.includes('one and half') || text.includes('1.5') || /\boh\b/.test(text)) return 500;
+    if (text.includes('single') || /\bsin\b/.test(text)) return 400;
+    return 500;
+  }
+  if (text.includes('door-in-door') || text.includes('door in door')) {
+    if (text.includes('double') || text.includes('2x')) return 650;
+    if (/\boh\b/.test(text) || text.includes('one & half') || text.includes('one and half') || text.includes('1.5')) return 550;
+    if (text.includes('single') || /\bsin\b/.test(text)) return 450;
+    return 450;
+  }
+  if (text.includes('economy') || text.includes('china')) {
+    if (text.includes('lock')) return 100;
+    if (text.includes('2x') || text.includes('double')) return 350;
+    if (/\boh\b/.test(text) || text.includes('one & half') || text.includes('one and half') || text.includes('1.5')) return 250;
+    if (text.includes('single') || /\bsin\b/.test(text)) return 200;
+    return 200;
+  }
+  if (text.includes('glass') || text.includes('wooden metal') || text.includes('wooden finish')) {
+    return 200;
+  }
+  if (c.includes('lock') || (n.includes('lock') && !text.includes('door'))) {
+    return text.includes('economy') ? 100 : 150;
+  }
+  if (
+    text.includes('turkey') ||
+    text.includes('alucobond') ||
+    text.includes('laminox') ||
+    text.includes('full metal') ||
+    text.includes('pvc') ||
+    text.includes('cement board') ||
+    text.includes('antifade')
+  ) {
+    if (text.includes('pivot')) return 700;
+    if (text.includes('2x') || text.includes('double')) return 550;
+    if (/\boh\b/.test(text) || text.includes('one & half') || text.includes('one and half') || text.includes('1.5')) return 450;
+    if (text.includes('lock')) return 150;
+    if (text.includes('single') || /\bsin\b/.test(text)) return 350;
+    return 350;
+  }
+  return 250;
+}
+
+export function inferInstallationOption(
+  name: string,
+  category: string
+): { series: string; variant: string; price: number } | null {
+  const n = (name || '').toLowerCase();
+  const c = (category || '').toLowerCase();
+  const text = `${c} ${n}`;
+  const price = computeDefaultInstallationPrice(name, category);
+
+  if (text.includes('dm interior') || text.includes('doormaster interior')) {
+    return { series: 'DM Interior', variant: 'DM Interior', price };
+  }
+  if (text.includes('turkey interior')) {
+    return { series: 'Turkey Doors', variant: 'Turkey interior', price };
+  }
+  if (text.includes('royal') || text.includes('villa')) {
+    if (text.includes('pillar')) return { series: 'Royal Series', variant: 'Royal Double with pillars', price };
+    if (text.includes('economic') || text.includes('double') || text.includes('2x')) {
+      return { series: 'Royal Series', variant: 'Royal Economic double', price };
+    }
+    if (text.includes('one & half') || text.includes('one and half') || text.includes('1.5') || /\boh\b/.test(text)) {
+      return { series: 'Royal Series', variant: 'Royal One & Half', price };
+    }
+    return { series: 'Royal Series', variant: 'Royal Single', price };
+  }
+  if (text.includes('special series') || text.includes('special')) {
+    if (text.includes('double') || text.includes('2x')) return { series: 'Special Series', variant: 'Special Series Double', price };
+    if (text.includes('one & half') || text.includes('one and half') || text.includes('1.5') || /\boh\b/.test(text)) {
+      return { series: 'Special Series', variant: 'Special Series One and Half', price };
+    }
+    return { series: 'Special Series', variant: 'Special Series Single', price };
+  }
+  if (text.includes('door-in-door') || text.includes('door in door')) {
+    if (text.includes('double') || text.includes('2x')) return { series: 'Door-in-Door', variant: 'Door-in-Door Double', price };
+    if (/\boh\b/.test(text) || text.includes('one & half') || text.includes('one and half') || text.includes('1.5')) {
+      return { series: 'Door-in-Door', variant: 'Door-in-Door OH', price };
+    }
+    return { series: 'Door-in-Door', variant: 'Door-in-Door Single', price };
+  }
+  if (text.includes('economy') || text.includes('china')) {
+    if (text.includes('lock')) return { series: 'Economy', variant: 'Economy Lock', price };
+    if (text.includes('2x') || text.includes('double')) return { series: 'Economy', variant: 'Economy 2x', price };
+    if (/\boh\b/.test(text) || text.includes('one & half') || text.includes('one and half') || text.includes('1.5')) {
+      return { series: 'Economy', variant: 'Economy OH', price };
+    }
+    return { series: 'Economy', variant: 'Economy Single', price };
+  }
+  if (text.includes('glass') || text.includes('wooden metal') || text.includes('wooden finish')) {
+    return { series: 'Glass / Wooden Metal', variant: 'Glass Wooden Metal', price };
+  }
+  if (c.includes('lock') || (n.includes('lock') && !text.includes('door'))) {
+    return text.includes('economy')
+      ? { series: 'Economy', variant: 'Economy Lock', price }
+      : { series: 'Turkey Doors', variant: 'Turkey Lock', price };
+  }
+  if (
+    text.includes('turkey') ||
+    text.includes('alucobond') ||
+    text.includes('laminox') ||
+    text.includes('full metal') ||
+    text.includes('pvc') ||
+    text.includes('cement board') ||
+    text.includes('antifade')
+  ) {
+    if (text.includes('pivot')) return { series: 'Turkey Doors', variant: 'Turkey Pivot', price };
+    if (text.includes('2x') || text.includes('double')) return { series: 'Turkey Doors', variant: 'Turkey 2x', price };
+    if (/\boh\b/.test(text) || text.includes('one & half') || text.includes('one and half') || text.includes('1.5')) {
+      return { series: 'Turkey Doors', variant: 'Turkey OH', price };
+    }
+    return { series: 'Turkey Doors', variant: 'Turkey Single', price };
+  }
+
+  return null;
+}
 
 export interface EditableDoorItem extends JobDoorItem {
   isExpanded: boolean;
+  installationPrice?: number;
+  installationSeries?: string;
+  installationVariant?: string;
+  includeLockExtra?: boolean;
 }
 
 @Component({
   selector: 'app-new-job-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, ReactiveFormsModule, FormsModule, ClientLocationMap],
+  imports: [CommonModule, MatIconModule, ReactiveFormsModule, FormsModule, ClientLocationMap, PhoneInputComponent],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
       <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[92vh] text-slate-900 dark:text-slate-100">
@@ -164,16 +372,6 @@ export interface EditableDoorItem extends JobDoorItem {
                         </button>
                       </div>
 
-                      <!-- Subtotal Price -->
-                      <div class="text-right font-mono min-w-[70px] sm:min-w-[80px]">
-                        <span class="text-xs font-black text-emerald-600 dark:text-emerald-400 block">
-                          ₵{{ (door.unitPrice * door.quantity).toLocaleString() }}
-                        </span>
-                        <span class="text-[9px] text-slate-400 block">
-                          @ ₵{{ door.unitPrice.toLocaleString() }}
-                        </span>
-                      </div>
-
                       <!-- Desktop Remove & Toggle Buttons -->
                       <div class="hidden sm:flex items-center gap-1">
                         @if (selectedDoors().length > 1) {
@@ -207,141 +405,157 @@ export interface EditableDoorItem extends JobDoorItem {
                   @if (door.isExpanded) {
                     <div class="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800/80 space-y-3.5 animate-in slide-in-from-top-2 duration-150">
                       
-                      <!-- Model selector for this specific door item -->
-                      <div class="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200/80 dark:border-slate-700/60">
-                        <div class="flex items-center justify-between mb-1">
-                          <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                            Preset Model Template
+                      <!-- Merged Door Selection & Installation Rate Card -->
+                      <div class="p-3 bg-teal-50/40 dark:bg-teal-950/20 rounded-xl border border-teal-200/70 dark:border-teal-800/60 space-y-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                          <label class="text-[10px] font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider flex items-center gap-1">
+                            <mat-icon class="!text-xs">tune</mat-icon>
+                            <span>Installation Type / Rate Option (Optional)</span>
                           </label>
-                          <span class="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">
-                            Auto-syncs specs & category
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label class="block text-[10px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                              Door Series (Optional)
+                            </label>
+                            <select
+                              [value]="door.installationSeries || ''"
+                              (change)="onInstallationSeriesChange(i, $event)"
+                              class="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-teal-200 dark:border-teal-800 rounded-lg text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            >
+                              <option value="">Auto (Please Select Door)</option>
+                              @for (opt of installationRateOptions; track opt.series) {
+                                <option [value]="opt.series">{{ opt.series }}</option>
+                              }
+                            </select>
+                          </div>
+
+                          <div>
+                            <label class="block text-[10px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                              Door Configuration / Variant (Optional)
+                            </label>
+                            <select
+                              [value]="door.installationVariant || ''"
+                              (change)="onInstallationVariantChange(i, $event)"
+                              class="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-teal-200 dark:border-teal-800 rounded-lg text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            >
+                              <option value="">-- Select configuration --</option>
+                              @for (v of getVariantsForSeries(door.installationSeries); track v.keyword) {
+                                <option [value]="v.keyword">{{ v.label }}</option>
+                              }
+                            </select>
+                          </div>
+
+                          <div>
+                            <div class="flex items-center justify-between mb-1">
+                              <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                Preset Model Template
+                              </label>
+                              <span class="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                Auto-syncs specs
+                              </span>
+                            </div>
+                            <select 
+                              (change)="onDoorCatalogPick(i, $event)"
+                              class="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                            >
+                              <option value="">-- Select catalog template --</option>
+                              @for (catDoor of getFilteredCatalogDoors(door); track catDoor.id) {
+                                <option [value]="catDoor.id" [selected]="catDoor.id === door.catalogDoorId">
+                                  {{ catDoor.name }} ({{ catDoor.modelCode }})@if (store.canViewDoorPrices()) { - {{ catDoor.formattedPrice || ('₵' + catDoor.unitPrice) }}} • {{ catDoor.category }}
+                                </option>
+                              }
+                            </select>
+                          </div>
+
+                          <div>
+                            <div class="flex items-center justify-between mb-1">
+                              <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                Door Category
+                              </label>
+                              <span class="text-[9px] font-semibold text-teal-600 dark:text-teal-400">
+                                Syncs Install Type
+                              </span>
+                            </div>
+                            <select
+                              [value]="door.doorCategory"
+                              (change)="onDoorCategoryChange(i, $event)"
+                              class="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                            >
+                              <option value="">-- All Categories --</option>
+                              @for (cat of getDoorCategoriesForItem(door.doorCategory); track cat) {
+                                <option [value]="cat">{{ cat }}</option>
+                              }
+                            </select>
+                          </div>
+                        </div>
+
+                        <!-- Quick Variant Pills -->
+                        <div class="flex flex-wrap gap-1.5 pt-0.5">
+                          @for (v of getVariantsForSeries(door.installationSeries); track v.keyword) {
+                            <button
+                              type="button"
+                              (click)="selectInstallationVariant(i, v.keyword, door.installationSeries)"
+                              class="px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all cursor-pointer"
+                              [class]="door.installationVariant === v.keyword
+                                ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-teal-400'"
+                            >
+                              {{ v.label }}
+                            </button>
+                          }
+                        </div>
+
+                        <!-- Extra Lock Add-on -->
+                        <label class="flex items-center justify-between gap-2 pt-2 mt-1 border-t border-teal-200/60 dark:border-teal-800/50 cursor-pointer select-none">
+                          <span class="flex items-center gap-2 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                            <input
+                              type="checkbox"
+                              [checked]="!!door.includeLockExtra"
+                              (change)="toggleLockExtra(i)"
+                              class="w-3.5 h-3.5 rounded border-teal-300 dark:border-teal-700 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                            />
+                            <span>Extra: Lock Installation (Add-on)</span>
+                          </span>
+                          <span class="text-[10px] font-mono font-bold text-teal-700 dark:text-teal-300">
+                            +₵{{ getLockExtraPrice(door) }} / door
+                          </span>
+                        </label>
+                      </div>
+
+                      <!-- Read-Only Door Information (Flat Summary) -->
+                      <div class="pt-1 space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                            Door Specifications
+                          </span>
+                          <span class="inline-flex items-center gap-1 text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-full">
+                            <mat-icon class="!text-[11px] !w-3 !h-3">lock</mat-icon>
+                            <span>Read-Only</span>
                           </span>
                         </div>
-                        <select 
-                          (change)="onDoorCatalogPick(i, $event)"
-                          class="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                        >
-                          <option value="">-- Select catalog template --</option>
-                          @for (catDoor of store.doors(); track catDoor.id) {
-                            <option [value]="catDoor.id" [selected]="catDoor.id === door.catalogDoorId">
-                              {{ catDoor.name }} ({{ catDoor.modelCode }}) - {{ catDoor.formattedPrice || ('₵' + catDoor.unitPrice) }} • {{ catDoor.category }}
-                            </option>
-                          }
-                        </select>
-                      </div>
 
-                      <!-- Door Category & Model Title (Read-Only) -->
-                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <div class="flex items-center justify-between mb-1">
-                            <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                              Door Category
-                            </label>
-                            <span class="inline-flex items-center gap-1 text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded">
-                              <mat-icon class="!text-[11px] !w-3 !h-3">lock</mat-icon>
-                              <span>Read-Only</span>
+                        <div class="flex flex-wrap gap-1.5 text-[11px]">
+                          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold">
+                            <span class="text-slate-400">Category:</span> {{ door.doorCategory }}
+                          </span>
+                          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-mono">
+                            <span class="text-slate-400 font-sans">Size:</span> {{ door.dimensions }}
+                          </span>
+                          @if (store.canViewDoorPrices()) {
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                              <span class="text-slate-400">Catalog Price:</span> <strong class="font-mono">₵{{ door.unitPrice.toLocaleString() }}</strong>
                             </span>
-                          </div>
-                          <input 
-                            type="text"
-                            [value]="door.doorCategory"
-                            readonly
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 font-medium cursor-default focus:outline-none"
-                          />
+                          }
                         </div>
 
-                        <div>
-                          <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                            Door Model Title
-                          </label>
-                          <input 
-                            type="text"
-                            [value]="door.doorModel"
-                            readonly
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 cursor-default focus:outline-none"
-                          />
-                        </div>
-                      </div>
-
-                      <!-- Dimensions & Finish (Read-Only) -->
-                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                            Dimensions (H × W × D)
-                          </label>
-                          <input 
-                            type="text"
-                            [value]="door.dimensions"
-                            readonly
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 cursor-default focus:outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                            Architectural Finish
-                          </label>
-                          <input 
-                            type="text"
-                            [value]="door.finish"
-                            readonly
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 cursor-default focus:outline-none"
-                          />
-                        </div>
-                      </div>
-
-                      <!-- Hardware & Mortise Specifications & Lock (Read-Only) -->
-                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                            Hardware & Mortise Specifications
-                          </label>
-                          <input 
-                            type="text"
-                            [value]="door.hardwareSpecs"
-                            readonly
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 cursor-default focus:outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                            Smart Lock / Handle
-                          </label>
-                          <input 
-                            type="text"
-                            [value]="door.lockModel || 'Doormaster Smart Lock Handle F35 (Biometric & RFID)'"
-                            readonly
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 cursor-default focus:outline-none"
-                          />
-                        </div>
-                      </div>
-
-                      <!-- Unit Price and Quantity for this Door Item (Read-Only Specs) -->
-                      <div class="grid grid-cols-2 gap-3 pt-1">
-                        <div>
-                          <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                            Catalog Unit Price (₵)
-                          </label>
-                          <input 
-                            type="text"
-                            [value]="'₵' + door.unitPrice.toLocaleString()"
-                            readonly
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 font-bold cursor-default focus:outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                            Unit Quantity
-                          </label>
-                          <input 
-                            type="number"
-                            [value]="door.quantity"
-                            readonly
-                            class="w-full text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 font-bold cursor-default focus:outline-none"
-                          />
-                        </div>
+                        <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                          <span class="font-semibold text-slate-800 dark:text-slate-100">{{ door.doorModel }}</span>
+                          · Finish: {{ door.finish }}
+                          · Hardware: {{ door.hardwareSpecs }}
+                          · Lock: {{ door.lockModel || 'Doormaster Smart Lock Handle F35 (Biometric & RFID)' }}
+                        </p>
                       </div>
 
                     </div>
@@ -397,13 +611,11 @@ export interface EditableDoorItem extends JobDoorItem {
                 <label for="jobClientPhone" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Client Phone Number *
                 </label>
-                <input 
+                <app-phone-input 
                   id="jobClientPhone"
-                  type="text" 
                   formControlName="clientPhone"
-                  placeholder="+233 24 782 9011" 
-                  class="w-full text-xs px-3.5 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-200 font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                />
+                  placeholder="24 782 9011" 
+                ></app-phone-input>
               </div>
             </div>
 
@@ -434,11 +646,23 @@ export interface EditableDoorItem extends JobDoorItem {
                     id="jobSiteAddress"
                     type="text" 
                     formControlName="siteAddress"
-                    placeholder="Click map below to manually pin or type address / GPS" 
+                    placeholder="e.g. GA-183-9340, GD-018-5574, or type address / click map" 
                     class="w-full text-xs pl-8 pr-3.5 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-200 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                   />
                   <mat-icon class="!text-sm text-emerald-600 dark:text-emerald-400 absolute left-2.5 top-2.5 pointer-events-none">location_on</mat-icon>
                 </div>
+                @if (detectedGhanaPostCode(); as gpCode) {
+                  <div class="mt-1 flex items-center justify-between text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-md border border-emerald-300 dark:border-emerald-800 animate-in fade-in">
+                    <span class="flex items-center gap-1 font-mono font-bold">
+                      <span class="text-xs">🇬🇭</span>
+                      <span>Ghana Post GPS: {{ gpCode }}</span>
+                    </span>
+                    <span class="text-emerald-600 dark:text-emerald-400 font-semibold text-[9px] flex items-center gap-0.5">
+                      <mat-icon class="!text-[11px] !w-3 !h-3">verified</mat-icon>
+                      <span>Resolved & Pinned</span>
+                    </span>
+                  </div>
+                }
               </div>
             </div>
 
@@ -447,11 +671,11 @@ export interface EditableDoorItem extends JobDoorItem {
               <div class="flex items-center justify-between mb-1.5">
                 <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <mat-icon class="!text-xs text-emerald-600 dark:text-emerald-400">map</mat-icon>
-                  <span>Client Site Location Radar & GPS Pin</span>
+                  <span>Client Site Location Radar & Ghana Post GPS Pin</span>
                 </span>
                 <span class="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800/80 flex items-center gap-1 shadow-2xs">
                   <mat-icon class="!text-[11px] !w-3 !h-3">touch_app</mat-icon>
-                  <span>Click map or drag pin to auto-populate address</span>
+                  <span>Ghana Post GPS / Click Map / Drag Pin</span>
                 </span>
               </div>
               
@@ -558,11 +782,11 @@ export interface EditableDoorItem extends JobDoorItem {
                 </h4>
               </div>
               <span class="text-[10px] font-mono font-semibold text-slate-500 dark:text-slate-400">
-                Installation Fee & Labor Only (Excludes Door Price)
+                Installation Fee Only (Excludes Door Price)
               </span>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
               <div>
                 <label for="jobInstallationFee" class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
                   Installation Fee (₵) *
@@ -572,19 +796,6 @@ export interface EditableDoorItem extends JobDoorItem {
                   type="number" 
                   min="0"
                   formControlName="installationFee" 
-                  class="w-full text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold" 
-                />
-              </div>
-
-              <div>
-                <label for="jobLaborCost" class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Labor Cost (₵) *
-                </label>
-                <input 
-                  id="jobLaborCost" 
-                  type="number" 
-                  min="0"
-                  formControlName="laborCost" 
                   class="w-full text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold" 
                 />
               </div>
@@ -602,6 +813,7 @@ export interface EditableDoorItem extends JobDoorItem {
                   <option value="cash">Counter Cash</option>
                   <option value="pos_card">POS Terminal (Card)</option>
                   <option value="bank_transfer">Bank Transfer</option>
+                  <option value="dm_door">DM Door</option>
                 </select>
               </div>
 
@@ -610,7 +822,7 @@ export interface EditableDoorItem extends JobDoorItem {
                   Total (₵)
                 </label>
                 <div class="text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 pt-1">
-                  ₵{{ ((+(jobForm.value.installationFee || 0)) + (+(jobForm.value.laborCost || 0))).toLocaleString() }}
+                  ₵{{ (+(jobForm.value.installationFee || 0)).toLocaleString() }}
                 </div>
               </div>
             </div>
@@ -624,7 +836,7 @@ export interface EditableDoorItem extends JobDoorItem {
               <span class="font-bold text-slate-900 dark:text-white">{{ totalDoorsCount() }} Door(s)</span>
               <span>·</span>
               <span class="text-emerald-600 dark:text-emerald-400 font-bold">
-                ₵{{ ((+(jobForm.value.installationFee || 0)) + (+(jobForm.value.laborCost || 0))).toLocaleString() }} Installation & Labor
+                ₵{{ (+(jobForm.value.installationFee || 0)).toLocaleString() }} Installation Fee
               </span>
             </div>
 
@@ -656,21 +868,23 @@ export class NewJobModal {
   readonly alert = inject(AlertService);
   closed = output<void>();
 
+  readonly installationRateOptions = INSTALLATION_RATE_OPTIONS;
   readonly shopBranchSelectRef = viewChild<ElementRef<HTMLSelectElement>>('shopBranchSelect');
 
   // List of selected doors for this installation request (collapsed initially)
   readonly selectedDoors = signal<EditableDoorItem[]>([
     {
       id: `door_${Date.now()}_1`,
-      doorCategory: 'Premium Villa Series',
-      doorModel: 'AeroPivot 900 Architectural Entrance Door',
-      dimensions: '2400mm × 1200mm × 55mm',
-      finish: 'Smoked European Oak with Matt Black PVD',
-      hardwareSpecs: 'FritsJurgens System M+ Pivot, 3-Point Magnetic Mortise Lock',
+      doorCategory: '',
+      doorModel: 'Select a door model',
+      dimensions: '—',
+      finish: '—',
+      hardwareSpecs: '—',
       lockModel: 'Doormaster Smart Lock Handle F35 (Biometric & RFID)',
-      unitPrice: 6200,
+      unitPrice: 0,
+      installationPrice: 250,
       quantity: 1,
-      isExpanded: false
+      isExpanded: true
     }
   ]);
 
@@ -698,18 +912,26 @@ export class NewJobModal {
     scheduledDate: new FormControl(new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], { nonNullable: true, validators: [Validators.required] }),
     estimatedHours: new FormControl(4, { nonNullable: true, validators: [Validators.required, Validators.min(0.5)] }),
     shopBranch: new FormControl(this.defaultDispatchBranchName(), { nonNullable: true }),
-    installationFee: new FormControl(1200, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
-    laborCost: new FormControl(480, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
-    paymentMethod: new FormControl<'cash' | 'momo' | 'pos_card' | 'bank_transfer'>('momo', { nonNullable: true })
+    installationFee: new FormControl(250, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
+    paymentMethod: new FormControl<'cash' | 'momo' | 'pos_card' | 'bank_transfer' | 'dm_door'>('momo', { nonNullable: true })
   });
 
   // Client site coordinates tracked from location map
   readonly selectedSiteCoordinates = signal<{ lat: number; lng: number }>({ lat: 5.6020, lng: -0.1870 });
+  readonly currentSiteAddress = signal<string>('');
+
+  readonly detectedGhanaPostCode = computed(() => {
+    const addr = this.currentSiteAddress() || '';
+    const match = addr.match(/\b([A-Za-z]{2})\s*[-]?\s*(\d{3,4})\s*[-]?\s*(\d{4})\b/);
+    if (!match) return null;
+    return `${match[1].toUpperCase()}-${match[2]}-${match[3]}`;
+  });
 
   onSiteLocationSelected(loc: ClientLocationResult) {
     this.selectedSiteCoordinates.set({ lat: loc.lat, lng: loc.lng });
     if (loc.isExplicitUserAction) {
       this.jobForm.patchValue({ siteAddress: loc.address });
+      this.currentSiteAddress.set(loc.address);
       this.jobForm.get('siteAddress')?.markAsDirty();
       this.jobForm.get('siteAddress')?.markAsTouched();
     }
@@ -729,6 +951,10 @@ export class NewJobModal {
   }
 
   constructor() {
+    this.jobForm.controls.siteAddress.valueChanges.subscribe(val => {
+      this.currentSiteAddress.set(val || '');
+    });
+
     afterNextRender(() => {
       this.syncShopBranchControl(this.defaultDispatchBranchName());
     });
@@ -739,206 +965,428 @@ export class NewJobModal {
       const targetBranch = this.defaultDispatchBranchName();
       this.syncShopBranchControl(targetBranch);
     });
+  }
 
-    const firstDoor = this.store.doors()[0];
-    if (firstDoor) {
-      this.selectedDoors.set([
-        {
-          id: `door_${Date.now()}_1`,
-          catalogDoorId: firstDoor.id,
-          doorCategory: firstDoor.category,
-          doorModel: `${firstDoor.name} (${firstDoor.modelCode})`,
-          dimensions: firstDoor.dimensions,
-          finish: firstDoor.finish,
-          hardwareSpecs: firstDoor.hardwareSpecs,
-          lockModel: 'Doormaster Smart Lock Handle F35 (Biometric & RFID)',
-          unitPrice: firstDoor.unitPrice,
-          quantity: 1,
-          isExpanded: false
-        }
-      ]);
+  private syncInstallationFeeFromDoors(force = false) {
+    if (!force && this.jobForm.controls.installationFee.dirty) return;
+    const total = this.selectedDoors().reduce(
+      (sum, d) => sum + ((d.installationPrice ?? 250) * d.quantity),
+      0
+    );
+    this.jobForm.controls.installationFee.setValue(total);
+  }
+
+  getDoorCategoriesForItem(currentCategory?: string): string[] {
+    const catalogCats = this.store.doors().map(d => d.category).filter(Boolean);
+    const rateCats = [
+      'Turkey Series',
+      'Turkey interior series',
+      'Economy doors',
+      'Glass / Wooden Metal',
+      'Door-in-Door',
+      'Royal Series',
+      'Special Series',
+      'DM Interior Series'
+    ];
+    const set = new Set<string>([...catalogCats, ...rateCats]);
+    if (currentCategory) set.add(currentCategory);
+    return Array.from(set);
+  }
+
+  getFilteredCatalogDoors(door: EditableDoorItem) {
+    let doors = this.store.doors();
+    if (door.doorCategory) {
+      const catLower = door.doorCategory.toLowerCase();
+      doors = doors.filter(d => (d.category || '').toLowerCase() === catLower);
     }
+    if (door.installationSeries) {
+      const seriesLower = door.installationSeries.toLowerCase();
+      doors = doors.filter(d => {
+        const inferred = inferInstallationOption(d.name, d.category);
+        const doorSeries = (d.installationSeries || inferred?.series || '').toLowerCase();
+        return doorSeries === seriesLower || (d.category || '').toLowerCase().includes(seriesLower);
+      });
+    }
+    return doors;
+  }
+
+  onDoorCategoryChange(index: number, event: Event) {
+    const newCategory = (event.target as HTMLSelectElement).value;
+    if (!newCategory) {
+      this.selectedDoors.update(doors => doors.map((d, i) => i === index ? { ...d, doorCategory: '' } : d));
+      return;
+    }
+
+    this.selectedDoors.update(doors => doors.map((d, i) => {
+      if (i !== index) return d;
+      // Prefer category match first so changing category updates Installation Type reliably
+      const catMatch = inferInstallationOption('', newCategory);
+      if (catMatch) {
+        const seriesVariants = this.getVariantsForSeries(catMatch.series);
+        const modelLower = (d.doorModel || '').toLowerCase();
+        const hintVariant = seriesVariants.find(v => {
+          const kw = v.keyword.toLowerCase();
+          if (kw.includes('pillar') && modelLower.includes('pillar')) return true;
+          if (kw.includes('pivot') && modelLower.includes('pivot')) return true;
+          if ((kw.includes('2x') || kw.includes('double')) && (modelLower.includes('2x') || modelLower.includes('double'))) return true;
+          if (kw.includes('oh') && (/\boh\b/.test(modelLower) || modelLower.includes('one & half') || modelLower.includes('one and half') || modelLower.includes('1.5'))) return true;
+          if (kw.includes('lock') && modelLower.includes('lock')) return true;
+          if (kw.includes('interior') && modelLower.includes('interior')) return true;
+          return false;
+        });
+        const matchedVariant = hintVariant?.keyword ?? catMatch.variant;
+        const matchedPrice = hintVariant?.price ?? catMatch.price;
+        const lowestVariant = this.getLowestPriceVariant(catMatch.series);
+        const nextDoor: EditableDoorItem = {
+          ...d,
+          doorCategory: newCategory,
+          installationSeries: catMatch.series,
+          installationVariant: lowestVariant?.keyword
+        };
+        return {
+          ...nextDoor,
+          installationPrice: this.withLockExtra(nextDoor, lowestVariant?.price ?? catMatch.price)
+        };
+      }
+      return {
+        ...d,
+        doorCategory: newCategory
+      };
+    }));
+    this.syncInstallationFeeFromDoors(true);
+  }
+
+  getVariantsForSeries(series?: string): InstallationRateVariant[] {
+    if (!series) {
+      return this.installationRateOptions.flatMap(opt => opt.variants);
+    }
+    return this.installationRateOptions.find(opt => opt.series === series)?.variants ?? [];
+  }
+
+  getLockExtraPrice(door: EditableDoorItem): number {
+    const text = `${door.installationSeries || ''} ${door.doorCategory || ''} ${door.doorModel || ''}`.toLowerCase();
+    return text.includes('economy') ? 100 : 150;
+  }
+
+  private withLockExtra(door: EditableDoorItem, basePrice: number): number {
+    return basePrice + (door.includeLockExtra ? this.getLockExtraPrice(door) : 0);
+  }
+
+  toggleLockExtra(index: number) {
+    this.selectedDoors.update(doors => doors.map((d, i) => {
+      if (i !== index) return d;
+      const nextInclude = !d.includeLockExtra;
+      const extra = this.getLockExtraPrice(d);
+      const base = Math.max(0, (d.installationPrice ?? 250) - (d.includeLockExtra ? extra : 0));
+      return {
+        ...d,
+        includeLockExtra: nextInclude,
+        installationPrice: base + (nextInclude ? extra : 0)
+      };
+    }));
+    this.syncInstallationFeeFromDoors(true);
+  }
+
+  getLowestPriceVariant(series?: string): InstallationRateVariant | undefined {
+    const variants = this.getVariantsForSeries(series);
+    if (variants.length === 0) return undefined;
+    const doorVariants = variants.filter(v => !v.keyword.toLowerCase().includes('lock') && !v.label.toLowerCase().includes('lock'));
+    const pool = doorVariants.length > 0 ? doorVariants : variants;
+    return pool.reduce((lowest, v) => (v.price < lowest.price ? v : lowest), pool[0]);
+  }
+
+  onInstallationSeriesChange(index: number, event: Event) {
+    const series = (event.target as HTMLSelectElement).value || undefined;
+    const lowestVariant = this.getLowestPriceVariant(series);
+
+    this.selectedDoors.update(doors => doors.map((d, i) => {
+      if (i !== index) return d;
+      if (!series) {
+        const catDoor = d.catalogDoorId
+          ? this.store.doors().find(cd => cd.id === d.catalogDoorId)
+          : undefined;
+        const targetSeries = catDoor?.installationSeries;
+        const fallbackLowest = targetSeries ? this.getLowestPriceVariant(targetSeries) : undefined;
+        const nextDoor: EditableDoorItem = {
+          ...d,
+          installationSeries: targetSeries,
+          installationVariant: fallbackLowest?.keyword
+        };
+        const basePrice = fallbackLowest?.price ?? catDoor?.installationPrice ?? computeDefaultInstallationPrice(d.doorModel, d.doorCategory);
+        return {
+          ...nextDoor,
+          installationPrice: this.withLockExtra(nextDoor, basePrice)
+        };
+      }
+      const nextDoor: EditableDoorItem = {
+        ...d,
+        installationSeries: series,
+        installationVariant: lowestVariant?.keyword
+      };
+      const basePrice = lowestVariant?.price ?? computeDefaultInstallationPrice(d.doorModel, series || d.doorCategory);
+      return {
+        ...nextDoor,
+        installationPrice: this.withLockExtra(nextDoor, basePrice)
+      };
+    }));
+    this.syncInstallationFeeFromDoors(true);
+  }
+
+  onInstallationVariantChange(index: number, event: Event) {
+    const variantKeyword = (event.target as HTMLSelectElement).value || undefined;
+    const currentDoor = this.selectedDoors()[index];
+    this.selectInstallationVariant(index, variantKeyword || '', currentDoor?.installationSeries);
+  }
+
+  selectInstallationVariant(index: number, variantKeyword: string, series?: string) {
+    this.selectedDoors.update(doors => doors.map((d, i) => {
+      if (i !== index) return d;
+      if (!variantKeyword) {
+        const nextDoor: EditableDoorItem = {
+          ...d,
+          installationSeries: series,
+          installationVariant: undefined
+        };
+        const basePrice = computeDefaultInstallationPrice(d.doorModel, series || d.doorCategory);
+        return {
+          ...nextDoor,
+          installationPrice: this.withLockExtra(nextDoor, basePrice)
+        };
+      }
+      const variantOpt = this.installationRateOptions.find(opt =>
+        opt.variants.some(v => v.keyword === variantKeyword)
+      );
+      const matchedSeries = variantOpt?.series || series;
+      const variantMatch = variantOpt?.variants.find(v => v.keyword === variantKeyword);
+      const nextDoor: EditableDoorItem = {
+        ...d,
+        installationSeries: matchedSeries,
+        installationVariant: variantKeyword
+      };
+      const basePrice = variantMatch?.price ?? computeDefaultInstallationPrice(variantKeyword, matchedSeries || d.doorCategory);
+      return {
+        ...nextDoor,
+        installationPrice: this.withLockExtra(nextDoor, basePrice)
+      };
+    }));
+    this.syncInstallationFeeFromDoors(true);
   }
 
   toggleDoorDropdown(index: number) {
     this.selectedDoors.update(doors => {
-      return doors.map((d, i) => i === index ? { ...d, isExpanded: !d.isExpanded } : d);
+      return doors.map((d, i) => i === index ? { ...d, isExpanded: !d.isExpanded } : { ...d, isExpanded: false });
     });
   }
 
   addDoorFromCatalog(catalogDoorId?: string) {
     let newDoor: EditableDoorItem;
-    const catDoor = catalogDoorId 
-      ? this.store.doors().find(d => d.id === catalogDoorId) 
-      : (this.store.doors().length > 0 ? this.store.doors()[0] : null);
+    const inheritLockExtra = this.selectedDoors().some(d => !!d.includeLockExtra);
+    const catDoor = catalogDoorId
+      ? this.store.doors().find(d => d.id === catalogDoorId)
+      : null;
 
     if (catDoor) {
-      newDoor = {
-        id: `door_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        catalogDoorId: catDoor.id,
-        doorCategory: catDoor.category,
-        doorModel: `${catDoor.name} (${catDoor.modelCode})`,
-        dimensions: catDoor.dimensions,
-        finish: catDoor.finish,
-        hardwareSpecs: catDoor.hardwareSpecs,
-        lockModel: 'Doormaster Smart Lock Handle F35 (Biometric & RFID)',
-        unitPrice: catDoor.unitPrice,
-        quantity: 1,
-        isExpanded: true
-      };
-    } else {
-      newDoor = {
-        id: `door_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        doorCategory: 'Turkey interior series',
-        doorModel: 'Turkey interior DM001 Acoustic Interior Door',
-        dimensions: '2100mm × 900mm × 45mm',
-        finish: 'Walnut Natural Wood Grain',
-        hardwareSpecs: 'Heavy-Duty Concealed Hinges & 3-Point Lockset',
-        lockModel: 'Standard Mechanical Handle & Cylinder',
-        unitPrice: 2850,
-        quantity: 1,
-        isExpanded: true
-      };
-    }
-
-    this.selectedDoors.update(doors => [...doors, newDoor]);
-  }
-
-  removeDoor(index: number) {
-    if (this.selectedDoors().length <= 1) return;
-    this.selectedDoors.update(doors => doors.filter((_, i) => i !== index));
-  }
-
-  changeDoorQty(index: number, delta: number) {
-    this.selectedDoors.update(doors => {
-      return doors.map((d, i) => {
-        if (i !== index) return d;
-        const newQty = Math.max(1, d.quantity + delta);
-        return { ...d, quantity: newQty };
-      });
-    });
-  }
-
-  onDoorCatalogPick(index: number, event: Event) {
-    const doorId = (event.target as HTMLSelectElement).value;
-    if (!doorId) return;
-    const catDoor = this.store.doors().find(d => d.id === doorId);
-    if (!catDoor) return;
-
-    this.selectedDoors.update(doors => {
-      return doors.map((d, i) => {
-        if (i !== index) return d;
-        return {
-          ...d,
+      const inferred = inferInstallationOption(catDoor.name, catDoor.category);
+      const targetSeries = catDoor.installationSeries ?? inferred?.series;
+      const lowestVariant = targetSeries ? this.getLowestPriceVariant(targetSeries) : undefined;
+        const draftDoor: EditableDoorItem = {
+          id: `door_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           catalogDoorId: catDoor.id,
           doorCategory: catDoor.category,
           doorModel: `${catDoor.name} (${catDoor.modelCode})`,
           dimensions: catDoor.dimensions,
           finish: catDoor.finish,
           hardwareSpecs: catDoor.hardwareSpecs,
-          unitPrice: catDoor.unitPrice
+          lockModel: 'Doormaster Smart Lock Handle F35 (Biometric & RFID)',
+          unitPrice: catDoor.unitPrice,
+          installationSeries: targetSeries,
+          installationVariant: lowestVariant?.keyword,
+          includeLockExtra: inheritLockExtra,
+          quantity: 1,
+          isExpanded: true
         };
-      });
-    });
-  }
+        const basePrice = lowestVariant?.price ?? catDoor.installationPrice ?? inferred?.price ?? computeDefaultInstallationPrice(catDoor.name, catDoor.category);
+        newDoor = {
+          ...draftDoor,
+          installationPrice: this.withLockExtra(draftDoor, basePrice)
+        };
+      } else {
+          const draftDoor: EditableDoorItem = {
+            id: `door_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            doorCategory: '',
+            doorModel: 'Select a door model',
+            dimensions: '—',
+            finish: '—',
+            hardwareSpecs: '—',
+            lockModel: 'Doormaster Smart Lock Handle F35 (Biometric & RFID)',
+            unitPrice: 0,
+            includeLockExtra: inheritLockExtra,
+            quantity: 1,
+            isExpanded: true
+          };
+          newDoor = {
+            ...draftDoor,
+            installationPrice: this.withLockExtra(draftDoor, 250)
+          };
+        }
 
-  handleCreateJob() {
-    if (this.jobForm.invalid || this.selectedDoors().length === 0) {
-      this.jobForm.markAllAsTouched();
-      this.alert.toastWarning('Incomplete Job Details', 'Please select at least one door and complete the client details.');
-      return;
-    }
-
-    const val = this.jobForm.getRawValue();
-    const doors = this.selectedDoors();
-    const primaryDoor = doors[0];
-
-    // Summary title reflecting multiple door count
-    const doorSummary = doors.length === 1 
-      ? primaryDoor.doorModel 
-      : `${doors.length} Doors (${doors.map(d => `${d.quantity > 1 ? d.quantity + 'x ' : ''}${d.doorModel.split(' ')[0]}`).join(', ')})`;
-
-    const installationFee = Number(val.installationFee) || 0;
-    const laborCost = Number(val.laborCost) || 0;
-    const totalInstallAndLabor = installationFee + laborCost;
-    const now = new Date().toISOString();
-    const receiptRef = `SHP-REC-${Math.floor(10000 + Math.random() * 90000)}`;
-
-    const createdJob = this.store.createJob({
-      title: `${doorSummary} Installation - ${val.clientName}`,
-      doorCategory: primaryDoor.doorCategory,
-      doorModel: doors.map(d => `${d.quantity > 1 ? d.quantity + '× ' : ''}${d.doorModel}`).join('; '),
-      doors: doors.map(d => ({
-        id: d.id,
-        doorModel: d.doorModel,
-        doorCategory: d.doorCategory,
-        dimensions: d.dimensions,
-        finish: d.finish,
-        hardwareSpecs: d.hardwareSpecs,
-        lockModel: d.lockModel,
-        unitPrice: d.unitPrice,
-        quantity: d.quantity,
-        catalogDoorId: d.catalogDoorId
-      })),
-      dimensions: primaryDoor.dimensions,
-      finish: primaryDoor.finish,
-      hardwareSpecs: primaryDoor.hardwareSpecs,
-      lockModel: primaryDoor.lockModel,
-      shopBranch: val.shopBranch || this.store.shopLocation().shopName,
-      status: 'booked_at_shop',
-      assignedInstallerId: null,
-      assignedInstallerName: null,
-      assignedInstallerIds: [],
-      assignedInstallerNames: [],
-      assignedInstallers: [],
-      installerAssignmentStatus: 'pending',
-      installerAutoAccepted: false,
-      shopBooking: {
-        bookedByShopManager: `${this.store.currentUser().name} (${this.store.currentUser().email})`,
-        shopBranch: val.shopBranch || this.store.shopLocation().shopName,
-        bookingTimestamp: now,
-        lockModelRequested: primaryDoor.lockModel || 'Doormaster Smart Lock Handle F35 (Biometric & RFID)',
-        amountPaidAtShop: totalInstallAndLabor,
-        paymentMethod: val.paymentMethod,
-        receiptNumber: receiptRef,
-        paymentStatus: 'paid_in_full',
-        accountantVerified: false
-      },
-      client: {
-        id: `cli_${Date.now()}`,
-        name: val.clientName,
-        phone: val.clientPhone,
-        email: val.clientEmail || `${val.clientName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@example.com`,
-        siteAddress: val.siteAddress,
-        coordinates: this.selectedSiteCoordinates(),
-        accessInstructions: val.accessInstructions || 'Standard site access'
-      },
-      scheduledDate: val.scheduledDate,
-      estimatedHours: val.estimatedHours,
-      hardwareChecklist: [
-        { id: 'step_1', label: 'Verify rough opening plumb, square & level tolerance (±1.5mm)', required: true, completed: false },
-        { id: 'step_2', label: 'Mount FritsJurgens / pivot floor plate with structural anchors', required: true, completed: false },
-        { id: 'step_3', label: 'Fit top ceiling pivot box with structural timber blocking', required: true, completed: false },
-        { id: 'step_4', label: 'Hang architectural door slab and tune 3-axis alignment', required: true, completed: false },
-        { id: 'step_5', label: 'Install multi-point magnetic mortise lockset & smart cylinder', required: true, completed: false },
-        { id: 'step_6', label: 'Calibrate closing dampening speed & 90-degree hold-open pressure', required: true, completed: false },
-        { id: 'step_7', label: 'Fit perimeter acoustic brush seals & drop-down draught excluder', required: true, completed: false }
-      ],
-      financials: {
-        doorPrice: 0,
-        installationFee,
-        laborCost,
-        bonusAmount: 220,
-        bonusStatus: 'pending',
-        depositPaid: true,
-        balancePaid: true
+        this.selectedDoors.update(doors => [...doors.map(d => ({ ...d, isExpanded: false })), newDoor]);
+        this.syncInstallationFeeFromDoors();
       }
-    });
 
-    this.alert.success(
-      'Installation Booked!',
-      `Job #${createdJob.id} booked for ${val.clientName} (₵${totalInstallAndLabor.toLocaleString()} Installation & Labor). Routed to Operations Manager for team assignment.`
-    );
-    this.closed.emit();
-  }
-}
+      removeDoor(index: number) {
+        if (this.selectedDoors().length <= 1) return;
+        this.selectedDoors.update(doors => doors.filter((_, i) => i !== index));
+        this.syncInstallationFeeFromDoors();
+      }
+
+      changeDoorQty(index: number, delta: number) {
+        this.selectedDoors.update(doors => {
+          return doors.map((d, i) => {
+            if (i !== index) return d;
+            const newQty = Math.max(1, d.quantity + delta);
+            return { ...d, quantity: newQty };
+          });
+        });
+        this.syncInstallationFeeFromDoors();
+      }
+
+      onDoorCatalogPick(index: number, event: Event) {
+        const doorId = (event.target as HTMLSelectElement).value;
+        if (!doorId) return;
+        const catDoor = this.store.doors().find(d => d.id === doorId);
+        if (!catDoor) return;
+
+        const inferred = inferInstallationOption(catDoor.name, catDoor.category);
+        const targetSeries = catDoor.installationSeries ?? inferred?.series;
+        const lowestVariant = this.getLowestPriceVariant(targetSeries);
+
+        this.selectedDoors.update(doors => {
+          return doors.map((d, i) => {
+            if (i !== index) return d;
+            const nextDoor: EditableDoorItem = {
+              ...d,
+              catalogDoorId: catDoor.id,
+              doorCategory: catDoor.category,
+              doorModel: `${catDoor.name} (${catDoor.modelCode})`,
+              dimensions: catDoor.dimensions,
+              finish: catDoor.finish,
+              hardwareSpecs: catDoor.hardwareSpecs,
+              unitPrice: catDoor.unitPrice,
+              installationSeries: targetSeries,
+              installationVariant: lowestVariant?.keyword
+            };
+            const basePrice = lowestVariant?.price ?? catDoor.installationPrice ?? inferred?.price ?? computeDefaultInstallationPrice(catDoor.name, catDoor.category);
+            return {
+              ...nextDoor,
+              installationPrice: this.withLockExtra(nextDoor, basePrice)
+            };
+          });
+        });
+        this.syncInstallationFeeFromDoors(true);
+      }
+
+      handleCreateJob() {
+        if (this.jobForm.invalid || this.selectedDoors().length === 0) {
+          this.jobForm.markAllAsTouched();
+          this.alert.toastWarning('Incomplete Job Details', 'Please select at least one door and complete the client details.');
+          return;
+        }
+        if (this.selectedDoors().some(d => !d.catalogDoorId && d.doorModel === 'Select a door model')) {
+          this.alert.toastWarning('Door Not Selected', 'Please select a door model from the Preset Model Template dropdown.');
+          return;
+        }
+
+        const val = this.jobForm.getRawValue();
+        const doors = this.selectedDoors();
+        const primaryDoor = doors[0];
+
+        // Summary title reflecting multiple door count
+        const doorSummary = doors.length === 1
+          ? primaryDoor.doorModel
+          : `${doors.length} Doors (${doors.map(d => `${d.quantity > 1 ? d.quantity + 'x ' : ''}${d.doorModel.split(' ')[0]}`).join(', ')})`;
+
+        const installationFee = Number(val.installationFee) || 0;
+        const laborCost = 0;
+        const totalInstallAndLabor = installationFee;
+        const now = new Date().toISOString();
+        const receiptRef = `SHP-REC-${Math.floor(10000 + Math.random() * 90000)}`;
+
+        const createdJob = this.store.createJob({
+          title: `${doorSummary} Installation - ${val.clientName}`,
+          doorCategory: primaryDoor.doorCategory,
+          doorModel: doors.map(d => `${d.quantity > 1 ? d.quantity + '× ' : ''}${d.doorModel}`).join('; '),
+          doors: doors.map(d => ({
+            id: d.id,
+            doorModel: d.doorModel,
+            doorCategory: d.doorCategory,
+            dimensions: d.dimensions,
+            finish: d.finish,
+            hardwareSpecs: d.hardwareSpecs,
+            lockModel: d.lockModel,
+            unitPrice: d.unitPrice,
+            quantity: d.quantity,
+            catalogDoorId: d.catalogDoorId
+          })),
+          dimensions: primaryDoor.dimensions,
+          finish: primaryDoor.finish,
+          hardwareSpecs: primaryDoor.hardwareSpecs,
+          lockModel: primaryDoor.lockModel,
+          shopBranch: val.shopBranch || this.store.shopLocation().shopName,
+          status: 'booked_at_shop',
+          assignedInstallerId: null,
+          assignedInstallerName: null,
+          assignedInstallerIds: [],
+          assignedInstallerNames: [],
+          assignedInstallers: [],
+          installerAssignmentStatus: 'pending',
+          installerAutoAccepted: false,
+          shopBooking: {
+            bookedByShopManager: `${this.store.currentUser().name} (${this.store.currentUser().email})`,
+            shopBranch: val.shopBranch || this.store.shopLocation().shopName,
+            bookingTimestamp: now,
+            lockModelRequested: primaryDoor.lockModel || 'Doormaster Smart Lock Handle F35 (Biometric & RFID)',
+            amountPaidAtShop: totalInstallAndLabor,
+            paymentMethod: val.paymentMethod,
+            receiptNumber: receiptRef,
+            paymentStatus: 'paid_in_full',
+            accountantVerified: false
+          },
+          client: {
+            id: `cli_${Date.now()}`,
+            name: val.clientName,
+            phone: val.clientPhone,
+            email: val.clientEmail || `${val.clientName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@example.com`,
+            siteAddress: val.siteAddress,
+            coordinates: this.selectedSiteCoordinates(),
+            accessInstructions: val.accessInstructions || 'Standard site access'
+          },
+          scheduledDate: val.scheduledDate,
+          estimatedHours: val.estimatedHours,
+          hardwareChecklist: [
+            { id: 'step_1', label: 'Verify rough opening plumb, square & level tolerance (±1.5mm)', required: true, completed: false },
+            { id: 'step_2', label: 'Mount FritsJurgens / pivot floor plate with structural anchors', required: true, completed: false },
+            { id: 'step_3', label: 'Fit top ceiling pivot box with structural timber blocking', required: true, completed: false },
+            { id: 'step_4', label: 'Hang architectural door slab and tune 3-axis alignment', required: true, completed: false },
+            { id: 'step_5', label: 'Install multi-point magnetic mortise lockset & smart cylinder', required: true, completed: false },
+            { id: 'step_6', label: 'Calibrate closing dampening speed & 90-degree hold-open pressure', required: true, completed: false },
+            { id: 'step_7', label: 'Fit perimeter acoustic brush seals & drop-down draught excluder', required: true, completed: false }
+          ],
+          financials: {
+            doorPrice: 0,
+            installationFee,
+            laborCost,
+            bonusAmount: 220,
+            bonusStatus: 'pending',
+            depositPaid: true,
+            balancePaid: true
+          }
+        });
+
+        this.alert.success(
+          'Installation Booked!',
+          `Job #${createdJob.id} booked for ${val.clientName} (₵${totalInstallAndLabor.toLocaleString()} Installation Fee). Routed to Operations Manager for team assignment.`
+        );
+        this.closed.emit();
+      }
+    }

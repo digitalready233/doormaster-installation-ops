@@ -5,13 +5,54 @@ import { Router } from '@angular/router';
 import { InstallationStore } from '../../services/installation.store';
 import { AlertService } from '../../services/alert.service';
 import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType } from '../../models/installation.model';
+import { DispatcherPortal } from '../dispatcher-portal/dispatcher-portal';
 
 @Component({
   selector: 'app-overview',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatIconModule, FormsModule],
+  imports: [MatIconModule, FormsModule, DispatcherPortal],
   template: `
     <div class="space-y-6">
+      @if (store.currentRole() === 'dispatcher') {
+        <!-- Driver Role Overview: Full Driver & Delivery Portal -->
+        <app-dispatcher-portal />
+      } @else {
+        <!-- Role-Specific Overview Header & Metrics -->
+        <div class="bg-white dark:bg-[#181A1F] rounded-2xl border border-slate-200 dark:border-white/10 p-4 text-[#111215] dark:text-white shadow-xs space-y-3 transition-colors">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 class="text-base font-black tracking-tight flex items-center gap-2 text-[#111215] dark:text-white">
+                <span>{{ currentPerspectiveConfig().icon }}</span>
+                <span>{{ currentPerspectiveConfig().title }}</span>
+              </h2>
+              <p class="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">{{ currentPerspectiveConfig().focusDescription }}</p>
+            </div>
+            @if (currentPerspectiveConfig().primaryRoute !== '/overview') {
+              <button
+                type="button"
+                (click)="navigateTo(currentPerspectiveConfig().primaryRoute)"
+                class="px-3 py-1.5 rounded-xl bg-[#59000A] hover:bg-[#73000E] text-white text-xs font-bold transition-colors shrink-0 cursor-pointer"
+              >
+                {{ currentPerspectiveConfig().primaryRouteLabel }} →
+              </button>
+            }
+          </div>
+
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            @for (m of perspectiveMetrics(); track m.label) {
+              <div class="bg-slate-50 dark:bg-[#111215] border border-slate-200 dark:border-white/10 rounded-xl p-2.5 transition-colors">
+                <span class="text-[9px] uppercase font-bold text-slate-500 dark:text-slate-400 block">{{ m.label }}</span>
+                <div class="flex items-baseline gap-1 mt-0.5">
+                  <span class="text-base font-black font-mono" [class]="m.colorClass">{{ m.value }}</span>
+                  @if (m.unit) {
+                    <span class="text-[10px] text-slate-500 dark:text-slate-400">{{ m.unit }}</span>
+                  }
+                </div>
+                <span class="text-[10px] text-slate-600 dark:text-slate-400 block truncate">{{ m.caption }}</span>
+              </div>
+            }
+          </div>
+        </div>
       <!-- =================================================================== -->
       <!-- INSTALLER DASHBOARD TASK NOTIFICATION: ACCEPT IMMEDIATELY OR REJECT -->
       <!-- (Reject option disappears after 10 mins & system auto-accepts)      -->
@@ -62,7 +103,7 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
                   <button
                     type="button"
                     (click)="acceptInstallerTaskOnOverview(task)"
-                    class="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                    class="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                   >
                     <mat-icon class="!text-sm">check_circle</mat-icon>
                     <span>Accept Immediately</span>
@@ -84,6 +125,155 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
           </div>
         </div>
       }
+
+      <!-- =================================================================== -->
+      <!-- DISPATCH DRIVER DASHBOARD RUN NOTIFICATION: ACCEPT OR REJECT        -->
+      <!-- (Reject option disappears after 10 mins & system auto-accepts)      -->
+      <!-- =================================================================== -->
+      @if (store.currentRole() === 'dispatcher' && driverPendingAcceptanceJobs().length > 0) {
+        <div class="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 border-2 border-amber-400/90 rounded-2xl p-4 sm:p-5 text-white shadow-xl space-y-3.5 animate-in fade-in">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-500/30 pb-2.5">
+            <div class="flex items-center gap-2.5">
+              <span class="w-3 h-3 rounded-full bg-amber-400 animate-ping"></span>
+              <h3 class="text-xs sm:text-sm font-black uppercase tracking-wider text-amber-300">
+                Assigned Delivery Run Alert ({{ driverPendingAcceptanceJobs().length }}) · Respond Within 10 Minutes
+              </h3>
+            </div>
+            <span class="text-[11px] font-mono text-amber-200">
+              Logged in as: <strong>{{ store.currentUser().name }}</strong> (Truck Driver) · Auto-accepts after 10 mins
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3">
+            @for (task of driverPendingAcceptanceJobs(); track task.id) {
+              @let remSec = getDriverRemainingSeconds(task);
+              <div class="bg-slate-900/90 border border-amber-500/40 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div class="space-y-1.5">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-[10px] font-black font-mono uppercase">
+                      {{ task.id }}
+                    </span>
+                    <span class="px-2.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-200 text-xs font-mono font-extrabold flex items-center gap-1">
+                      <mat-icon class="!text-xs !w-3.5 !h-3.5 animate-pulse">timer</mat-icon>
+                      <span>{{ formatCountdown(remSec) }} left before system auto-accept</span>
+                    </span>
+                    @if (task.logisticsTruck?.truckPlate) {
+                      <span class="px-2 py-0.5 rounded bg-teal-500/20 border border-teal-400/40 text-teal-200 text-[10px] font-mono font-bold flex items-center gap-1">
+                        <mat-icon class="!text-[11px] !w-3 !h-3">local_shipping</mat-icon>
+                        <span>Truck: {{ task.logisticsTruck?.truckPlate }}</span>
+                      </span>
+                    }
+                  </div>
+
+                  <h4 class="text-sm sm:text-base font-extrabold text-white">
+                    {{ task.doorModel }} — {{ task.client.name }}
+                  </h4>
+                  <p class="text-xs text-slate-300 font-mono">
+                    📍 Workshop Origin: {{ task.shopBranch }} ➔ Site: {{ task.client.siteAddress }} · 🗓 Scheduled: {{ task.scheduledDate }} · 📞 {{ task.client.phone }}
+                  </p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    (click)="acceptDriverTaskOnOverview(task)"
+                    class="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <mat-icon class="!text-sm">check_circle</mat-icon>
+                    <span>Accept Immediately</span>
+                  </button>
+
+                  @if (remSec > 0) {
+                    <button
+                      type="button"
+                      (click)="openRejectDriverTaskModal(task)"
+                      class="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                    >
+                      <mat-icon class="!text-sm">cancel</mat-icon>
+                      <span>Reject ({{ formatCountdown(remSec) }})</span>
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- =================================================================== -->
+      <!-- ACCOUNT OFFICER: SHOP BOOKINGS AWAITING PAYMENT / PROCESS VERIFICATION -->
+      <!-- =================================================================== -->
+      @if (store.currentRole() === 'account_officer' && accountOfficerPendingVerificationJobs().length > 0) {
+        <div class="bg-white dark:bg-[#181A1F] border-2 border-amber-400/90 dark:border-amber-500/70 rounded-2xl p-4 sm:p-5 shadow-md space-y-3.5 animate-in fade-in">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-white/10 pb-2.5">
+            <div class="flex items-center gap-2.5">
+              <span class="w-3 h-3 rounded-full bg-amber-500 animate-ping"></span>
+              <h3 class="text-xs sm:text-sm font-black uppercase tracking-wider text-[#111215] dark:text-white">
+                Shop Installations Awaiting Verification ({{ accountOfficerPendingVerificationJobs().length }})
+              </h3>
+            </div>
+            <button
+              type="button"
+              (click)="navigateTo('/finance')"
+              class="text-[11px] font-bold text-[#59000A] dark:text-rose-300 hover:underline self-start sm:self-auto cursor-pointer"
+            >
+              Open Finance Portal →
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-2.5">
+            @for (job of accountOfficerPendingVerificationJobs(); track job.id) {
+              <div class="bg-slate-50 dark:bg-[#111215] border border-slate-200 dark:border-white/10 rounded-xl p-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div class="space-y-1 min-w-0">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-[10px] font-black font-mono uppercase">
+                      {{ job.id }}
+                    </span>
+                    <span class="px-2 py-0.5 rounded bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-200 text-[10px] font-mono font-bold">
+                      {{ job.shopBranch }}
+                    </span>
+                    @if (job.shopBooking?.receiptNumber) {
+                      <span class="px-2 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 text-[10px] font-mono font-bold">
+                        Ref: {{ job.shopBooking?.receiptNumber }}
+                      </span>
+                    }
+                    <span class="px-2 py-0.5 rounded bg-[#59000A]/10 dark:bg-[#59000A]/40 text-[#59000A] dark:text-rose-200 text-[10px] font-mono font-bold uppercase">
+                      {{ job.shopBooking?.paymentMethod === 'dm_door' ? 'DM Door' : (job.shopBooking?.paymentMethod || 'momo') }}
+                    </span>
+                  </div>
+
+                  <h4 class="text-sm font-extrabold text-[#111215] dark:text-white truncate">
+                    {{ job.doorModel }} — {{ job.client.name }}
+                  </h4>
+                  <p class="text-xs text-slate-600 dark:text-slate-400 font-mono">
+                    Paid at Shop: <strong class="text-emerald-600 dark:text-emerald-400">₵{{ (job.shopBooking?.amountPaidAtShop ?? ((job.financials.installationFee || 0) + (job.financials.laborCost || 0))).toLocaleString() }}</strong>
+                    · Scheduled: {{ job.scheduledDate }} · {{ job.client.phone }}
+                  </p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    (click)="jobSelected.emit(job.id)"
+                    class="px-3 py-2 rounded-xl text-xs font-bold border border-slate-300 dark:border-white/15 bg-white dark:bg-[#181A1F] text-[#111215] dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <mat-icon class="!text-sm">visibility</mat-icon>
+                    <span>Inspect</span>
+                  </button>
+                  <button
+                    type="button"
+                    (click)="verifyShopBookingOnOverview(job.id)"
+                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <mat-icon class="!text-sm">verified</mat-icon>
+                    <span>Verify &amp; Approve</span>
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
       <!-- =================================================================== -->
       <!-- SHOP INSTALLATION REQUESTS AWAITING TRUCK & TECH SETUP QUEUE       -->
       <!-- =================================================================== -->
@@ -97,7 +287,7 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
               </h3>
             </div>
             <span class="text-[10px] text-amber-800 dark:text-amber-300 font-mono">
-              Assign an installation team · Shop Manager will be notified to select store dispatcher
+              Assign an installation team · Shop Attendant will be notified to select store driver
             </span>
           </div>
 
@@ -317,22 +507,22 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
       <!-- ================================================================= -->
       <!-- PERSPECTIVE SPECIFIC METRICS & HIGHLIGHTS BANNER                 -->
       <!-- ================================================================= -->
-      <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-800 space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/60 pb-3">
+      <div class="bg-white dark:bg-[#181A1F] text-[#111215] dark:text-white rounded-3xl p-5 sm:p-6 shadow-xs border border-slate-200 dark:border-white/10 space-y-4 transition-colors">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-white/10 pb-3">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-xl shrink-0">
+            <div class="w-10 h-10 rounded-2xl bg-[#59000A]/10 dark:bg-[#59000A]/30 text-[#59000A] dark:text-rose-200 flex items-center justify-center text-xl shrink-0">
               {{ currentPerspectiveConfig().icon }}
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <h2 class="text-base sm:text-lg font-black tracking-tight text-white">
+                <h2 class="text-base sm:text-lg font-black tracking-tight text-[#111215] dark:text-white">
                   {{ currentPerspectiveConfig().title }} Perspective
                 </h2>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#59000A] text-white">
                   Role Lens Active
                 </span>
               </div>
-              <p class="text-xs text-slate-300">
+              <p class="text-xs text-slate-600 dark:text-slate-400">
                 {{ currentPerspectiveConfig().focusDescription }}
               </p>
             </div>
@@ -342,7 +532,7 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
             <button
               type="button"
               (click)="navigateTo(currentPerspectiveConfig().primaryRoute)"
-              class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-slate-950 hover:bg-slate-100 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#59000A] hover:bg-[#73000E] text-white transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
             >
               <mat-icon class="!text-xs">launch</mat-icon>
               <span>{{ currentPerspectiveConfig().primaryRouteLabel }}</span>
@@ -353,20 +543,20 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
         <!-- Role Metric Tiles -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           @for (metric of perspectiveMetrics(); track metric.label) {
-            <div class="bg-white/5 hover:bg-white/10 transition-colors p-3.5 rounded-2xl border border-white/10 flex flex-col justify-between">
-              <span class="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+            <div class="bg-slate-50 hover:bg-slate-100/80 dark:bg-[#111215] dark:hover:bg-white/5 transition-colors p-3.5 rounded-2xl border border-slate-200 dark:border-white/10 flex flex-col justify-between">
+              <span class="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                 {{ metric.label }}
               </span>
               <div class="flex items-baseline gap-1.5 my-1">
-                <span class="text-2xl sm:text-3xl font-black font-mono tracking-tight tabular-nums" [class]="metric.colorClass || 'text-white'">
+                <span class="text-2xl sm:text-3xl font-black font-mono tracking-tight tabular-nums" [class]="metric.colorClass || 'text-[#111215] dark:text-white'">
                   {{ metric.value }}
                 </span>
                 @if (metric.unit) {
-                  <span class="text-xs text-slate-400 font-mono">{{ metric.unit }}</span>
+                  <span class="text-xs text-slate-500 dark:text-slate-400 font-mono">{{ metric.unit }}</span>
                 }
               </div>
-              <div class="text-[11px] text-slate-300 flex items-center gap-1">
-                <mat-icon class="!text-[12px] !w-3 !h-3 text-emerald-400">check_circle</mat-icon>
+              <div class="text-[11px] text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                <mat-icon class="!text-[12px] !w-3 !h-3 text-[#59000A] dark:text-rose-300">check_circle</mat-icon>
                 <span class="truncate">{{ metric.caption }}</span>
               </div>
             </div>
@@ -414,8 +604,9 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
       <!-- =================================================================== -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
         
-        <!-- CHART 1: LIFECYCLE STAGE DEMOGRAPHIC FUNNEL -->
-        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
+        @if (store.currentRole() === 'admin' || store.currentRole() === 'manager' || store.currentRole() === 'shop_manager') {
+          <!-- CHART 1: LIFECYCLE STAGE DEMOGRAPHIC FUNNEL -->
+          <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
           <div class="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
             <div>
               <h3 class="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -473,10 +664,12 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
               </button>
             }
           </div>
-        </div>
+          </div>
+        }
 
-        <!-- CHART 2: REGIONAL BRANCH DISTRIBUTION DEMOGRAPHICS -->
-        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
+        @if (store.currentRole() === 'admin' || store.currentRole() === 'manager' || store.currentRole() === 'shop_manager') {
+          <!-- CHART 2: REGIONAL BRANCH DISTRIBUTION DEMOGRAPHICS -->
+          <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
           <div class="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
             <div>
               <h3 class="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -610,10 +803,11 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
               <strong class="font-mono text-slate-900 dark:text-white">2.4 Hours / Slab</strong>
             </div>
           </div>
-        </div>
+          </div>
+        }
 
         <!-- CHART 4: FINANCIAL CASHFLOW & REVENUE DEMOGRAPHICS (Visible for Manager & Finance) -->
-        @if (store.currentRole() === 'manager' || store.currentRole() === 'account_officer') {
+        @if (store.currentRole() === 'admin' || store.currentRole() === 'account_officer' || (store.currentRole() === 'manager' && store.currentRoleDefinition().permissions.canViewFinancials)) {
           <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
             <div class="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
@@ -689,8 +883,9 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
 
       </div>
 
-      <!-- Real-Time Field Pipeline Bar -->
-      <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs">
+      @if (store.currentRole() !== 'installer' && store.currentRole() !== 'client') {
+        <!-- Real-Time Field Pipeline Bar -->
+        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Active Door Installation Pipeline</h3>
@@ -720,7 +915,8 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
             </button>
           }
         </div>
-      </div>
+        </div>
+      }
 
       <!-- ================================================================= -->
       <!-- INSTALLER REJECT TASK MODAL (ON /overview)                        -->
@@ -790,6 +986,73 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
       }
 
       <!-- ================================================================= -->
+      <!-- DISPATCH DRIVER REJECT RUN MODAL (ON /overview)                   -->
+      <!-- ================================================================= -->
+      @if (activeRejectDriverJob(); as drJob) {
+        <div class="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-rose-500/60 shadow-2xl max-w-md w-full p-5 space-y-4 text-xs animate-in zoom-in-95">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center">
+                  <mat-icon class="!text-base">cancel</mat-icon>
+                </div>
+                <div>
+                  <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Reject Delivery Run</h3>
+                  <p class="text-[11px] text-slate-500 font-mono">{{ drJob.id }} · {{ drJob.client.name }}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                (click)="closeRejectDriverTaskModal()"
+                class="p-1 text-slate-400 hover:text-slate-800 dark:hover:text-white cursor-pointer"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+
+            <div class="space-y-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Reason for Rejecting Run *</label>
+                <textarea
+                  [(ngModel)]="overviewRejectReason"
+                  rows="3"
+                  placeholder="e.g., Vehicle mechanical inspection / schedule conflict / payload limit..."
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-rose-500"
+                ></textarea>
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Proposed Alternative Delivery Slot (Optional)</label>
+                <input
+                  type="text"
+                  [(ngModel)]="overviewProposedSlot"
+                  placeholder="e.g., Tomorrow morning at 10:00 AM"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-rose-500"
+                />
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                (click)="closeRejectDriverTaskModal()"
+                class="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-300 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                (click)="submitRejectDriverTaskOnOverview()"
+                class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center gap-1 cursor-pointer shadow-sm"
+              >
+                <mat-icon class="!text-sm">send</mat-icon>
+                <span>Confirm Rejection (Return to Queue)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- ================================================================= -->
       <!-- SELECT INSTALLATION TEAM MODAL DIALOG (OPERATIONS MANAGER)        -->
       <!-- ================================================================= -->
       @if (activeSetupJob(); as job) {
@@ -846,11 +1109,9 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
                 <!-- All Available Teams Grid Select -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   @for (team of store.installerTeams(); track team.id) {
-                    <button
-                      type="button"
-                      (click)="assignTeam(team)"
-                      class="p-3.5 rounded-2xl border text-left transition-all cursor-pointer space-y-2 active:scale-[0.99]"
-                      [class]="isTeamFullySelected(team)
+                    <div
+                      class="p-3.5 rounded-2xl border text-left transition-all space-y-2.5"
+                      [class]="isTeamFullySelected(team) || isTeamLeadOnlySelected(team)
                         ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/30 shadow-xs'
                         : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-700'"
                     >
@@ -864,11 +1125,16 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
                         </span>
                         @if (isTeamFullySelected(team)) {
                           <span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
-                            <mat-icon class="!text-sm !w-4 !h-4">check_circle</mat-icon>
-                            <span>Selected</span>
+                            <mat-icon class="!text-sm !w-4 !h-4">groups</mat-icon>
+                            <span>Full Team</span>
+                          </span>
+                        } @else if (isTeamLeadOnlySelected(team)) {
+                          <span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                            <mat-icon class="!text-sm !w-4 !h-4">person</mat-icon>
+                            <span>Lead Only</span>
                           </span>
                         } @else {
-                          <span class="text-[10px] font-semibold text-slate-400">Click to select</span>
+                          <span class="text-[10px] font-semibold text-slate-400">Not selected</span>
                         }
                       </div>
 
@@ -883,12 +1149,41 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
 
                       <div class="flex flex-wrap gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
                         @for (member of team.members; track member.id) {
-                          <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+                          <span class="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                            [class]="selectedInstallerIds().includes(member.id)
+                              ? 'bg-emerald-600 text-white font-bold'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'">
                             {{ member.name.split(' (')[0] }}{{ member.position ? ' (' + member.position + ')' : '' }}{{ member.role === 'lead' ? ' ★' : '' }}
                           </span>
                         }
                       </div>
-                    </button>
+
+                      <div class="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <button
+                          type="button"
+                          (click)="assignTeamLeadOnly(team)"
+                          class="flex-1 py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                          [class]="isTeamLeadOnlySelected(team)
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'"
+                        >
+                          <mat-icon class="!text-xs !w-3 !h-3">person</mat-icon>
+                          <span>Lead Only</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          (click)="assignFullTeam(team)"
+                          class="flex-1 py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                          [class]="isTeamFullySelected(team)
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'"
+                        >
+                          <mat-icon class="!text-xs !w-3 !h-3">groups</mat-icon>
+                          <span>Full Team</span>
+                        </button>
+                      </div>
+                    </div>
                   }
                 </div>
               </div>
@@ -979,6 +1274,7 @@ import { DispatcherProfile, InstallationJob, InstallerTeam, JobStatus, RoleType 
           </div>
         </div>
       }
+      }
     </div>
   `
 })
@@ -996,6 +1292,7 @@ export class Overview implements OnDestroy {
   readonly activeSetupJob = signal<InstallationJob | null>(null);
   readonly selectedInstallerIds = signal<string[]>([]);
   readonly activeRejectInstallerJob = signal<InstallationJob | null>(null);
+  readonly activeRejectDriverJob = signal<InstallationJob | null>(null);
   overviewRejectReason = '';
   overviewProposedSlot = '';
   readonly nowTick = signal<number>(Date.now());
@@ -1003,10 +1300,12 @@ export class Overview implements OnDestroy {
 
   constructor() {
     this.store.checkAndAutoAcceptExpiredInstallerAssignments();
+    this.store.checkAndAutoAcceptExpiredDriverAssignments();
     if (typeof window !== 'undefined') {
       this.countdownInterval = setInterval(() => {
         this.nowTick.set(Date.now());
         this.store.checkAndAutoAcceptExpiredInstallerAssignments();
+        this.store.checkAndAutoAcceptExpiredDriverAssignments();
       }, 1000);
     }
   }
@@ -1066,10 +1365,10 @@ export class Overview implements OnDestroy {
       case 'dispatcher':
         return {
           icon: '🚚',
-          title: 'Logistics Fleet Dispatcher',
+          title: 'Driver Deliveries',
           focusDescription: 'Direct focus on flatbed truck telematics, loading manifests, driver assignments, transit routes, and on-time site arrival.',
-          primaryRoute: '/dispatcher',
-          primaryRouteLabel: 'Logistics Fleet Portal (/dispatcher)'
+          primaryRoute: '/overview',
+          primaryRouteLabel: 'Driver Portal (/overview)'
         };
       case 'account_officer':
         return {
@@ -1090,7 +1389,7 @@ export class Overview implements OnDestroy {
       default:
         return {
           icon: '🏢',
-          title: 'Operations Manager',
+          title: 'Manager',
           focusDescription: 'Complete operations oversight: installer job allocation, fleet mobilization, bonus approvals, and installation completion.',
           primaryRoute: '/work',
           primaryRouteLabel: 'Manage All Work Orders (/work)'
@@ -1107,20 +1406,20 @@ export class Overview implements OnDestroy {
     switch (role) {
       case 'admin': {
         return [
-          { label: 'System Registered Users', value: this.store.users().length, unit: 'accounts', caption: 'Total user directory', colorClass: 'text-purple-400' },
-          { label: 'Pending Approvals', value: this.store.pendingUsers().length, unit: 'users', caption: 'Requires admin action', colorClass: 'text-amber-400' },
-          { label: 'Active System Roles', value: this.store.roles().length, unit: 'roles', caption: 'RBAC security matrix', colorClass: 'text-cyan-400' },
-          { label: 'Total Contract Value', value: `GH₵${stats.totalOrderValue.toLocaleString()}`, caption: 'Operations volume', colorClass: 'text-emerald-400' }
+          { label: 'System Registered Users', value: this.store.users().length, unit: 'accounts', caption: 'Total user directory', colorClass: 'text-purple-700 dark:text-purple-400' },
+          { label: 'Pending Approvals', value: this.store.pendingUsers().length, unit: 'users', caption: 'Requires admin action', colorClass: 'text-amber-600 dark:text-amber-400' },
+          { label: 'Active System Roles', value: this.store.roles().length, unit: 'roles', caption: 'RBAC security matrix', colorClass: 'text-cyan-700 dark:text-cyan-400' },
+          { label: 'Total Contract Value', value: `GH₵${stats.totalOrderValue.toLocaleString()}`, caption: 'Operations volume', colorClass: 'text-[#59000A] dark:text-rose-300' }
         ];
       }
       case 'installer': {
         const myJobs = this.installerJobs();
         const completedCount = myJobs.filter(j => j.status === 'completed' || j.status === 'bonus_awarded').length;
         return [
-          { label: 'Assigned Site Jobs', value: myJobs.length || '3', unit: 'tasks', caption: 'Active field assignments', colorClass: 'text-emerald-400' },
-          { label: 'Site Geofence Status', value: 'Ready', caption: 'GPS Clock-in verified', colorClass: 'text-cyan-400' },
-          { label: 'Completed Installations', value: completedCount || '18', unit: 'doors', caption: 'Verified site completions', colorClass: 'text-emerald-400' },
-          { label: 'Performance Rating', value: '★4.9', caption: '100% Quality pass rate', colorClass: 'text-white' }
+          { label: 'Assigned Site Jobs', value: myJobs.length || '3', unit: 'tasks', caption: 'Active field assignments', colorClass: 'text-[#59000A] dark:text-rose-300' },
+          { label: 'Site Geofence Status', value: 'Ready', caption: 'GPS Clock-in verified', colorClass: 'text-cyan-700 dark:text-cyan-400' },
+          { label: 'Completed Installations', value: completedCount || '18', unit: 'doors', caption: 'Verified site completions', colorClass: 'text-[#59000A] dark:text-rose-300' },
+          { label: 'Performance Rating', value: '★4.9', caption: '100% Quality pass rate', colorClass: 'text-[#111215] dark:text-white' }
         ];
       }
       case 'shop_manager': {
@@ -1130,10 +1429,10 @@ export class Overview implements OnDestroy {
         const pendingDispatchers = isShopRole ? this.store.branchPendingDriverJobs().length : this.store.shopPendingDriverJobs().length;
         const shopOrderCount = isShopRole ? this.store.branchJobs().length : jobs.length;
         return [
-          { label: 'My Shop Deposits', value: `GH₵${collections.toLocaleString()}`, caption: 'MoMo & Cash reconciled', colorClass: 'text-emerald-400' },
-          { label: 'My Shop Orders', value: shopOrderCount, unit: 'orders', caption: 'Created by & for this shop', colorClass: 'text-cyan-400' },
-          { label: 'Awaiting Dispatcher', value: pendingDispatchers, unit: 'orders', caption: 'Orders pending dispatcher', colorClass: 'text-amber-400' },
-          { label: 'Branch Location', value: ownBranch?.city || 'Assigned', caption: ownBranch?.shopName || 'Assigned Shop Branch', colorClass: 'text-white' }
+          { label: 'My Shop Deposits', value: `GH₵${collections.toLocaleString()}`, caption: 'MoMo & Cash reconciled', colorClass: 'text-[#59000A] dark:text-rose-300' },
+          { label: 'My Shop Orders', value: shopOrderCount, unit: 'orders', caption: 'Created by & for this shop', colorClass: 'text-cyan-700 dark:text-cyan-400' },
+          { label: 'Awaiting Driver', value: pendingDispatchers, unit: 'orders', caption: 'Orders pending driver', colorClass: 'text-amber-600 dark:text-amber-400' },
+          { label: 'Branch Location', value: ownBranch?.city || 'Assigned', caption: ownBranch?.shopName || 'Assigned Shop Branch', colorClass: 'text-[#111215] dark:text-white' }
         ];
       }
       case 'dispatcher': {
@@ -1141,10 +1440,10 @@ export class Overview implements OnDestroy {
         const totalTrucks = this.store.trucks().length;
         const pendingDriver = this.store.shopPendingDriverJobs().length;
         return [
-          { label: 'En Route Flatbeds', value: activeTrucks || '2', unit: `of ${totalTrucks}`, caption: 'GPS telematics active', colorClass: 'text-cyan-400' },
-          { label: 'Cargo Manifests', value: stats.inProgress, unit: 'doors', caption: 'Under transit custody', colorClass: 'text-emerald-400' },
-          { label: 'Pending Logistics', value: pendingDriver, unit: 'slabs', caption: 'Awaiting truck dispatch', colorClass: 'text-amber-400' },
-          { label: 'Transit ETA Adherence', value: '98.6%', caption: 'On-time delivery record', colorClass: 'text-white' }
+          { label: 'En Route Flatbeds', value: activeTrucks || '2', unit: `of ${totalTrucks}`, caption: 'GPS telematics active', colorClass: 'text-cyan-700 dark:text-cyan-400' },
+          { label: 'Cargo Manifests', value: stats.inProgress, unit: 'doors', caption: 'Under transit custody', colorClass: 'text-[#59000A] dark:text-rose-300' },
+          { label: 'Pending Logistics', value: pendingDriver, unit: 'slabs', caption: 'Awaiting truck dispatch', colorClass: 'text-amber-600 dark:text-amber-400' },
+          { label: 'Transit ETA Adherence', value: '98.6%', caption: 'On-time delivery record', colorClass: 'text-[#111215] dark:text-white' }
         ];
       }
       case 'account_officer': {
@@ -1153,28 +1452,28 @@ export class Overview implements OnDestroy {
         const dispatched = this.store.totalSiteFundsDispatched();
         const pendingBonus = stats.pendingBonusApproval;
         return [
-          { label: 'Gross Order Pipeline', value: `GH₵${gross.toLocaleString()}`, caption: 'Total contracted revenue', colorClass: 'text-emerald-400' },
-          { label: 'Shop Deposits Collected', value: `GH₵${collected.toLocaleString()}`, caption: 'Reconciled in bank ledger', colorClass: 'text-cyan-400' },
-          { label: 'Site Funds Dispatched', value: `GH₵${dispatched.toLocaleString()}`, caption: 'Installer mobilization cash', colorClass: 'text-white' },
-          { label: 'Bonus Approvals Due', value: pendingBonus, unit: 'claims', caption: 'Installer incentives', colorClass: 'text-amber-400' }
+          { label: 'Gross Order Pipeline', value: `GH₵${gross.toLocaleString()}`, caption: 'Total contracted revenue', colorClass: 'text-[#59000A] dark:text-rose-300' },
+          { label: 'Shop Deposits Collected', value: `GH₵${collected.toLocaleString()}`, caption: 'Reconciled in bank ledger', colorClass: 'text-cyan-700 dark:text-cyan-400' },
+          { label: 'Site Funds Dispatched', value: `GH₵${dispatched.toLocaleString()}`, caption: 'Installer mobilization cash', colorClass: 'text-[#111215] dark:text-white' },
+          { label: 'Bonus Approvals Due', value: pendingBonus, unit: 'claims', caption: 'Installer incentives', colorClass: 'text-amber-600 dark:text-amber-400' }
         ];
       }
       case 'client': {
         const clientJobs = this.store.clientJobs();
         const leadTech = clientJobs[0]?.assignedInstallerName || 'Emmanuel Mensah';
         return [
-          { label: 'My Ordered Doors', value: clientJobs.length || '1', unit: 'doors', caption: 'High-security architectural slab', colorClass: 'text-emerald-400' },
-          { label: 'Installation Stage', value: 'On-Site', caption: 'Installer currently fitting door', colorClass: 'text-cyan-400' },
-          { label: 'Lead Installer', value: leadTech, caption: 'DoorMaster Certified Specialist', colorClass: 'text-white' },
-          { label: 'Handover Certificate', value: 'Pending', caption: 'Available upon final sign-off', colorClass: 'text-amber-400' }
+          { label: 'My Ordered Doors', value: clientJobs.length || '1', unit: 'doors', caption: 'High-security architectural slab', colorClass: 'text-[#59000A] dark:text-rose-300' },
+          { label: 'Installation Stage', value: 'On-Site', caption: 'Installer currently fitting door', colorClass: 'text-cyan-700 dark:text-cyan-400' },
+          { label: 'Lead Installer', value: leadTech, caption: 'DoorMaster Certified Specialist', colorClass: 'text-[#111215] dark:text-white' },
+          { label: 'Handover Certificate', value: 'Pending', caption: 'Available upon final sign-off', colorClass: 'text-amber-600 dark:text-amber-400' }
         ];
       }
       default: {
         return [
-          { label: 'Active Field Installations', value: stats.inProgress, unit: 'doors', caption: 'On-site & en route', colorClass: 'text-emerald-400' },
-          { label: 'Signed-In Field Installers', value: this.store.signedInInstallers().length, unit: `/${this.store.installers().length}`, caption: 'Active GPS monitored', colorClass: 'text-cyan-400' },
-          { label: 'Unassigned Shop Bookings', value: this.store.shopPendingTruckSetupJobs().length, unit: 'queued', caption: 'Requires installer setup', colorClass: 'text-amber-400' },
-          { label: 'Total Contract Value', value: `GH₵${stats.totalOrderValue.toLocaleString()}`, caption: '100% Quality pass rate', colorClass: 'text-white' }
+          { label: 'Active Field Installations', value: stats.inProgress, unit: 'doors', caption: 'On-site & en route', colorClass: 'text-[#59000A] dark:text-rose-300' },
+          { label: 'Signed-In Field Installers', value: this.store.signedInInstallers().length, unit: `/${this.store.installers().length}`, caption: 'Active GPS monitored', colorClass: 'text-cyan-700 dark:text-cyan-400' },
+          { label: 'Unassigned Shop Bookings', value: this.store.shopPendingTruckSetupJobs().length, unit: 'queued', caption: 'Requires installer setup', colorClass: 'text-amber-600 dark:text-amber-400' },
+          { label: 'Total Contract Value', value: `GH₵${stats.totalOrderValue.toLocaleString()}`, caption: '100% Quality pass rate', colorClass: 'text-[#111215] dark:text-white' }
         ];
       }
     }
@@ -1255,6 +1554,16 @@ export class Overview implements OnDestroy {
     return this.store.jobs().filter(j => this.store.isJobAssignedToCurrentInstaller(j));
   });
 
+  readonly accountOfficerPendingVerificationJobs = computed(() => {
+    return this.store.jobs().filter(
+      j => (j.shopBooking != null || j.status === 'booked_at_shop') && !j.shopBooking?.accountantVerified
+    );
+  });
+
+  verifyShopBookingOnOverview(jobId: string) {
+    this.store.verifyShopPayment(jobId, 'Verified from Account Officer Overview');
+  }
+
   readonly installerPendingAcceptanceJobs = computed(() => {
     this.nowTick();
     return this.installerJobs().filter(
@@ -1267,17 +1576,7 @@ export class Overview implements OnDestroy {
   });
 
   getInstallerRemainingSeconds(job: InstallationJob): number {
-    const now = this.nowTick();
-    const member = this.store.getInstallerMemberForJob(job);
-    const deadlineStr = member?.deadlineAt || job.installerDeadlineAt;
-    if (!deadlineStr) {
-      const assignedMs = (member?.assignedAt || job.installerAssignedAt)
-        ? new Date(member?.assignedAt || job.installerAssignedAt!).getTime()
-        : now;
-      return Math.max(0, Math.floor((assignedMs + 10 * 60 * 1000 - now) / 1000));
-    }
-    const deadlineMs = new Date(deadlineStr).getTime();
-    return Math.max(0, Math.floor((deadlineMs - now) / 1000));
+    return this.store.getInstallerRemainingSeconds(job);
   }
 
   formatCountdown(totalSec: number): string {
@@ -1318,6 +1617,53 @@ export class Overview implements OnDestroy {
     const slot = this.overviewProposedSlot.trim() || undefined;
     this.store.respondInstallerAssignment(job.id, false, reason, slot);
     this.closeRejectInstallerTaskModal();
+  }
+
+  readonly driverPendingAcceptanceJobs = computed(() => {
+    this.nowTick();
+    return this.store.driverPendingAcceptanceJobs().filter(
+      j => this.getDriverRemainingSeconds(j) > 0
+    );
+  });
+
+  getDriverRemainingSeconds(job: InstallationJob): number {
+    return this.store.getDriverRemainingSeconds(job);
+  }
+
+  acceptDriverTaskOnOverview(job: InstallationJob) {
+    this.store.respondDriverAssignment(job.id, true);
+    this.alert.success('Delivery Run Accepted', `Manifest for job ${job.id} confirmed for you.`);
+  }
+
+  openRejectDriverTaskModal(job: InstallationJob) {
+    if (this.getDriverRemainingSeconds(job) <= 0) {
+      this.store.checkAndAutoAcceptExpiredDriverAssignments();
+      return;
+    }
+    this.overviewRejectReason = '';
+    this.overviewProposedSlot = '';
+    this.activeRejectDriverJob.set(job);
+  }
+
+  closeRejectDriverTaskModal() {
+    this.activeRejectDriverJob.set(null);
+    this.overviewRejectReason = '';
+    this.overviewProposedSlot = '';
+  }
+
+  submitRejectDriverTaskOnOverview() {
+    const job = this.activeRejectDriverJob();
+    if (!job) return;
+    if (this.getDriverRemainingSeconds(job) <= 0) {
+      this.closeRejectDriverTaskModal();
+      this.store.checkAndAutoAcceptExpiredDriverAssignments();
+      return;
+    }
+    const reason = this.overviewRejectReason.trim() || 'Driver unavailable / vehicle maintenance required';
+    const slot = this.overviewProposedSlot.trim() || undefined;
+    this.store.respondDriverAssignment(job.id, false, reason, slot);
+    this.alert.warning('Delivery Run Rejected', `Job ${job.id} returned to queue for reassignment.`);
+    this.closeRejectDriverTaskModal();
   }
 
   readonly installerBonusEarned = computed(() => {
@@ -1380,12 +1726,31 @@ export class Overview implements OnDestroy {
     }
   }
 
-  assignTeam(team: InstallerTeam) {
+  assignTeamLeadOnly(team: InstallerTeam) {
+    this.selectedInstallerIds.set([team.leadId]);
+  }
+
+  assignFullTeam(team: InstallerTeam) {
     const orderedIds = [
       team.leadId,
       ...team.memberIds.filter(id => id !== team.leadId)
     ];
     this.selectedInstallerIds.set(orderedIds);
+  }
+
+  assignTeam(team: InstallerTeam) {
+    if (this.isTeamFullySelected(team)) {
+      this.selectedInstallerIds.set([]);
+    } else if (this.isTeamLeadOnlySelected(team)) {
+      this.assignFullTeam(team);
+    } else {
+      this.assignTeamLeadOnly(team);
+    }
+  }
+
+  isTeamLeadOnlySelected(team: InstallerTeam): boolean {
+    const selected = this.selectedInstallerIds();
+    return selected.length === 1 && selected[0] === team.leadId;
   }
 
   isTeamFullySelected(team: InstallerTeam): boolean {
@@ -1417,7 +1782,7 @@ export class Overview implements OnDestroy {
 
   onAssignDriverDirect(jobId: string, disp: DispatcherProfile) {
     if (!this.store.canCurrentRoleSelectDispatcher()) {
-      this.alert.warning('Access Restricted', 'Dispatch driver selection is managed exclusively by the Shop Manager.');
+      this.alert.warning('Access Restricted', 'Driver selection is managed exclusively by the Shop Attendant.');
       return;
     }
     this.store.assignDispatchDriverByShop(jobId, {
@@ -1428,7 +1793,7 @@ export class Overview implements OnDestroy {
       deliveryNotes: 'Direct store counter handover. Padded blankets applied.',
       estimatedDeparture: 'Dispatched from store'
     });
-    this.alert.toastSuccess('Dispatcher Assigned', `${disp.name} (${disp.assignedTruck.plate}) assigned to job #${jobId}.`);
+    this.alert.toastSuccess('Driver Assigned', `${disp.name} (${disp.assignedTruck.plate}) assigned to job #${jobId}.`);
   }
 
   onQuickSelectDispatcher(jobId: string, event: Event) {
@@ -1448,7 +1813,7 @@ export class Overview implements OnDestroy {
       deliveryNotes: 'Direct store counter handover. Padded blankets applied.',
       estimatedDeparture: 'Dispatched from store'
     });
-    this.alert.toastSuccess('Dispatcher Selected', `${disp.name} (${disp.assignedTruck.plate}) assigned to job ${jobId}.`);
+    this.alert.toastSuccess('Driver Selected', `${disp.name} (${disp.assignedTruck.plate}) assigned to job ${jobId}.`);
     (event.target as HTMLSelectElement).value = '';
   }
 

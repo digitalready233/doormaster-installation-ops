@@ -1,6 +1,7 @@
 import { 
   ChangeDetectionStrategy, 
   Component, 
+  computed,
   input, 
   output, 
   signal 
@@ -14,78 +15,122 @@ import { InstallationPhoto } from '../../models/installation.model';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatIconModule, ReactiveFormsModule],
   template: `
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
+    <div class="space-y-3">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800">
         <div>
-          <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Installation Photographic Proof</h4>
-          <p class="text-xs text-slate-500 mt-0.5">Upload pre-installation opening condition, hardware alignment, and final completed door</p>
+          <h4 class="text-[11px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Installation Photographic Proof</h4>
+          <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Installers are required to take and upload <strong class="text-slate-700 dark:text-slate-200">Before</strong> photos on commencement of work and <strong class="text-slate-700 dark:text-slate-200">After</strong> photos when work is done.
+          </p>
         </div>
-        
-        <button 
-          type="button"
-          (click)="showUploadModal.set(true)"
-          class="px-3 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
-        >
-          <mat-icon class="!text-sm !w-4 !h-4">add_a_photo</mat-icon>
-          <span>Upload Work Photo</span>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <span class="px-2 py-0.5 rounded text-[9px] font-bold border"
+            [class]="beforePhotos().length > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800' : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'">
+            Before: {{ beforePhotos().length }} {{ beforePhotos().length > 0 ? '✓' : '(Required)' }}
+          </span>
+          <span class="px-2 py-0.5 rounded text-[9px] font-bold border"
+            [class]="afterPhotos().length > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800' : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'">
+            After: {{ afterPhotos().length }} {{ afterPhotos().length > 0 ? '✓' : '(Required)' }}
+          </span>
+        </div>
       </div>
 
-      <!-- Photo Grid -->
-      @if (photos().length === 0) {
-        <div class="border border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50/50">
-          <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-2">
-            <mat-icon>photo_camera</mat-icon>
-          </div>
-          <p class="text-xs font-medium text-slate-700">No site photos uploaded yet</p>
-          <p class="text-[11px] text-slate-400 mt-0.5 mb-3">Upload before & after photos for installation quality documentation & verification</p>
-          <button 
-            type="button"
-            (click)="showUploadModal.set(true)"
-            class="px-3.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors inline-flex items-center gap-1.5 shadow-xs"
-          >
-            <mat-icon class="!text-sm !w-4 !h-4">cloud_upload</mat-icon>
-            <span>Upload First Photo</span>
-          </button>
-        </div>
-      } @else {
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          @for (photo of photos(); track photo.id) {
-            <button 
+      <!-- Divided into two sections: Before (Commencement) & After (Completion) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <!-- 1. BEFORE WORK (COMMENCEMENT) -->
+        <div class="bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <span class="text-[11px] font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                <mat-icon class="!text-xs text-amber-600">play_circle</mat-icon>
+                <span>1. Before Work (Commencement)</span>
+              </span>
+              <p class="text-[10px] text-slate-500 dark:text-slate-400">Required when starting work on site</p>
+            </div>
+            <button
               type="button"
-              class="group relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 aspect-4/3 cursor-pointer shadow-xs text-left p-0 focus:outline-none focus:ring-2 focus:ring-slate-900"
-              (click)="previewPhoto.set(photo)"
+              (click)="openUploadForStage('before')"
+              class="px-2.5 py-1 text-[10px] font-bold text-white bg-amber-600 hover:bg-amber-500 rounded-lg transition-colors flex items-center gap-1 shadow-xs cursor-pointer shrink-0"
             >
-              <img 
-                [src]="photo.url" 
-                [alt]="photo.caption" 
-                class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                referrerpolicy="no-referrer"
-              />
-              <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20 opacity-90 group-hover:opacity-100 transition-opacity"></div>
-              
-              <!-- Badge -->
-              <div class="absolute top-2 left-2">
-                <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-black/60 text-white backdrop-blur-xs">
-                  {{ photo.stage }}
-                </span>
-              </div>
-
-              <!-- Caption -->
-              <div class="absolute bottom-2 left-2 right-2 text-white">
-                <p class="text-xs font-medium truncate drop-shadow-xs">{{ photo.caption }}</p>
-                <p class="text-[10px] text-slate-300 font-mono tabular-nums">{{ formatTime(photo.timestamp) }} · {{ photo.uploadedBy }}</p>
-              </div>
-
-              <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div class="p-1 rounded bg-black/60 text-white hover:bg-black/80">
-                  <mat-icon class="!text-xs !w-3 !h-3">zoom_in</mat-icon>
-                </div>
-              </div>
+              <mat-icon class="!text-xs !w-3.5 !h-3.5">add_a_photo</mat-icon>
+              <span>Upload Before</span>
             </button>
+          </div>
+
+          @if (beforePhotos().length === 0) {
+            <div class="border border-dashed border-amber-300 dark:border-amber-800/70 rounded-lg p-5 text-center bg-amber-50/40 dark:bg-amber-950/20">
+              <mat-icon class="!text-xl text-amber-500 mb-1">photo_camera</mat-icon>
+              <p class="text-[11px] font-semibold text-amber-900 dark:text-amber-200">No "Before" photo uploaded</p>
+              <p class="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5">Take a photo of the door opening before starting</p>
+            </div>
+          } @else {
+            <div class="grid grid-cols-2 gap-2">
+              @for (photo of beforePhotos(); track photo.id) {
+                <button
+                  type="button"
+                  class="group relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 aspect-4/3 cursor-pointer shadow-xs text-left p-0 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  (click)="previewPhoto.set(photo)"
+                >
+                  <img [src]="photo.url" [alt]="photo.caption" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" referrerpolicy="no-referrer" />
+                  <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20"></div>
+                  <span class="absolute top-1.5 left-1.5 text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-amber-600/90 text-white">Before</span>
+                  <div class="absolute bottom-1.5 left-1.5 right-1.5 text-white">
+                    <p class="text-[10px] font-medium truncate">{{ photo.caption }}</p>
+                    <p class="text-[9px] text-slate-300 font-mono truncate">{{ formatTime(photo.timestamp) }}</p>
+                  </div>
+                </button>
+              }
+            </div>
           }
         </div>
-      }
+
+        <!-- 2. AFTER WORK DONE (COMPLETION) -->
+        <div class="bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <span class="text-[11px] font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                <mat-icon class="!text-xs text-emerald-600">check_circle</mat-icon>
+                <span>2. After Work Done (Completion)</span>
+              </span>
+              <p class="text-[10px] text-slate-500 dark:text-slate-400">Required upon completing installation</p>
+            </div>
+            <button
+              type="button"
+              (click)="openUploadForStage('after')"
+              class="px-2.5 py-1 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors flex items-center gap-1 shadow-xs cursor-pointer shrink-0"
+            >
+              <mat-icon class="!text-xs !w-3.5 !h-3.5">add_a_photo</mat-icon>
+              <span>Upload After</span>
+            </button>
+          </div>
+
+          @if (afterPhotos().length === 0) {
+            <div class="border border-dashed border-emerald-300 dark:border-emerald-800/70 rounded-lg p-5 text-center bg-emerald-50/40 dark:bg-emerald-950/20">
+              <mat-icon class="!text-xl text-emerald-500 mb-1">verified</mat-icon>
+              <p class="text-[11px] font-semibold text-emerald-900 dark:text-emerald-200">No "After" photo uploaded</p>
+              <p class="text-[10px] text-emerald-700 dark:text-emerald-400 mt-0.5">Take a photo of the completed door & lock</p>
+            </div>
+          } @else {
+            <div class="grid grid-cols-2 gap-2">
+              @for (photo of afterPhotos(); track photo.id) {
+                <button
+                  type="button"
+                  class="group relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 aspect-4/3 cursor-pointer shadow-xs text-left p-0 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  (click)="previewPhoto.set(photo)"
+                >
+                  <img [src]="photo.url" [alt]="photo.caption" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" referrerpolicy="no-referrer" />
+                  <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20"></div>
+                  <span class="absolute top-1.5 left-1.5 text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-emerald-600/90 text-white">{{ photo.stage === 'in_progress' ? 'In Progress' : 'After' }}</span>
+                  <div class="absolute bottom-1.5 left-1.5 right-1.5 text-white">
+                    <p class="text-[10px] font-medium truncate">{{ photo.caption }}</p>
+                    <p class="text-[9px] text-slate-300 font-mono truncate">{{ formatTime(photo.timestamp) }}</p>
+                  </div>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
 
       <!-- Upload Modal -->
       @if (showUploadModal()) {
@@ -280,6 +325,14 @@ export class PhotoUploader {
   readonly selectedStage = signal<'before' | 'in_progress' | 'after'>('after');
   readonly selectedImagePreview = signal<string>('');
   readonly previewPhoto = signal<InstallationPhoto | null>(null);
+
+  readonly beforePhotos = computed(() => this.photos().filter(p => p.stage === 'before'));
+  readonly afterPhotos = computed(() => this.photos().filter(p => p.stage === 'after' || p.stage === 'in_progress'));
+
+  openUploadForStage(stage: 'before' | 'after') {
+    this.selectedStage.set(stage);
+    this.showUploadModal.set(true);
+  }
 
   readonly uploadForm = new FormGroup({
     caption: new FormControl('', [Validators.required, Validators.minLength(3)])

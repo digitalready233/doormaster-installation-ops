@@ -35,7 +35,7 @@ import { MatIconModule } from '@angular/material/icon';
           <div class="p-3 bg-red-50 dark:bg-red-950/40 rounded-xl border border-red-200 dark:border-red-900/60 text-red-900 dark:text-red-300 space-y-1">
             <span class="font-bold flex items-center gap-1 text-[11px]">
               <mat-icon class="!text-xs">info</mat-icon>
-              <span>Operations Manager Alert</span>
+              <span>Manager Alert</span>
             </span>
             <p class="text-[11px] text-red-700 dark:text-red-400">
               Rejecting this assignment will notify the Operations Manager immediately with your reason and return the job to the queue for instant re-assignment.

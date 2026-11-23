@@ -57,7 +57,7 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
           <button 
             type="button"
             (click)="addUserModalOpened.emit()"
-            class="px-3.5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 dark:text-slate-950 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+            class="px-3.5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 dark:text-white rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
           >
             <mat-icon class="!text-sm !w-4 !h-4">person_add</mat-icon>
             <span>Add New User</span>
@@ -148,7 +148,7 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
               <span class="text-xs text-slate-500 font-mono">accounts</span>
             </div>
             <div class="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
-              Staff, Technicians & Clients
+              Staff, Installers & Clients
             </div>
           </div>
 
@@ -320,10 +320,10 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
             >
               <option value="all">All Roles</option>
               <option value="admin">System Administrator</option>
-              <option value="manager">Operations Manager</option>
+              <option value="manager">Manager</option>
               <option value="installer">Installer</option>
-              <option value="shop_manager">Shop Manager</option>
-              <option value="dispatcher">Logistics Dispatcher</option>
+              <option value="shop_manager">Shop Attendant</option>
+              <option value="dispatcher">Driver</option>
               <option value="account_officer">Account Officer</option>
               <option value="client">Client</option>
               @for (r of customRoles(); track r.id) {
@@ -424,7 +424,7 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
                               } @else if (u.role === 'dispatcher') {
                                 <span class="text-[9px] px-1.5 py-0.2 rounded font-bold bg-teal-50 text-teal-700 dark:bg-teal-950/70 dark:text-teal-300 border border-teal-200 dark:border-teal-800 inline-flex items-center gap-0.5">
                                   <mat-icon class="!text-[10px] !w-2.5 !h-2.5">local_shipping</mat-icon>
-                                  <span>Branch Dispatcher</span>
+                                  <span>Branch Driver</span>
                                 </span>
                               }
                               @if (store.impersonationSession()?.targetUser?.id === u.id) {
@@ -644,7 +644,7 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
                   </span>
                 </div>
                 <p class="text-xs text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
-                  Create field installation squads, open any team to configure custom positions, assign or transfer technicians, promote team leads, and keep every portal and user in real-time sync.
+                  Create field installation squads, open any team to configure custom positions, assign or transfer installers, promote team leads, and keep every portal and user in real-time sync.
                 </p>
               </div>
             </div>
@@ -768,7 +768,7 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
                     type="text"
                     [ngModel]="newTeamPositionsInput()"
                     (ngModelChange)="newTeamPositionsInput.set($event)"
-                    placeholder="Team Lead, Lead Master Tech, Smart Lock Specialist, Senior Acoustic Tech, Precision Joiner Tech, Assistant Technician"
+                    placeholder="Team Lead, Lead Master Installer, Smart Lock Specialist, Senior Acoustic Installer, Precision Joiner Installer, Assistant Installer"
                     class="w-full px-3 py-2 rounded-xl text-xs border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -884,7 +884,7 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
                               <span class="font-bold text-slate-800 dark:text-slate-100 truncate">{{ m.name }}</span>
                             </div>
                             <span class="px-1.5 py-0.2 rounded font-semibold bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">
-                              {{ m.position || (m.role === 'lead' ? 'Team Lead' : 'Technician') }}
+                              {{ m.position || (m.role === 'lead' ? 'Team Lead' : 'Installer') }}
                             </span>
                           </div>
                         }
@@ -1091,8 +1091,8 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
                   @if (activeTeam.members.length === 0) {
                     <div class="p-6 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-center space-y-1">
                       <mat-icon class="!text-2xl text-slate-400">group_off</mat-icon>
-                      <p class="text-xs font-bold text-slate-700 dark:text-slate-300">No technicians assigned to {{ activeTeam.name }} yet</p>
-                      <p class="text-[11px] text-slate-500 dark:text-slate-400">Use section 3 below to add existing installers or create a new technician directly into this team.</p>
+                      <p class="text-xs font-bold text-slate-700 dark:text-slate-300">No installers assigned to {{ activeTeam.name }} yet</p>
+                      <p class="text-[11px] text-slate-500 dark:text-slate-400">Use section 3 below to add existing installers or create a new installer directly into this team.</p>
                     </div>
                   } @else {
                     <div class="grid grid-cols-1 gap-3">
@@ -1125,7 +1125,7 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
                                   </span>
                                 }
                                 <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                  Position: {{ member.position || (isLead ? 'Team Lead' : 'Installation Technician') }}
+                                  Position: {{ member.position || (isLead ? 'Team Lead' : 'Installation Installer') }}
                                 </span>
                               </div>
                               <div class="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-3 mt-0.5 flex-wrap">
@@ -1199,7 +1199,7 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
                         <span>3. Add Member & Assign Position to {{ activeTeam.name }}</span>
                       </h4>
                       <p class="text-[11px] text-slate-600 dark:text-slate-400">
-                        Select an existing technician/user from the grid OR register a brand-new technician directly into {{ activeTeam.name }} with their squad position.
+                        Select an existing installer/user from the grid OR register a brand-new installer directly into {{ activeTeam.name }} with their squad position.
                       </p>
                     </div>
 
@@ -1232,12 +1232,12 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
                     <!-- Grid Select of Available Users/Installers -->
                     <div class="space-y-2">
                       <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                        Step A: Click a Technician / User Card to Select
+                        Step A: Click an Installer / User Card to Select
                       </label>
 
                       @if (candidateUsersForTeam().length === 0) {
                         <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-500">
-                          All installers are already in this team. Switch to <strong>+ Register New Installer Into Team</strong> above to add a new technician.
+                          All installers are already in this team. Switch to <strong>+ Register New Installer Into Team</strong> above to add a new installer.
                         </div>
                       } @else {
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-60 overflow-y-auto pr-1">
@@ -1725,7 +1725,7 @@ export class RolesManager {
   readonly newTeamColor = signal<string>('indigo');
   readonly newTeamSpecialties = signal<string>('Architectural Door Fitting, Smart Lock Calibration, Multi-Point Hardware');
   readonly newTeamPositionsInput = signal<string>(
-    'Team Lead, Lead Master Tech, Senior Acoustic Tech, Smart Lock Specialist, Precision Joiner Tech, Installation Technician'
+    'Team Lead, Lead Master Installer, Senior Acoustic Installer, Smart Lock Specialist, Precision Joiner Installer, Installation Installer'
   );
 
   readonly editTeamName = signal<string>('');
@@ -1736,7 +1736,7 @@ export class RolesManager {
   readonly newPositionTitle = signal<string>('');
   readonly addMemberMode = signal<'existing' | 'new'>('existing');
   readonly selectedCandidateUserId = signal<string>('');
-  readonly selectedMemberPosition = signal<string>('Installation Technician');
+  readonly selectedMemberPosition = signal<string>('Installation Installer');
   readonly selectedMemberRole = signal<'lead' | 'assistant'>('assistant');
 
   readonly quickMemberName = signal<string>('');
@@ -2055,7 +2055,7 @@ export class RolesManager {
   }
 
   async onAddMemberToOpenedTeam(team: InstallerTeam) {
-    const position = this.selectedMemberPosition().trim() || (this.selectedMemberRole() === 'lead' ? 'Team Lead' : 'Installation Technician');
+    const position = this.selectedMemberPosition().trim() || (this.selectedMemberRole() === 'lead' ? 'Team Lead' : 'Installation Installer');
     const teamRole = this.selectedMemberRole();
 
     if (this.addMemberMode() === 'existing') {
@@ -2203,7 +2203,7 @@ export class RolesManager {
     );
     if (!confirmed) return;
 
-    this.store.deleteCustomRole(role.id);
+    await this.store.deleteCustomRole(role.id);
     this.alert.toastSuccess('Role Removed', `Custom role "${role.name}" has been deleted.`);
   }
 
@@ -2280,7 +2280,7 @@ export class RolesManager {
     switch (role) {
       case 'admin': return '/overview';
       case 'installer': return '/map';
-      case 'dispatcher': return '/dispatcher';
+      case 'dispatcher': return '/overview';
       case 'shop_manager': return '/shop';
       case 'client': return '/map';
       case 'account_officer': return '/finance';

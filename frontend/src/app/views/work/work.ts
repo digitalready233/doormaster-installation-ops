@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
 import { InstallationJob } from '../../models/installation.model';
 
-type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
+type DateFilter = 'today' | 'week' | 'month' | 'year' | 'custom' | 'all';
 
 @Component({
   selector: 'app-work',
@@ -77,11 +77,11 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
       <!-- ======================================================================= -->
       <!-- COMPACT FILTER CONTROLS BAR (Single Row)                                -->
       <!-- ======================================================================= -->
-      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2 shadow-2xs">
-        <div class="flex items-center gap-2 flex-nowrap overflow-x-auto text-xs py-0.5">
+      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 sm:p-2 shadow-2xs">
+        <div class="flex items-center gap-2 flex-wrap lg:flex-nowrap text-xs py-0.5">
           
           <!-- 1. Search Bar -->
-          <div class="relative shrink-0 w-44 sm:w-52">
+          <div class="relative shrink-0 w-full sm:w-52">
             <mat-icon class="!text-xs text-slate-400 absolute left-2 top-2">search</mat-icon>
             <input
               type="text"
@@ -106,7 +106,7 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
             @for (opt of dateOptions; track opt.value) {
               <button
                 type="button"
-                (click)="dateFilter.set(opt.value)"
+                (click)="setDateFilter(opt.value)"
                 class="px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap"
                 [class]="dateFilter() === opt.value ? 'bg-slate-900 dark:bg-slate-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
                 [title]="'Filter tasks scheduled for ' + opt.label"
@@ -115,6 +115,36 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
               </button>
             }
           </div>
+
+          @if (dateFilter() === 'custom') {
+            <div class="inline-flex items-center gap-1.5 px-2 py-0.5 h-7 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] shrink-0">
+              <span class="text-[10px] text-slate-400 font-mono">From:</span>
+              <input
+                type="date"
+                [ngModel]="customStartDate()"
+                (ngModelChange)="onCustomDateChange('start', $event)"
+                [ngModelOptions]="{standalone: true}"
+                class="bg-transparent text-slate-800 dark:text-slate-200 text-[11px] focus:outline-none cursor-pointer"
+              />
+              <span class="text-[10px] text-slate-400 font-mono">To:</span>
+              <input
+                type="date"
+                [ngModel]="customEndDate()"
+                (ngModelChange)="onCustomDateChange('end', $event)"
+                [ngModelOptions]="{standalone: true}"
+                class="bg-transparent text-slate-800 dark:text-slate-200 text-[11px] focus:outline-none cursor-pointer"
+              />
+              @if (customStartDate() || customEndDate()) {
+                <button
+                  type="button"
+                  (click)="clearCustomDateRange()"
+                  class="text-[10px] text-rose-600 hover:text-rose-700 font-bold cursor-pointer"
+                >
+                  Clear
+                </button>
+              }
+            </div>
+          }
 
           <!-- 3. Status Dropdown -->
           <div class="relative shrink-0">
@@ -178,18 +208,36 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
             </select>
           </div>
 
-          <!-- 7. Reset Filters Button -->
-          @if (hasActiveFilters()) {
-            <button
-              type="button"
-              (click)="resetFilters()"
-              class="h-7 px-2.5 rounded-lg text-[11px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 transition-colors flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap ml-auto"
-              title="Clear all active filters"
-            >
-              <mat-icon class="!text-xs">filter_alt_off</mat-icon>
-              <span>Reset</span>
-            </button>
-          }
+          <!-- 7. Page Size & Reset Filters -->
+          <div class="flex items-center gap-2 ml-auto shrink-0">
+            <div class="flex items-center gap-1.5 text-[11px]">
+              <span class="text-slate-500 dark:text-slate-400 font-medium">Page Size:</span>
+              <select
+                [ngModel]="pageSize()"
+                (ngModelChange)="onPageSizeChange($event)"
+                [ngModelOptions]="{standalone: true}"
+                class="h-7 px-2 text-[11px] font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              >
+                <option [ngValue]="5">5</option>
+                <option [ngValue]="10">10</option>
+                <option [ngValue]="25">25</option>
+                <option [ngValue]="50">50</option>
+                <option [ngValue]="100">100</option>
+              </select>
+            </div>
+
+            @if (hasActiveFilters()) {
+              <button
+                type="button"
+                (click)="resetFilters()"
+                class="h-7 px-2.5 rounded-lg text-[11px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 transition-colors flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
+                title="Clear all active filters"
+              >
+                <mat-icon class="!text-xs">filter_alt_off</mat-icon>
+                <span>Reset</span>
+              </button>
+            }
+          </div>
         </div>
       </div>
 
@@ -216,7 +264,7 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
-              @for (job of filteredJobs(); track job.id) {
+              @for (job of paginatedJobs(); track job.id) {
                 <tr 
                   (click)="onSelectJob(job.id)"
                   class="hover:bg-slate-50/90 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
@@ -230,8 +278,8 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
 
                   <!-- 2. Door Model & Specs -->
                   <td class="py-1.5 px-3 max-w-[220px]">
-                    <div class="flex items-center gap-1.5 truncate">
-                      <span class="font-bold text-slate-900 dark:text-white truncate">{{ job.doorModel }}</span>
+                    <div class="flex items-center gap-1.5 truncate" [title]="job.doorModel">
+                      <span class="font-bold text-slate-900 dark:text-white truncate">{{ store.formatDoorColumnLabel(job) }}</span>
                       <span class="text-[10px] text-slate-400 truncate hidden md:inline">· {{ job.dimensions }}</span>
                     </div>
                   </td>
@@ -309,9 +357,9 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
                     <button
                       type="button"
                       (click)="onOpenDetails($event, job.id)"
-                      class="px-2 py-0.5 rounded bg-slate-100 hover:bg-emerald-600 hover:text-white dark:bg-slate-800 dark:hover:bg-emerald-600 text-slate-700 dark:text-slate-300 text-[10px] font-bold transition-all shadow-2xs cursor-pointer"
+                      class="px-2.5 py-1 rounded-lg bg-cyan-700 hover:bg-cyan-600 dark:bg-cyan-600 dark:hover:bg-cyan-500 text-white text-[10px] font-bold transition-all shadow-xs cursor-pointer"
                     >
-                      Details →
+                      View Details
                     </button>
                   </td>
                 </tr>
@@ -337,6 +385,36 @@ type DateFilter = 'today' | 'week' | 'month' | 'year' | 'all';
             </tbody>
           </table>
         </div>
+
+        <!-- Pagination Controls Footer -->
+        <div class="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <div>
+            <span>Showing {{ paginationInfo().from }} to {{ paginationInfo().to }} of {{ filteredJobs().length }} tasks</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button
+              type="button"
+              (click)="prevPage()"
+              [disabled]="currentPage() <= 1"
+              class="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors font-medium flex items-center gap-0.5 cursor-pointer text-[11px]"
+            >
+              <mat-icon class="!text-xs !w-3.5 !h-3.5">chevron_left</mat-icon>
+              <span>Prev</span>
+            </button>
+            <span class="px-2 font-mono font-semibold text-slate-700 dark:text-slate-300 text-[11px]">
+              Page {{ currentPage() }} of {{ totalPages() }}
+            </span>
+            <button
+              type="button"
+              (click)="nextPage()"
+              [disabled]="currentPage() >= totalPages()"
+              class="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors font-medium flex items-center gap-0.5 cursor-pointer text-[11px]"
+            >
+              <span>Next</span>
+              <mat-icon class="!text-xs !w-3.5 !h-3.5">chevron_right</mat-icon>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   `
@@ -353,26 +431,40 @@ export class Work {
     return this.store.currentRoleDefinition().permissions.canApproveBonuses || role === 'admin' || role === 'account_officer';
   });
 
-  // Filter signals
-  readonly dateFilter = signal<DateFilter>('all');
+  // Filter & pagination signals (Day default, All last)
+  readonly dateFilter = signal<DateFilter>('today');
+  readonly customStartDate = signal<string>('');
+  readonly customEndDate = signal<string>('');
   readonly statusFilter = signal<string>('all');
   readonly installerFilter = signal<string>('all');
   readonly branchFilter = signal<string>('all');
   readonly assignmentStatusFilter = signal<string>('all');
   readonly searchQuery = signal<string>('');
+  readonly pageSize = signal<number>(10);
+  readonly currentPage = signal<number>(1);
 
   readonly dateOptions: { value: DateFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
     { value: 'today', label: 'Day' },
     { value: 'week', label: 'Week' },
     { value: 'month', label: 'Month' },
-    { value: 'year', label: 'Year' }
+    { value: 'year', label: 'Year' },
+    { value: 'custom', label: 'Date Range' },
+    { value: 'all', label: 'All' }
   ];
 
   /**
-   * All unfiltered jobs from the store
+   * Role-scoped jobs permitted for the current portal
    */
-  readonly allJobs = computed(() => this.store.jobs());
+  readonly allJobs = computed(() => {
+    const role = this.store.currentRole();
+    if (role === 'dispatcher') {
+      return this.store.dispatcherJobs();
+    }
+    if (role === 'installer') {
+      return this.store.jobs().filter(j => this.store.isJobAssignedToCurrentInstaller(j));
+    }
+    return this.store.jobs();
+  });
 
   /**
    * Status options dynamically derived and counted from live jobs
@@ -400,7 +492,7 @@ export class Work {
     const jobs = this.allJobs();
 
     return installers.map(inst => {
-      const count = jobs.filter(j => 
+      const count = jobs.filter(j =>
         j.assignedInstallerId === inst.id ||
         (j.assignedInstallerIds && j.assignedInstallerIds.includes(inst.id)) ||
         (j.assignedInstallerName && j.assignedInstallerName.toLowerCase().includes(inst.name.toLowerCase()))
@@ -430,15 +522,15 @@ export class Work {
   /**
    * Metric counters
    */
-  readonly inProgressCount = computed(() => 
+  readonly inProgressCount = computed(() =>
     this.allJobs().filter(j => j.status === 'in_progress' || j.status === 'on_site' || j.status === 'dispatched').length
   );
 
-  readonly completedCount = computed(() => 
+  readonly completedCount = computed(() =>
     this.allJobs().filter(j => j.status === 'completed' || j.status === 'bonus_awarded').length
   );
 
-  readonly unassignedCount = computed(() => 
+  readonly unassignedCount = computed(() =>
     this.allJobs().filter(j => !j.assignedInstallerId && (!j.assignedInstallerIds || j.assignedInstallerIds.length === 0)).length
   );
 
@@ -577,6 +669,23 @@ export class Work {
       return jobDate >= startOfYear && jobDate < endOfYear;
     }
 
+    if (filter === 'custom') {
+      const time = jobDate.getTime();
+      const startStr = this.customStartDate();
+      const endStr = this.customEndDate();
+      if (startStr) {
+        const s = new Date(startStr);
+        s.setHours(0, 0, 0, 0);
+        if (time < s.getTime()) return false;
+      }
+      if (endStr) {
+        const e = new Date(endStr);
+        e.setHours(23, 59, 59, 999);
+        if (time > e.getTime()) return false;
+      }
+      return true;
+    }
+
     return true;
   }
 
@@ -648,21 +757,84 @@ export class Work {
     }
   }
 
+  readonly totalPages = computed(() => {
+    const count = this.filteredJobs().length;
+    const size = this.pageSize();
+    return Math.max(1, Math.ceil(count / size));
+  });
+
+  readonly paginatedJobs = computed(() => {
+    const page = Math.min(this.currentPage(), this.totalPages());
+    const size = this.pageSize();
+    const start = (page - 1) * size;
+    return this.filteredJobs().slice(start, start + size);
+  });
+
+  readonly paginationInfo = computed(() => {
+    const total = this.filteredJobs().length;
+    if (total === 0) return { from: 0, to: 0 };
+    const page = Math.min(this.currentPage(), this.totalPages());
+    const size = this.pageSize();
+    const from = (page - 1) * size + 1;
+    const to = Math.min(page * size, total);
+    return { from, to };
+  });
+
+  setDateFilter(filter: DateFilter) {
+    this.dateFilter.set(filter);
+    this.currentPage.set(1);
+  }
+
+  onCustomDateChange(bound: 'start' | 'end', val: string) {
+    if (bound === 'start') this.customStartDate.set(val);
+    else this.customEndDate.set(val);
+    this.currentPage.set(1);
+  }
+
+  clearCustomDateRange() {
+    this.customStartDate.set('');
+    this.customEndDate.set('');
+    this.dateFilter.set('today');
+    this.currentPage.set(1);
+  }
+
+  onPageSizeChange(size: any) {
+    this.pageSize.set(Number(size) || 10);
+    this.currentPage.set(1);
+  }
+
+  prevPage() {
+    if (this.currentPage() > 1) {
+      this.currentPage.update(p => p - 1);
+    }
+  }
+
+  nextPage() {
+    if (this.currentPage() < this.totalPages()) {
+      this.currentPage.update(p => p + 1);
+    }
+  }
+
   setStatusFilter(status: string) {
     this.statusFilter.set(status);
+    this.currentPage.set(1);
   }
 
   setInstallerFilter(filter: string) {
     this.installerFilter.set(filter);
+    this.currentPage.set(1);
   }
 
   resetFilters() {
-    this.dateFilter.set('all');
+    this.dateFilter.set('today');
+    this.customStartDate.set('');
+    this.customEndDate.set('');
     this.statusFilter.set('all');
     this.installerFilter.set('all');
     this.branchFilter.set('all');
     this.assignmentStatusFilter.set('all');
     this.searchQuery.set('');
+    this.currentPage.set(1);
   }
 
   onSelectJob(jobId: string) {

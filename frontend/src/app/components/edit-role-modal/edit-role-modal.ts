@@ -58,6 +58,35 @@ import { ExtraFeatureItem, RoleDefinition, SYSTEM_EXTRA_FEATURES } from '../../m
         <!-- Scrollable Modal Content -->
         <div class="p-6 space-y-6 overflow-y-auto">
 
+          <!-- Role Name & Description (Editable) -->
+          <div class="space-y-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                Role Name / Title <span class="text-rose-500">*</span>
+              </label>
+              <input 
+                type="text"
+                [ngModel]="editRoleName()"
+                (ngModelChange)="editRoleName.set($event)"
+                placeholder="e.g. Manager"
+                class="w-full text-xs px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                Role Description & Scope
+              </label>
+              <textarea 
+                [ngModel]="editRoleDescription()"
+                (ngModelChange)="editRoleDescription.set($event)"
+                rows="2"
+                placeholder="Operational responsibilities, duties and authority..."
+                class="w-full text-xs px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+              ></textarea>
+            </div>
+          </div>
+
           <!-- Core Base Permissions Notice (FIXED / LOCKED) -->
           <div class="space-y-3">
             <div class="flex items-center justify-between">
@@ -79,7 +108,7 @@ import { ExtraFeatureItem, RoleDefinition, SYSTEM_EXTRA_FEATURES } from '../../m
             <div class="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/80 rounded-xl text-xs text-amber-900 dark:text-amber-300 flex items-start gap-2.5">
               <mat-icon class="!text-base text-amber-600 shrink-0 mt-0.5">info</mat-icon>
               <p class="leading-relaxed">
-                The 9 core base permissions for this role are <strong>fixed and locked</strong> to ensure operational integrity and compliance with technician & logistics dispatch workflows.
+                The 9 core base permissions for this role are <strong>fixed and locked</strong> to ensure operational integrity and compliance with installer & logistics dispatch workflows.
               </p>
             </div>
 
@@ -264,6 +293,8 @@ export class EditRoleModal implements OnInit {
 
   readonly selectedFeatureIds = signal<string[]>([]);
   readonly customFeatures = signal<ExtraFeatureItem[]>([]);
+  readonly editRoleName = signal<string>('');
+  readonly editRoleDescription = signal<string>('');
   newCustomFeatureName = '';
 
   readonly corePermissionsList = computed(() => {
@@ -286,6 +317,8 @@ export class EditRoleModal implements OnInit {
   });
 
   ngOnInit() {
+    this.editRoleName.set(this.role().name || '');
+    this.editRoleDescription.set(this.role().description || '');
     const existing = this.role().extraFeatures || [];
     this.selectedFeatureIds.set([...existing]);
 
@@ -352,16 +385,18 @@ export class EditRoleModal implements OnInit {
     this.selectedFeatureIds.update(list => list.filter(x => x !== id));
   }
 
-  handleSaveRoleFeatures() {
+  async handleSaveRoleFeatures() {
     const updatedRole: RoleDefinition = {
       ...this.role(),
+      name: this.editRoleName().trim() || this.role().name,
+      description: this.editRoleDescription().trim(),
       extraFeatures: [...this.selectedFeatureIds()]
     };
 
-    this.store.updateRole(updatedRole);
+    await this.store.updateRole(updatedRole);
     this.alert.toastSuccess(
-      'Role Features Saved',
-      `Extra capabilities for role "${updatedRole.name}" have been updated.`
+      'Role Saved',
+      `Role "${updatedRole.name}" has been updated.`
     );
     this.roleUpdated.emit(updatedRole);
     this.closed.emit();

@@ -7,8 +7,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "theme_color": "#0f172a",
-  "background_color": "#0f172a",
+  "theme_color": "#59000A",
+  "background_color": "#111215",
   "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
@@ -38,10 +38,10 @@
   ],
   "shortcuts": [
     {
-      "name": "Field Installer Portal",
-      "short_name": "Installer",
-      "description": "Access your assigned door jobs, checklist, site clock, and photo verification offline.",
-      "url": "/?view=installer",
+      "name": "Operations Overview",
+      "short_name": "Overview",
+      "description": "Access your DoorMaster role overview, active jobs, and notifications.",
+      "url": "/overview",
       "icons": [
         {
           "src": "/pwa-192x192.png",
@@ -50,10 +50,22 @@
       ]
     },
     {
-      "name": "Live Dispatch Map",
-      "short_name": "Dispatch",
-      "description": "Track moving flatbeds and installers along Greater Accra corridors.",
-      "url": "/?view=dispatcher",
+      "name": "Live Fleet & Site Map",
+      "short_name": "Map",
+      "description": "Track live installers, delivery vehicles, and site locations.",
+      "url": "/map",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Shop Portal",
+      "short_name": "Shop",
+      "description": "Book installations and manage shop branch orders.",
+      "url": "/shop",
       "icons": [
         {
           "src": "/pwa-192x192.png",

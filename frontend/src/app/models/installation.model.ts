@@ -42,7 +42,7 @@ export const SYSTEM_EXTRA_FEATURES: ExtraFeatureItem[] = [
   {
     id: 'export_reports',
     name: 'Export Financial & Order Reports (CSV/Excel)',
-    description: 'Download raw accounting logs, technician payroll breakdowns, and installation CSV exports.',
+    description: 'Download raw accounting logs, installer payroll breakdowns, and installation CSV exports.',
     icon: 'file_download',
     category: 'analytics'
   },
@@ -131,6 +131,9 @@ export interface DoorCatalogEntry {
   fireRating: string; // "FD30", "FD60", "None / Standard"
   acousticRating: string; // "42 dB Acoustic Core", "Standard"
   unitPrice: number; // e.g. 4850
+  installationPrice?: number; // e.g. 350
+  installationSeries?: string; // e.g. "Turkey Doors"
+  installationVariant?: string; // e.g. "Turkey Pivot"
   formattedPrice?: string; // e.g. "₵4,750.00"
   stockQuantity: number; // e.g. 8
   leadTimeDays: number; // e.g. 5
@@ -147,15 +150,15 @@ export interface DoorCatalogEntry {
 export type JobStatus = 
   | 'draft' 
   | 'booked_at_shop' // Master Shop Manager scheduled request & recorded payment
-  | 'truck_assigned' // Operations Manager set up truck & assigned available signed-in tech
-  | 'site_funds_dispatched' // Accountant verified payment & disbursed site visit funds to technician
+  | 'truck_assigned' // Operations Manager set up truck & assigned available signed-in installer
+  | 'site_funds_dispatched' // Accountant verified payment & disbursed site visit funds to installer
   | 'assigned' 
   | 'accepted' 
   | 'approved' // Operations Manager approved request after both driver and installer accepted
   | 'dispatched' // Dispatcher / Truck en route to site
   | 'delivered_on_site' // Dispatcher arrived on site & handed over door/lock
-  | 'on_site' // Technician clocked in & installing lock/door
-  | 'in_progress' // Technician active on site with GPS verified
+  | 'on_site' // Installer clocked in & installing lock/door
+  | 'in_progress' // Installer active on site with GPS verified
   | 'installed_pending_signoff' 
   | 'completed' 
   | 'bonus_awarded';
@@ -168,7 +171,7 @@ export interface ShopBookingDetails {
   bookingTimestamp: string;
   lockModelRequested: string; // e.g. "Doormaster Smart Lock Handle F35"
   amountPaidAtShop: number; // e.g. ₵4,750 or ₵2,500 deposit
-  paymentMethod: 'cash' | 'momo' | 'pos_card' | 'bank_transfer';
+  paymentMethod: 'cash' | 'momo' | 'pos_card' | 'bank_transfer' | 'dm_door';
   receiptNumber: string; // e.g. "REC-2026-8812"
   paymentStatus: 'paid_in_full' | 'deposit_paid' | 'pending_verification';
   accountantVerified: boolean;
@@ -328,6 +331,11 @@ export interface HardwareChecklistItem {
   required: boolean;
   completed: boolean;
   completedAt?: string;
+  doorId?: string;
+  doorLabel?: string;
+  installerComment?: string;
+  commentUpdatedAt?: string;
+  commentUpdatedBy?: string;
 }
 
 export interface ClientRecord {
@@ -594,6 +602,17 @@ export interface LiveLocation {
   status: string;
   updatedAt: string;
   createdAt: string;
+}
+
+export interface GhanaPostLocation {
+  code: string;
+  lat: number;
+  lng: number;
+  district: string;
+  region: string;
+  street: string;
+  area: string;
+  timestamp?: number;
 }
 
 export interface SmsLogEntry {

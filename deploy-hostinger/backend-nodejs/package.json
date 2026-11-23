@@ -1,0 +1,21 @@
+{
+  "name": "doormaster-backend",
+  "version": "1.0.0",
+  "description": "DoorMaster Installation Ops Node.js Backend API with Prisma & MySQL",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "start": "node dist/server.js",
+    "postinstall": "prisma generate",
+    "prisma:push": "prisma db push"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "cors": "^2.8.5",
+    "dotenv": "^18.0.9",
+    "express": "^5.1.0",
+    "jsdom": "^27.0.0",
+    "mysql2": "^3.24.6",
+    "prisma": "^6.19.3"
+  }
+}

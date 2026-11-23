@@ -1,15 +1,16 @@
-import { 
-  AfterViewInit, 
-  ChangeDetectionStrategy, 
-  Component, 
-  ElementRef, 
-  OnDestroy, 
-  computed, 
-  effect, 
-  inject, 
-  output, 
-  signal, 
-  viewChild 
+import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  OnDestroy,
+  computed,
+  effect,
+  inject,
+  output,
+  signal,
+  untracked,
+  viewChild
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -18,11 +19,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
 import { ThemeStore } from '../../services/theme';
 import { AlertService } from '../../services/alert.service';
-import { 
-  InstallationJob, 
-  LiveLocation, 
-  RoleType, 
-  ShopLocationSettings 
+import {
+  InstallationJob,
+  LiveLocation,
+  RoleType,
+  ShopLocationSettings
 } from '../../models/installation.model';
 import type * as LType from 'leaflet';
 
@@ -44,6 +45,46 @@ export interface MapUserOption {
   name: string;
   role: string;
   detail?: string;
+}
+
+/** A single accepted crew member (installer or dispatch driver) travelling to a work order site. */
+export interface CrewTrack {
+  key: string;
+  jobId: string;
+  jobLabel: string;
+  clientName: string;
+  userId: string;
+  userName: string;
+  role: 'installer' | 'dispatcher';
+  autoAccepted: boolean;
+  acceptedAt?: string;
+  origin: { lat: number; lng: number };
+  destination: { lat: number; lng: number };
+  live: LiveLocation | null;
+  arrived: boolean;
+}
+
+export interface CrewTrackState {
+  mode: 'live' | 'stationary' | 'offline' | 'arrived' | 'simulated' | 'off-route';
+  lat: number;
+  lng: number;
+  progress: number;
+  remainingKm: number;
+  etaMin: number;
+}
+
+export interface WorkOption {
+  id: string;
+  label: string;
+  crewCount: number;
+}
+
+interface CrewRoute {
+  points: [number, number][];
+  cum: number[];
+  totalKm: number;
+  computedAt: number;
+  version: number;
 }
 
 @Component({
@@ -79,7 +120,7 @@ export interface MapUserOption {
             <span>Unified Field Operations, Installation & Telematics Map</span>
           </h1>
           <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-3xl">
-            Real-time multi-role surveillance across Greater Accra & regional corridors. Live technician attendance, GPS logistics fleet telematics, customer site destinations, and automated shortest-corridor road routing.
+            Real-time multi-role surveillance across Greater Accra & regional corridors. Live installer attendance, GPS logistics fleet telematics, customer site destinations, and automated shortest-corridor road routing.
           </p>
         </div>
 
@@ -117,8 +158,26 @@ export interface MapUserOption {
       <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-3.5">
         
         <!-- Primary Filter Controls: Roles, Staff Users, Lifecycle Status & Search -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
           
+          <!-- 0. Work / Task Filter (accepted & auto-accepted assignments) -->
+          <div class="space-y-1">
+            <label class="block font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider flex items-center gap-1">
+              <mat-icon class="!text-xs text-cyan-600">assignment</mat-icon>
+              <span>Filter by Work / Task:</span>
+            </label>
+            <select
+              [ngModel]="workFilter()"
+              (ngModelChange)="onWorkFilterChange($event)"
+              class="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer shadow-2xs"
+            >
+              <option value="all">📋 All Assigned Work ({{ workOptions().length }})</option>
+              @for (w of workOptions(); track w.id) {
+                <option [value]="w.id">{{ w.label }} ({{ w.crewCount }} crew)</option>
+              }
+            </select>
+          </div>
+
           <!-- 1. Role Filter -->
           <div class="space-y-1">
             <label class="block font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider flex items-center gap-1">
@@ -131,9 +190,9 @@ export interface MapUserOption {
               class="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer shadow-2xs"
             >
               <option value="all">🌐 All Roles & Portals (Omni-View)</option>
-              <option value="installer">🛠️ Field Installers (Technicians)</option>
+              <option value="installer">🛠️ Field Installers</option>
               <option value="dispatcher">🚚 Dispatch Drivers (Logistics Trucks)</option>
-              <option value="shop_manager">🏪 Shop Managers (Counter & Workshops)</option>
+              <option value="shop_manager">🏪 Shop Attendants (Counter & Workshops)</option>
               <option value="client">👤 Clients & Site Owners</option>
             </select>
           </div>
@@ -167,14 +226,6 @@ export interface MapUserOption {
             <div class="inline-flex items-center w-full p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-[11px] font-bold">
               <button
                 type="button"
-                (click)="setStatusFilter('all')"
-                [class]="statusFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="flex-1 py-1 text-center rounded-lg transition-all cursor-pointer"
-              >
-                All
-              </button>
-              <button
-                type="button"
                 (click)="setStatusFilter('live')"
                 [class]="statusFilter() === 'live' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
                 class="flex-1 py-1 text-center rounded-lg transition-all cursor-pointer flex items-center justify-center gap-0.5"
@@ -198,6 +249,14 @@ export interface MapUserOption {
               >
                 Completed
               </button>
+              <button
+                type="button"
+                (click)="setStatusFilter('all')"
+                [class]="statusFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="flex-1 py-1 text-center rounded-lg transition-all cursor-pointer"
+              >
+                All
+              </button>
             </div>
           </div>
 
@@ -212,7 +271,8 @@ export interface MapUserOption {
                 type="text"
                 [ngModel]="searchQuery()"
                 (ngModelChange)="searchQuery.set($event)"
-                placeholder="Search order ID, client, tech, truck..."
+                (keydown.enter)="detectedGhanaPostCode() ? locateGhanaPost(detectedGhanaPostCode()!) : null"
+                placeholder="Search order ID, client, or Ghana Post GPS (e.g. GD-018-5574)..."
                 class="w-full pl-8 pr-7 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-cyan-500 shadow-2xs"
               />
               <mat-icon class="absolute left-2.5 top-1/2 -translate-y-1/2 !text-xs text-slate-400">search</mat-icon>
@@ -226,6 +286,23 @@ export interface MapUserOption {
                 </button>
               }
             </div>
+
+            @if (detectedGhanaPostCode()) {
+              <div class="mt-1 flex items-center justify-between p-1.5 px-2 rounded-lg bg-teal-50 dark:bg-teal-950/80 border border-teal-300 dark:border-teal-700 text-[10px] text-teal-800 dark:text-teal-200 animate-in fade-in">
+                <div class="flex items-center gap-1 truncate font-mono">
+                  <span>🇬🇭</span>
+                  <strong>{{ detectedGhanaPostCode() }}</strong>
+                </div>
+                <button
+                  type="button"
+                  (click)="locateGhanaPost(detectedGhanaPostCode()!)"
+                  class="px-2 py-0.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded cursor-pointer shadow-xs active:scale-95 transition-all text-[10px] flex items-center gap-1 shrink-0"
+                >
+                  <mat-icon class="!text-[11px] !w-3 !h-3">my_location</mat-icon>
+                  <span>Pin & Route</span>
+                </button>
+              </div>
+            }
           </div>
         </div>
 
@@ -240,14 +317,6 @@ export interface MapUserOption {
             </span>
 
             <div class="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
-              <button
-                type="button"
-                (click)="setTimeFilter('all')"
-                [class]="timeFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-              >
-                All
-              </button>
               <button
                 type="button"
                 (click)="setTimeFilter('today')"
@@ -287,6 +356,14 @@ export interface MapUserOption {
                 class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
               >
                 Date Range
+              </button>
+              <button
+                type="button"
+                (click)="setTimeFilter('all')"
+                [class]="timeFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+              >
+                All
               </button>
             </div>
 
@@ -340,7 +417,7 @@ export interface MapUserOption {
               class="px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border"
               [class]="showInstallers() ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 border-transparent opacity-60'"
             >
-              <span>🛠️ Technicians</span>
+              <span>🛠️ Installers</span>
             </button>
 
             <button
@@ -360,8 +437,100 @@ export interface MapUserOption {
             >
               <span>🏪 Showrooms</span>
             </button>
+
+            <button
+              type="button"
+              (click)="showCrewRoutes.update(v => !v)"
+              class="px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border"
+              [class]="showCrewRoutes() ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border-sky-300 dark:border-sky-800' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 border-transparent opacity-60'"
+            >
+              <span>🧭 Crew Routes</span>
+            </button>
           </div>
         </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- LIVE CREW TRACKING (accepted / auto-accepted installers & drivers) -->
+      <!-- ================================================================= -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3.5 shadow-xs space-y-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <mat-icon class="!text-xs text-sky-600">route</mat-icon>
+            <span>Live Crew Tracking ({{ crewTrackSummary().total }})</span>
+          </span>
+          <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-mono font-bold">
+            <span class="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">{{ crewTrackSummary().moving }} moving</span>
+            <span class="px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300">{{ crewTrackSummary().stationary }} stationary</span>
+            <span class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{{ crewTrackSummary().offline }} not signed in</span>
+            <span class="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300">{{ crewTrackSummary().arrived }} on site</span>
+          </div>
+        </div>
+
+        @if (crewTracks().length === 0) {
+          <p class="text-xs text-slate-400 py-2">
+            No installer or dispatch driver has accepted an assignment matching the current filters yet. Crew appear here and on the map as soon as they accept (or are auto-accepted).
+          </p>
+        } @else {
+          <div class="flex gap-2 overflow-x-auto pb-1">
+            @for (t of crewTracks(); track t.key) {
+              @let st = crewStates()[t.key];
+              <button
+                type="button"
+                (click)="focusCrew(t)"
+                class="shrink-0 w-60 text-left p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-sky-400 dark:hover:border-sky-600 transition-colors cursor-pointer space-y-1.5"
+                [class.ring-1]="selectedJobId() === t.jobId"
+                [class.ring-teal-500]="selectedJobId() === t.jobId"
+              >
+                <div class="flex items-center justify-between gap-1">
+                  <span class="text-xs font-bold text-slate-900 dark:text-white truncate">
+                    {{ isCurrentSelfUnit(t.userId, t.userName, t.role) ? '📍 Me' : (t.role === 'dispatcher' ? '🚚 ' : '🛠️ ') + t.userName }}
+                  </span>
+                  <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded"
+                    [class]="!st ? 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                      : st.mode === 'live' ? 'bg-emerald-600 text-white'
+                      : st.mode === 'stationary' ? 'bg-sky-600 text-white'
+                      : st.mode === 'arrived' ? 'bg-purple-600 text-white'
+                      : st.mode === 'simulated' ? 'bg-amber-600 text-white'
+                      : st.mode === 'off-route' ? 'bg-rose-600 text-white'
+                      : 'bg-slate-500 text-white'">
+                    {{ !st ? 'ROUTING…'
+                      : st.mode === 'live' ? 'MOVING'
+                      : st.mode === 'stationary' ? 'STATIONARY'
+                      : st.mode === 'arrived' ? 'ON SITE'
+                      : st.mode === 'simulated' ? 'SIMULATED'
+                      : st.mode === 'off-route' ? 'OFF-ROUTE'
+                      : 'NOT SIGNED IN' }}
+                  </span>
+                </div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                  {{ t.role === 'dispatcher' ? 'Driver' : 'Installer' }} · {{ t.autoAccepted ? 'Auto-accepted' : 'Accepted' }} · {{ t.jobLabel }}
+                </p>
+                <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                  <div class="h-full rounded-full transition-all duration-1000"
+                    [class]="t.role === 'dispatcher' ? 'bg-sky-500' : 'bg-emerald-500'"
+                    [style.width.%]="(st?.progress ?? 0) * 100"></div>
+                </div>
+                <div class="flex justify-between text-[10px] font-mono text-slate-600 dark:text-slate-300">
+                  <span>{{ st ? (st.remainingKm | number:'1.1-1') + ' km left' : '—' }}</span>
+                  <span>
+                    @if (!st) {
+                      —
+                    } @else if (st.mode === 'arrived') {
+                      Arrived
+                    } @else if (st.mode === 'offline') {
+                      Not signed in
+                    } @else if (st.mode === 'stationary') {
+                      Not moving
+                    } @else {
+                      ETA {{ st.etaMin }} min
+                    }
+                  </span>
+                </div>
+              </button>
+            }
+          </div>
+        }
       </div>
 
       <!-- ================================================================= -->
@@ -455,7 +624,7 @@ export interface MapUserOption {
         <div class="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
           
           <!-- Route Status Pill -->
-          <div class="pointer-events-auto flex items-center gap-2.5 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-slate-700/80 text-white text-xs shadow-xl">
+          <div class="pointer-events-auto flex items-center gap-2.5 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md rounded-2xl border border-slate-700/80 text-white text-xs shadow-xl">
             <div class="relative flex items-center justify-center">
               @if (isOffRoute()) {
                 <span class="w-3 h-3 rounded-full bg-rose-500 animate-ping absolute opacity-80"></span>
@@ -469,16 +638,18 @@ export interface MapUserOption {
             <div>
               <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold">
                 @if (isOffRoute()) {
-                  <span class="text-rose-400 animate-pulse font-black uppercase">⚠️ OFF-ROUTE DETECTED</span>
+                  <span class="text-rose-400 animate-pulse font-black uppercase">⚠️ OFF-ROUTE DETECTED (ALTERNATE TURN)</span>
                 } @else if (hasRerouted()) {
                   <span class="text-teal-400 uppercase">🔄 AUTO RE-ROUTED VIA SHORTEST ROAD</span>
+                } @else if (isSimulationMode()) {
+                  <span class="text-amber-400 uppercase">SIMULATED ROUTING · DEMO</span>
                 } @else {
-                  <span class="text-emerald-400 uppercase">OPTIMAL SHORTEST ROUTE</span>
+                  <span class="text-emerald-400 uppercase">REAL-TIME OPTIMAL ROUTE · PRODUCTION</span>
                 }
                 <span class="text-slate-500">·</span>
                 <span class="text-slate-300 font-sans truncate max-w-[180px] sm:max-w-xs">
                   @if (selectedJob(); as curJob) {
-                    {{ curJob.client.name }} (#{{ curJob.id }})
+                    {{ activeTrack()?.userName ? (activeTrack()!.userName.split(' ')[0] + ' → ') : '' }}{{ curJob.client.name }} (#{{ curJob.id }})
                   } @else {
                     Select Operation
                   }
@@ -493,68 +664,124 @@ export interface MapUserOption {
           </div>
 
           <!-- Interactive Testing & Map Action Buttons -->
-          <div class="pointer-events-auto flex flex-wrap items-center gap-1.5 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700/80 text-white text-xs shadow-xl">
+          <div class="pointer-events-auto flex flex-wrap items-center gap-1 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md p-1 rounded-xl border border-slate-700/80 text-white text-[10px] shadow-lg">
             
-            <!-- Simulate Deviation (Off-Route) Button -->
+            <!-- Real-Time Live GPS vs Simulation Toggle Button -->
             <button
               type="button"
-              (click)="simulateOffRouteDeviation()"
-              class="px-2.5 py-1.5 bg-amber-600/90 hover:bg-amber-600 text-white font-bold rounded-xl transition-all flex items-center gap-1 text-[11px] cursor-pointer shadow-xs active:scale-95"
-              title="Simulate the driver taking an alternate street / detouring off the planned path to test instant automatic re-routing"
+              (click)="toggleDataMode()"
+              class="px-1.5 py-0.5 rounded-lg font-bold flex items-center gap-1 text-[9px] transition-all cursor-pointer border leading-tight"
+              [class]="isSimulationMode()
+                ? 'bg-amber-500/25 text-amber-300 border-amber-500/50 hover:bg-amber-500/35'
+                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'"
+              title="Toggle between Real-Time Live GPS (Production) and Simulated Presentation Data"
             >
-              <mat-icon class="!text-xs">alt_route</mat-icon>
-              <span class="hidden sm:inline">Simulate Alternate Turn (Off-Route)</span>
-              <span class="sm:hidden">Off-Route</span>
+              @if (isSimulationMode()) {
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                <span>Sim (Demo)</span>
+              } @else {
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>Live GPS</span>
+              }
             </button>
 
-            <!-- Drive Step (Advance along route) -->
+            <!-- Toggle for Unit / Simulate / Advance Step Controls -->
             <button
               type="button"
-              (click)="simulateAdvanceAlongRoute()"
-              class="px-2.5 py-1.5 bg-teal-600/90 hover:bg-teal-600 text-white font-bold rounded-xl transition-all flex items-center gap-1 text-[11px] cursor-pointer shadow-xs active:scale-95"
-              title="Step forward along the shortest route toward the customer site"
+              (click)="showSimControls.set(!showSimControls())"
+              class="px-1.5 py-0.5 rounded-lg font-bold flex items-center gap-0.5 text-[9px] transition-all cursor-pointer border leading-tight"
+              [class]="showSimControls()
+                ? 'bg-slate-700 text-white border-slate-600'
+                : 'bg-slate-800/90 text-slate-300 border-slate-700 hover:text-white'"
+              title="Show/Hide Unit, Simulate & Advance Step Controls"
             >
-              <mat-icon class="!text-xs">play_arrow</mat-icon>
-              <span class="hidden sm:inline">Advance Step</span>
+              <mat-icon class="!text-[11px] !w-3 !h-3">tune</mat-icon>
+              <span>Controls</span>
+              <mat-icon class="!text-[11px] !w-3 !h-3">{{ showSimControls() ? 'expand_less' : 'expand_more' }}</mat-icon>
             </button>
+
+            <!-- Collapsible Controls: Unit Select, Simulate & Advance Step -->
+            @if (showSimControls()) {
+              <!-- Unit Select Option if Selected Operation has crew members -->
+              @if (activeJobCrewTracks().length > 0) {
+                <div class="flex items-center gap-1 bg-slate-800/90 px-1.5 py-0.5 rounded-lg border border-slate-700">
+                  <span class="text-[9px] text-slate-400 font-bold">Unit:</span>
+                  <select
+                    [value]="activeTrack()?.key || ''"
+                    (change)="selectedTrackKey.set($any($event.target).value)"
+                    class="bg-transparent text-[9px] font-bold text-white focus:outline-none cursor-pointer pr-1"
+                    aria-label="Select Unit"
+                  >
+                    @for (t of activeJobCrewTracks(); track t.key) {
+                      <option [value]="t.key" class="bg-slate-900 text-white">
+                        {{ t.role === 'dispatcher' ? '🚚 Driver' : '🛠️ Installer' }}: {{ t.userName.split(' ')[0] }}
+                      </option>
+                    }
+                  </select>
+                </div>
+              }
+
+              <!-- Simulate Alternate Turn (Off-Route) Button -->
+              <button
+                type="button"
+                (click)="simulateOffRouteDeviation()"
+                class="px-1.5 py-0.5 bg-amber-600/90 hover:bg-amber-600 text-white font-bold rounded-lg transition-all flex items-center gap-0.5 text-[9px] cursor-pointer active:scale-95 leading-tight"
+                [title]="isSimulationMode() ? 'Simulate active unit taking an alternate turn (off-route detour) to test dynamic re-routing' : 'Switch to simulation mode & simulate an alternate turn (off-route detour)'"
+              >
+                <mat-icon class="!text-[11px] !w-3 !h-3">alt_route</mat-icon>
+                <span class="hidden sm:inline">Simulate ({{ activeTrack()?.role === 'dispatcher' ? 'Driver' : (activeTrack()?.role === 'installer' ? 'Installer' : 'Unit') }})</span>
+                <span class="sm:hidden">Simulate</span>
+              </button>
+
+              <!-- Drive Step (Advance along route) -->
+              <button
+                type="button"
+                (click)="simulateAdvanceAlongRoute()"
+                class="px-1.5 py-0.5 bg-teal-600/90 hover:bg-teal-600 text-white font-bold rounded-lg transition-all flex items-center gap-0.5 text-[9px] cursor-pointer active:scale-95 leading-tight"
+                title="Step forward along the shortest route toward the customer site"
+              >
+                <mat-icon class="!text-[11px] !w-3 !h-3">play_arrow</mat-icon>
+                <span>Advance</span>
+              </button>
+            }
 
             <!-- Recalculate Route -->
             <button
               type="button"
               (click)="recalculateCurrentRoute()"
-              class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              class="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex items-center justify-center"
               title="Re-query Shortest Road Path"
               aria-label="Recalculate Route"
             >
-              <mat-icon class="!text-sm">refresh</mat-icon>
+              <mat-icon class="!text-xs !w-3.5 !h-3.5">refresh</mat-icon>
             </button>
 
-            <!-- Center on Driver -->
+            <!-- Center on Active Unit -->
             <button
               type="button"
-              (click)="centerOnRider()"
-              class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-              title="Center Map on Driver Position"
-              aria-label="Center Map on Driver"
+              (click)="centerOnActiveUnit()"
+              class="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex items-center justify-center"
+              title="Center Map on Active Unit Position"
+              aria-label="Center Map on Active Unit"
             >
-              <mat-icon class="!text-sm">my_location</mat-icon>
+              <mat-icon class="!text-xs !w-3.5 !h-3.5">my_location</mat-icon>
             </button>
 
             <!-- Fit Full Route -->
             <button
               type="button"
               (click)="fitRouteBounds()"
-              class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              class="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex items-center justify-center"
               title="Fit Full Route & Waypoints in View"
               aria-label="Fit Full Route"
             >
-              <mat-icon class="!text-sm">crop_free</mat-icon>
+              <mat-icon class="!text-xs !w-3.5 !h-3.5">crop_free</mat-icon>
             </button>
           </div>
         </div>
 
         <!-- LEAFLET MAP ELEMENT -->
-        <div class="relative w-full h-[480px] sm:h-[580px] lg:h-[650px] bg-slate-950">
+        <div class="relative w-full h-[380px] sm:h-[500px] md:h-[560px] lg:h-[650px] bg-slate-950">
           <div #mapContainer class="relative w-full h-full bg-slate-950 z-0"></div>
         </div>
 
@@ -563,155 +790,203 @@ export interface MapUserOption {
         <!-- ================================================================= -->
         @if (selectedJob()) {
           @let j = selectedJob()!;
-          <div class="absolute bottom-3 left-3 right-3 sm:right-auto sm:max-w-2xl z-10 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-700/80 p-4 rounded-2xl shadow-2xl text-white space-y-3 animate-in fade-in">
-            
-            <!-- Live Deviation / Re-routing Alert Toast -->
-            @if (rerouteToast()) {
-              <div class="p-2.5 bg-teal-950/90 border border-teal-500 rounded-xl flex items-center justify-between gap-2 text-xs text-teal-200 animate-bounce">
-                <div class="flex items-center gap-2">
-                  <mat-icon class="!text-sm text-teal-400">autorenew</mat-icon>
-                  <span>{{ rerouteToast() }}</span>
+          @if (isHudMinimized()) {
+            <!-- Minimized Round Floating Button at bottom-left of the map -->
+            <button
+              type="button"
+              (click)="isHudMinimized.set(false)"
+              class="absolute bottom-2.5 left-2.5 z-10 w-9 h-9 rounded-full bg-slate-900/95 dark:bg-slate-950/95 hover:bg-slate-800 dark:hover:bg-slate-900 text-teal-400 border border-slate-700/80 shadow-xl backdrop-blur-md flex items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95 group animate-in fade-in"
+              title="Expand Operation #{{ j.id }} — {{ j.client.name }} ({{ j.doorModel }})"
+              aria-label="Expand Operation Details"
+            >
+              <mat-icon class="!text-base transition-transform group-hover:scale-110">alt_route</mat-icon>
+              <!-- Pulsing status indicator dot -->
+              <span class="absolute top-0 right-0 -mt-0.5 -mr-0.5 flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-500 border border-slate-900"></span>
+              </span>
+            </button>
+          } @else {
+            <div class="absolute bottom-2.5 left-2.5 right-2.5 sm:right-auto sm:max-w-md z-10 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-700/80 p-2 rounded-xl shadow-2xl text-white space-y-1.5 animate-in fade-in">
+              
+              <!-- Live Deviation / Re-routing Alert Toast -->
+              @if (rerouteToast()) {
+                <div class="p-1.5 bg-teal-950/90 border border-teal-500 rounded-lg flex items-center justify-between gap-1.5 text-[10px] text-teal-200 animate-bounce">
+                  <div class="flex items-center gap-1">
+                    <mat-icon class="!text-xs text-teal-400">autorenew</mat-icon>
+                    <span>{{ rerouteToast() }}</span>
+                  </div>
+                  <button type="button" (click)="rerouteToast.set(null)" class="text-teal-400 hover:text-white">
+                    <mat-icon class="!text-[10px]">close</mat-icon>
+                  </button>
                 </div>
-                <button type="button" (click)="rerouteToast.set(null)" class="text-teal-400 hover:text-white">
-                  <mat-icon class="!text-xs">close</mat-icon>
-                </button>
-              </div>
-            }
+              }
 
-            <!-- Destination & Target Cargo Details -->
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="text-[9px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-400/30">
-                    Operation #{{ j.id }}
-                  </span>
-                  <span class="text-[9px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                    {{ j.doorCategory || 'Pivot Door' }}
-                  </span>
+              <!-- Destination & Target Cargo Details -->
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1 flex-wrap">
+                    <span class="text-[8px] uppercase font-mono font-bold px-1.5 py-0.2 rounded bg-teal-500/20 text-teal-300 border border-teal-400/30">
+                      #{{ j.id }}
+                    </span>
+                    <span class="text-[8px] uppercase font-mono font-bold px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                      {{ j.doorCategory || 'Pivot Door' }}
+                    </span>
+                  </div>
+
+                  <h3 class="text-[11px] font-extrabold text-white truncate mt-0.5 leading-tight">
+                    {{ j.client.name }} · {{ j.doorModel }}
+                  </h3>
+                  <p class="text-[10px] text-slate-300 truncate flex items-center gap-1 mt-0.5 leading-tight">
+                    <mat-icon class="!text-[11px] !w-3 !h-3 text-red-400">place</mat-icon>
+                    <span class="truncate">{{ j.client.siteAddress }}</span>
+                    @if (extractGhanaPostCode(j.client.siteAddress)) {
+                      <button
+                        type="button"
+                        (click)="locateGhanaPost(extractGhanaPostCode(j.client.siteAddress)!)"
+                        class="px-1 py-0 bg-teal-900/80 hover:bg-teal-800 text-teal-300 border border-teal-600 rounded text-[8px] font-mono font-bold cursor-pointer transition-colors shrink-0"
+                        title="Ghana Post GPS - Click to center on map"
+                      >
+                        🇬🇭 {{ extractGhanaPostCode(j.client.siteAddress) }}
+                      </button>
+                    }
+                  </p>
+                  <p class="text-[9px] text-slate-400 mt-0.5 font-mono truncate leading-tight">
+                    {{ j.dimensions }} · {{ j.lockModel || 'Smart Lock' }}
+                  </p>
                 </div>
 
-                <h3 class="text-sm sm:text-base font-extrabold text-white truncate mt-1">
-                  {{ j.client.name }} · {{ j.doorModel }}
-                </h3>
-                <p class="text-xs text-slate-300 truncate flex items-center gap-1 mt-0.5">
-                  <mat-icon class="!text-xs text-red-400">place</mat-icon>
-                  <span>{{ j.client.siteAddress }}</span>
-                </p>
-                <p class="text-[11px] text-slate-400 mt-0.5 font-mono">
-                  Dimensions: {{ j.dimensions }} · Lock: {{ j.lockModel || 'Smart Lock' }}
-                </p>
-              </div>
+                <!-- Quick Client Call Button & Minimize Button -->
+                <div class="flex items-center gap-1 shrink-0">
+                  <a 
+                    [href]="'tel:' + j.client.phone" 
+                    class="px-1.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 text-[10px] font-bold flex items-center gap-0.5 transition-colors"
+                    title="Call Customer Site"
+                  >
+                    <mat-icon class="!text-[11px] !w-3 !h-3 text-teal-400">phone</mat-icon>
+                    <span class="hidden sm:inline">Call</span>
+                  </a>
 
-              <!-- Quick Client Call Button (from Client Portal) -->
-              <div class="flex items-center gap-1.5 shrink-0">
-                <a 
-                  [href]="'tel:' + j.client.phone" 
-                  class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-bold flex items-center gap-1 transition-colors"
-                  title="Call Customer Site"
-                >
-                  <mat-icon class="!text-xs text-teal-400">phone</mat-icon>
-                  <span class="hidden sm:inline">Call Client</span>
-                </a>
-
-                <button
-                  type="button"
-                  (click)="jobSelected.emit(j.id)"
-                  class="px-2.5 py-1.5 bg-cyan-700 hover:bg-cyan-600 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
-                  title="Open Full Operational Work Order Modal"
-                >
-                  <mat-icon class="!text-xs">visibility</mat-icon>
-                  <span class="hidden sm:inline">Inspect Order</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Merged Logic Strip 1: Technician Site Attendance & Checklist (from installer-portal) -->
-            <div class="bg-slate-800/70 p-2.5 rounded-xl border border-slate-700/80 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              <div class="space-y-0.5">
-                <span class="text-[9px] uppercase font-bold text-slate-400 block flex items-center gap-1">
-                  <mat-icon class="!text-[11px] !w-3 !h-3 text-emerald-400">handyman</mat-icon>
-                  <span>Installation Team:</span>
-                </span>
-                <p class="font-bold text-white text-xs truncate">
-                  {{ j.assignedInstallerName || 'Operations Queue (Unassigned)' }}
-                </p>
-                <div class="flex items-center gap-1.5 text-[10px] font-mono">
-                  <span class="px-1.5 py-0.2 rounded font-bold"
-                    [class]="j.installerAssignmentStatus === 'accepted' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-amber-950 text-amber-300 border border-amber-800'">
-                    {{ j.installerAssignmentStatus === 'accepted' ? (j.installerAutoAccepted ? 'Auto-Accepted' : 'Accepted') : 'Pending Acceptance' }}
-                  </span>
-                  <span class="text-slate-400">· Scheduled: {{ j.scheduledDate }}</span>
-                </div>
-              </div>
-
-              <div class="space-y-0.5">
-                <span class="text-[9px] uppercase font-bold text-slate-400 block flex items-center gap-1">
-                  <mat-icon class="!text-[11px] !w-3 !h-3 text-cyan-400">local_shipping</mat-icon>
-                  <span>Logistics Truck & Dispatch:</span>
-                </span>
-                <p class="font-bold text-white text-xs truncate">
-                  {{ j.dispatcherName || 'Pending Store Dispatcher' }}
-                </p>
-                <p class="text-[10px] text-slate-400 font-mono truncate">
-                  {{ j.logisticsTruck?.truckPlate ? j.logisticsTruck?.truckPlate + ' (' + (j.logisticsTruck?.truckModel || 'Truck') + ')' : 'No truck assigned yet' }}
-                </p>
-              </div>
-            </div>
-
-            <!-- Merged Logic Strip 2: Shortest Distance, Driving Time & Route Corridor -->
-            <div class="grid grid-cols-3 gap-2 text-center font-mono text-xs">
-              <div class="bg-slate-800/60 p-2 rounded-xl">
-                <span class="text-[9px] text-slate-400 uppercase block">Shortest Distance</span>
-                <strong class="text-sm text-teal-400 font-black tabular-nums">
-                  {{ routeStats()?.distanceKm || '—' }} km
-                </strong>
-              </div>
-              <div class="bg-slate-800/60 p-2 rounded-xl">
-                <span class="text-[9px] text-slate-400 uppercase block">Est. Driving Time</span>
-                <strong class="text-sm text-white font-black tabular-nums">
-                  {{ routeStats()?.durationMin || '—' }} mins
-                </strong>
-              </div>
-              <div class="bg-slate-800/60 p-2 rounded-xl">
-                <span class="text-[9px] text-slate-400 uppercase block">Route Corridor</span>
-                <strong class="text-xs text-slate-300 truncate block">
-                  {{ routeStats()?.corridor || 'Accra Primary Arterial' }}
-                </strong>
-              </div>
-            </div>
-
-            <!-- Direct Trip Lifecycle Controls Directly on Map -->
-            <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-800 text-xs">
-              <div class="flex items-center gap-1.5">
-                <span class="text-[10px] text-slate-400 font-mono">Status:</span>
-                <span class="font-bold text-[11px] text-teal-400 uppercase">
-                  {{ j.status.replace('_', ' ') }}
-                </span>
-              </div>
-
-              <div class="flex items-center gap-2">
-                @if (j.status === 'truck_assigned' || j.status === 'site_funds_dispatched' || j.status === 'booked_at_shop' || j.status === 'approved') {
                   <button
                     type="button"
-                    (click)="startLiveTrip(j.id)"
-                    class="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl font-bold text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+                    (click)="jobSelected.emit(j.id)"
+                    class="px-1.5 py-1 bg-cyan-700 hover:bg-cyan-600 text-white rounded-lg text-[10px] font-bold flex items-center gap-0.5 shadow-sm transition-colors cursor-pointer"
+                    title="Open Full Operational Work Order Modal"
                   >
-                    <mat-icon class="!text-xs">play_arrow</mat-icon>
-                    <span>Start Live Trip</span>
+                    <mat-icon class="!text-[11px] !w-3 !h-3">visibility</mat-icon>
+                    <span class="hidden sm:inline">Inspect</span>
                   </button>
-                } @else if (j.status === 'dispatched') {
+
                   <button
                     type="button"
-                    (click)="markDelivered(j.id)"
-                    class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+                    (click)="fitRouteBounds()"
+                    class="px-1.5 py-1 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded-lg text-[10px] font-bold flex items-center gap-0.5 border border-slate-700 shadow-sm transition-colors cursor-pointer"
+                    title="Fit route to current view"
                   >
-                    <mat-icon class="!text-xs">done_all</mat-icon>
-                    <span>Mark Delivered on Site</span>
+                    <mat-icon class="!text-[11px] !w-3 !h-3">crop_free</mat-icon>
+                    <span class="hidden sm:inline">Fit</span>
                   </button>
-                }
+
+                  <button
+                    type="button"
+                    (click)="collapseHudManually()"
+                    class="w-6 h-6 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700 flex items-center justify-center transition-colors cursor-pointer shadow-xs active:scale-95"
+                    title="Collapse card"
+                    aria-label="Collapse card"
+                  >
+                    <mat-icon class="!text-xs">close_fullscreen</mat-icon>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Merged Logic Strip 1: Installer Site Attendance & Checklist -->
+              <div class="bg-slate-800/70 p-1.5 rounded-lg border border-slate-700/80 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10px]">
+                <div class="space-y-0.5 min-w-0">
+                  <span class="text-[8px] uppercase font-bold text-slate-400 flex items-center gap-0.5 leading-none">
+                    <mat-icon class="!text-[10px] !w-2.5 !h-2.5 text-emerald-400">handyman</mat-icon>
+                    <span>Team:</span>
+                  </span>
+                  <p class="font-bold text-white text-[10px] truncate leading-tight">
+                    {{ j.assignedInstallerName || 'Operations Queue (Unassigned)' }}
+                  </p>
+                  <div class="flex items-center gap-1 text-[9px] font-mono leading-none">
+                    <span class="px-1 py-0.2 rounded font-bold"
+                      [class]="j.installerAssignmentStatus === 'accepted' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-amber-950 text-amber-300 border border-amber-800'">
+                      {{ j.installerAssignmentStatus === 'accepted' ? (j.installerAutoAccepted ? 'Auto-Accepted' : 'Accepted') : 'Pending' }}
+                    </span>
+                    <span class="text-slate-400 truncate">· {{ j.scheduledDate }}</span>
+                  </div>
+                </div>
+
+                <div class="space-y-0.5 min-w-0">
+                  <span class="text-[8px] uppercase font-bold text-slate-400 flex items-center gap-0.5 leading-none">
+                    <mat-icon class="!text-[10px] !w-2.5 !h-2.5 text-cyan-400">local_shipping</mat-icon>
+                    <span>Dispatch:</span>
+                  </span>
+                  <p class="font-bold text-white text-[10px] truncate leading-tight">
+                    {{ j.dispatcherName || 'Pending Store Driver' }}
+                  </p>
+                  <p class="text-[9px] text-slate-400 font-mono truncate leading-tight">
+                    {{ j.logisticsTruck?.truckPlate ? j.logisticsTruck?.truckPlate + ' (' + (j.logisticsTruck?.truckModel || 'Truck') + ')' : 'No truck assigned yet' }}
+                  </p>
+                </div>
+              </div>
+
+              <!-- Merged Logic Strip 2: Shortest Distance, Driving Time & Route Corridor -->
+              <div class="grid grid-cols-3 gap-1.5 text-center font-mono text-[10px]">
+                <div class="bg-slate-800/60 px-1.5 py-1 rounded-lg">
+                  <span class="text-[8px] text-slate-400 uppercase block leading-none">Distance</span>
+                  <strong class="text-[11px] text-teal-400 font-black tabular-nums leading-tight">
+                    {{ routeStats()?.distanceKm || '—' }} km
+                  </strong>
+                </div>
+                <div class="bg-slate-800/60 px-1.5 py-1 rounded-lg">
+                  <span class="text-[8px] text-slate-400 uppercase block leading-none">ETA</span>
+                  <strong class="text-[11px] text-white font-black tabular-nums leading-tight">
+                    {{ routeStats()?.durationMin || '—' }} mins
+                  </strong>
+                </div>
+                <div class="bg-slate-800/60 px-1.5 py-1 rounded-lg">
+                  <span class="text-[8px] text-slate-400 uppercase block leading-none">Corridor</span>
+                  <strong class="text-[10px] text-slate-300 truncate block leading-tight">
+                    {{ routeStats()?.corridor || 'Accra Arterial' }}
+                  </strong>
+                </div>
+              </div>
+
+              <!-- Direct Trip Lifecycle Controls Directly on Map -->
+              <div class="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-800 text-[10px]">
+                <div class="flex items-center gap-1">
+                  <span class="text-[9px] text-slate-400 font-mono">Status:</span>
+                  <span class="font-bold text-[10px] text-teal-400 uppercase">
+                    {{ j.status.replace('_', ' ') }}
+                  </span>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                  @if (j.status === 'truck_assigned' || j.status === 'site_funds_dispatched' || j.status === 'booked_at_shop' || j.status === 'approved') {
+                    <button
+                      type="button"
+                      (click)="startLiveTrip(j.id)"
+                      class="px-2 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded-lg font-bold text-[10px] flex items-center gap-0.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                    >
+                      <mat-icon class="!text-[11px] !w-3 !h-3">play_arrow</mat-icon>
+                      <span>Start Trip</span>
+                    </button>
+                  } @else if (j.status === 'dispatched') {
+                    <button
+                      type="button"
+                      (click)="markDelivered(j.id)"
+                      class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[10px] flex items-center gap-0.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                    >
+                      <mat-icon class="!text-[11px] !w-3 !h-3">done_all</mat-icon>
+                      <span>Mark Delivered</span>
+                    </button>
+                  }
+                </div>
               </div>
             </div>
-          </div>
+          }
         }
       </div>
 
@@ -765,9 +1040,11 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   private destinationMarkers = new Map<string, LType.Marker>();
   private branchMarkers = new Map<string, LType.Marker>();
   private liveUnitMarkers = new Map<string, LType.Marker>();
-  private riderMarker: LType.Marker | null = null;
   private activeRoutePolyline: LType.Polyline | null = null;
   private offRouteTrailPolyline: LType.Polyline | null = null;
+  private ghanaPostMarker: LType.Marker | null = null;
+  private ghanaPostCoords = new Map<string, { lat: number; lng: number }>();
+  private pendingGhanaPost = new Set<string>();
 
   // Layer Toggles
   readonly showTrucks = signal<boolean>(true);
@@ -778,11 +1055,21 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   // Filters State
   readonly roleFilter = signal<MapRoleFilter>('all');
   readonly userFilter = signal<string>('all');
-  readonly timeFilter = signal<MapTimeFilter>('all');
-  readonly statusFilter = signal<MapStatusFilter>('all');
+  readonly timeFilter = signal<MapTimeFilter>('today');
+  readonly statusFilter = signal<MapStatusFilter>('live');
   readonly searchQuery = signal<string>('');
   readonly customStartDate = signal<string>('');
   readonly customEndDate = signal<string>('');
+
+  readonly detectedGhanaPostCode = computed<string | null>(() => {
+    const q = this.searchQuery().trim().toUpperCase();
+    const match = q.match(/\b([A-Z]{2}-?\d{3,4}-?\d{4})\b/);
+    if (match) {
+      const c = match[1];
+      return c.includes('-') ? c : `${c.slice(0, 2)}-${c.slice(2, 5)}-${c.slice(5)}`;
+    }
+    return null;
+  });
 
   // Selected Job & Telematics State
   readonly selectedJobId = signal<string | null>(null);
@@ -791,10 +1078,59 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   readonly isOffRoute = signal<boolean>(false);
   readonly hasRerouted = signal<boolean>(false);
   readonly rerouteToast = signal<string | null>(null);
+  readonly isHudMinimized = signal<boolean>(true);
+  private hudRestoreTimer: ReturnType<typeof setTimeout> | null = null;
+  private wasAutoMinimizedByMap = false;
+  private suppressMapMinimizeUntil = 0;
+
+  // Simulation Mode (Presentation Demo) vs Real-Time Live GPS (Production)
+  readonly isSimulationMode = signal<boolean>(false);
+  readonly showSimControls = signal<boolean>(false);
+  readonly simulatedPositions = signal<Record<string, { lat: number; lng: number; isOffRoute?: boolean }>>({});
+  readonly selectedTrackKey = signal<string | null>(null);
+  private simulationStartedAt = 0;
+
+  /** Crew members actively assigned to the currently selected job */
+  readonly activeJobCrewTracks = computed<CrewTrack[]>(() => {
+    const job = this.selectedJob();
+    if (!job) return [];
+    return this.crewTracks().filter(t => t.jobId === job.id);
+  });
+
+  /** Active unit (driver or installer) targeted for simulation or focused tracking */
+  readonly activeTrack = computed<CrewTrack | null>(() => {
+    const tracks = this.activeJobCrewTracks();
+    if (tracks.length === 0) return this.crewTracks()[0] || null;
+    const key = this.selectedTrackKey();
+    if (key) {
+      const match = tracks.find(t => t.key === key);
+      if (match) return match;
+    }
+    const driverTrack = tracks.find(t => t.role === 'dispatcher');
+    if (driverTrack) return driverTrack;
+    return tracks[0];
+  });
+
+  // Live Crew Tracking (accepted installers & dispatch drivers en route to client sites)
+  readonly workFilter = signal<string>('all');
+  readonly showCrewRoutes = signal<boolean>(true);
+  readonly crewStates = signal<Record<string, CrewTrackState>>({});
+  private crewRouteCache = new Map<string, CrewRoute>();
+  private crewRoutePending = new Set<string>();
+  private crewLines = new Map<string, { line: LType.Polyline; version: number; dashed: boolean }>();
+  private crewMarkers = new Map<string, { marker: LType.Marker; iconKey: string }>();
+  private crewTicker: ReturnType<typeof setInterval> | null = null;
+  private livePoller: ReturnType<typeof setInterval> | null = null;
+  private readonly mountedAt = Date.now();
+  private static readonly CREW_SPEED_KMH = 28;
+  private static readonly POST_ACCEPT_STATUSES = ['approved', 'dispatched', 'delivered_on_site', 'on_site', 'in_progress'];
+  private static readonly CLOSED_STATUSES = ['installed_pending_signoff', 'completed', 'bonus_awarded'];
 
   // Planned Route Points & Step Index
   private currentPlannedRoute: [number, number][] = [];
   private stepIndex: number = 0;
+  private currentlyRoutedJobId: string | null = null;
+  private userHasInteractedWithMap: boolean = false;
 
   /**
    * Super-Oversight: Admin and Operations Manager can oversee everything across all branches and personnel.
@@ -843,8 +1179,8 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       options.push({
         id: i.id,
         name: i.name,
-        role: 'Technician',
-        detail: i.teamName || 'Field Tech'
+        role: 'Installer',
+        detail: i.teamName || 'Field Installer'
       });
     });
 
@@ -853,7 +1189,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       options.push({
         id: d.id,
         name: d.name,
-        role: 'Dispatcher',
+        role: 'Driver',
         detail: d.assignedTruck.plate
       });
     });
@@ -863,7 +1199,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       options.push({
         id: b.branchCode,
         name: b.managerName,
-        role: 'Shop Manager',
+        role: 'Shop Attendant',
         detail: b.shopName.replace('DoorMaster ', '')
       });
     });
@@ -898,8 +1234,14 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     const q = this.searchQuery().trim().toLowerCase();
     const startDate = this.customStartDate();
     const endDate = this.customEndDate();
+    const wFilter = this.workFilter();
 
     return list.filter(job => {
+      // 0. Work / Task Filter
+      if (wFilter !== 'all' && job.id !== wFilter) {
+        return false;
+      }
+
       // 1. Role Filter
       if (rFilter !== 'all') {
         if (rFilter === 'installer' && !job.assignedInstallerId && (!job.assignedInstallers || job.assignedInstallers.length === 0)) {
@@ -918,17 +1260,17 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
 
       // 2. Staff / User Filter
       if (uFilter !== 'all') {
-        const matchesInstaller = 
-          job.assignedInstallerId === uFilter || 
+        const matchesInstaller =
+          job.assignedInstallerId === uFilter ||
           (job.assignedInstallerIds && job.assignedInstallerIds.includes(uFilter)) ||
           (job.assignedInstallerName && job.assignedInstallerName.includes(uFilter));
-        const matchesDriver = 
-          job.dispatcherId === uFilter || 
+        const matchesDriver =
+          job.dispatcherId === uFilter ||
           (job.dispatcherName && job.dispatcherName.includes(uFilter));
-        const matchesClient = 
-          job.client?.id === uFilter || 
+        const matchesClient =
+          job.client?.id === uFilter ||
           job.client?.name === uFilter;
-        const matchesShop = 
+        const matchesShop =
           (job.shopBooking?.bookedByShopManager && job.shopBooking.bookedByShopManager.includes(uFilter)) ||
           job.shopBranch?.includes(uFilter);
 
@@ -988,8 +1330,13 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     const uFilter = this.userFilter();
     const sFilter = this.statusFilter();
     const q = this.searchQuery().trim().toLowerCase();
+    const wFilter = this.workFilter();
 
     return list.filter(job => {
+      if (wFilter !== 'all' && job.id !== wFilter) {
+        return false;
+      }
+
       // Must strictly be today's task only
       if (!this.isJobToday(job)) {
         return false;
@@ -1013,17 +1360,17 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
 
       // 2. Staff / User Filter
       if (uFilter !== 'all') {
-        const matchesInstaller = 
-          job.assignedInstallerId === uFilter || 
+        const matchesInstaller =
+          job.assignedInstallerId === uFilter ||
           (job.assignedInstallerIds && job.assignedInstallerIds.includes(uFilter)) ||
           (job.assignedInstallerName && job.assignedInstallerName.includes(uFilter));
-        const matchesDriver = 
-          job.dispatcherId === uFilter || 
+        const matchesDriver =
+          job.dispatcherId === uFilter ||
           (job.dispatcherName && job.dispatcherName.includes(uFilter));
-        const matchesClient = 
-          job.client?.id === uFilter || 
+        const matchesClient =
+          job.client?.id === uFilter ||
           job.client?.name === uFilter;
-        const matchesShop = 
+        const matchesShop =
           (job.shopBooking?.bookedByShopManager && job.shopBooking.bookedByShopManager.includes(uFilter)) ||
           job.shopBranch?.includes(uFilter);
 
@@ -1068,22 +1415,22 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   /**
    * Metrics for the top oversight KPI banner
    */
-  readonly liveOpsCount = computed(() => 
+  readonly liveOpsCount = computed(() =>
     this.filteredJobs().filter(j => j.status === 'dispatched' || j.status === 'on_site' || j.status === 'delivered_on_site').length
   );
 
-  readonly pendingOpsCount = computed(() => 
-    this.filteredJobs().filter(j => 
-      j.status !== 'dispatched' && 
-      j.status !== 'on_site' && 
-      j.status !== 'delivered_on_site' && 
-      j.status !== 'completed' && 
+  readonly pendingOpsCount = computed(() =>
+    this.filteredJobs().filter(j =>
+      j.status !== 'dispatched' &&
+      j.status !== 'on_site' &&
+      j.status !== 'delivered_on_site' &&
+      j.status !== 'completed' &&
       j.status !== 'bonus_awarded' &&
       j.status !== 'installed_pending_signoff'
     ).length
   );
 
-  readonly completedOpsCount = computed(() => 
+  readonly completedOpsCount = computed(() =>
     this.filteredJobs().filter(j => j.status === 'completed' || j.status === 'bonus_awarded' || j.status === 'installed_pending_signoff').length
   );
 
@@ -1108,9 +1455,108 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   /**
    * Active En-Route Delivery
    */
-  readonly activeEnRouteTrip = computed(() => 
+  readonly activeEnRouteTrip = computed(() =>
     this.filteredJobs().find(j => j.status === 'dispatched') || null
   );
+
+  /**
+   * Work orders (active, non-closed) that have at least one crew member who accepted
+   * or was auto-accepted. Listed in the "Work / Task" filter.
+   */
+  readonly workOptions = computed<WorkOption[]>(() => {
+    return this.allScopedJobs()
+      .filter(j => !DeliveryMap.CLOSED_STATUSES.includes(j.status))
+      .map(j => ({
+        id: j.id,
+        label: `${j.id} · ${j.client?.name || 'Client'}`,
+        crewCount: this.acceptedInstallersFor(j).length + (this.isDriverAccepted(j) ? 1 : 0)
+      }))
+      .filter(o => o.crewCount > 0);
+  });
+
+  /**
+   * Every accepted / auto-accepted installer and dispatch driver routed to their assigned
+   * client destination, honouring the role, staff, work, status, time and search filters.
+   */
+  readonly crewTracks = computed<CrewTrack[]>(() => {
+    const rFilter = this.roleFilter();
+    const uFilter = this.userFilter();
+    const crewIds = new Set<string>([
+      ...this.store.installers().map(i => i.id),
+      ...this.store.dispatchers().map(d => d.id)
+    ]);
+    const personFilter = uFilter !== 'all' && crewIds.has(uFilter) ? uFilter : null;
+    const lives = this.store.liveLocations();
+    const tracks: CrewTrack[] = [];
+
+    for (const job of this.filteredJobs()) {
+      if (DeliveryMap.CLOSED_STATUSES.includes(job.status)) continue;
+
+      const destination = this.getJobCoordinates(job);
+      const branch = this.store.getJobBranch(job);
+      const base = branch ? { lat: branch.latitude, lng: branch.longitude } : { lat: 5.6320, lng: -0.0980 };
+      const jobLabel = `${job.id} · ${job.client?.name || 'Client'}`;
+      const clientName = job.client?.name || 'Client';
+
+      if (rFilter === 'all' || rFilter === 'installer' || rFilter === 'client' || rFilter === 'shop_manager') {
+        for (const inst of this.acceptedInstallersFor(job)) {
+          if (personFilter && personFilter !== inst.id) continue;
+          tracks.push({
+            key: `${job.id}:inst:${inst.id}`,
+            jobId: job.id,
+            jobLabel,
+            clientName,
+            userId: inst.id,
+            userName: inst.name,
+            role: 'installer',
+            autoAccepted: inst.auto,
+            acceptedAt: inst.at,
+            origin: this.offsetOrigin(base, inst.id),
+            destination,
+            live: this.findLive(lives, inst.id),
+            arrived: job.status === 'on_site' || job.status === 'in_progress'
+          });
+        }
+      }
+
+      if ((rFilter === 'all' || rFilter === 'dispatcher' || rFilter === 'client' || rFilter === 'shop_manager') && this.isDriverAccepted(job)) {
+        const driverId = job.dispatcherId!;
+        if (!personFilter || personFilter === driverId) {
+          tracks.push({
+            key: `${job.id}:drv:${driverId}`,
+            jobId: job.id,
+            jobLabel,
+            clientName,
+            userId: driverId,
+            userName: job.dispatcherName || 'Dispatch Driver',
+            role: 'dispatcher',
+            autoAccepted: !!job.driverAutoAccepted,
+            acceptedAt: job.driverRespondedAt || job.driverAssignedAt,
+            origin: base,
+            destination,
+            live: this.findLive(lives, driverId),
+            arrived: job.status === 'delivered_on_site' || job.status === 'on_site' || job.status === 'in_progress'
+          });
+        }
+      }
+    }
+    return tracks;
+  });
+
+  readonly crewTrackSummary = computed(() => {
+    const states = this.crewStates();
+    const tracks = this.crewTracks();
+    let live = 0, moving = 0, stationary = 0, offline = 0, arrived = 0;
+    tracks.forEach(t => {
+      const s = states[t.key];
+      if (t.live) live++;
+      if (s?.mode === 'arrived') arrived++;
+      else if (s?.mode === 'live' || s?.mode === 'simulated' || s?.mode === 'off-route') moving++;
+      else if (s?.mode === 'stationary') stationary++;
+      else offline++;
+    });
+    return { total: tracks.length, live, moving, stationary, offline, arrived };
+  });
 
   /**
    * Currently Selected Job for Routing & HUD
@@ -1152,6 +1598,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       this.visibleBranches();
       this.filteredJobs();
       this.liveTelemetryUnits();
+      this.crewTracks();
       this.showTrucks();
       this.showInstallers();
       this.showSites();
@@ -1162,11 +1609,26 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       }
     });
 
+    // Re-sync crew routes & moving markers whenever tracked crews or layer toggles change
+    effect(() => {
+      this.crewTracks();
+      this.showCrewRoutes();
+      this.showTrucks();
+      this.showInstallers();
+      if (this.map) {
+        untracked(() => this.syncCrewLayers());
+      }
+    });
+
     // React when selected job changes -> recalculate shortest route & re-render
     effect(() => {
       const job = this.selectedJob();
       if (job && this.map) {
-        this.onJobSelectionChanged(job);
+        if (job.id !== this.currentlyRoutedJobId) {
+          const isFirstRoute = this.currentlyRoutedJobId === null;
+          this.currentlyRoutedJobId = job.id;
+          this.onJobSelectionChanged(job, isFirstRoute || !this.userHasInteractedWithMap);
+        }
       }
     });
   }
@@ -1175,10 +1637,42 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     setTimeout(() => {
       this.initMap();
       this.setupResizeObserver();
+      this.syncCrewLayers();
     }, 60);
+
+    // Real-time: advance crew markers every second, and poll live GPS fixes every 5s
+    this.crewTicker = setInterval(() => this.syncCrewLayers(), 1000);
+    void this.store.loadLiveLocations();
+    this.livePoller = setInterval(() => void this.store.loadLiveLocations(), 5000);
   }
 
   ngOnDestroy() {
+    if (this.hudRestoreTimer) {
+      clearTimeout(this.hudRestoreTimer);
+      this.hudRestoreTimer = null;
+    }
+    if (this.crewTicker) {
+      clearInterval(this.crewTicker);
+      this.crewTicker = null;
+    }
+    if (this.livePoller) {
+      clearInterval(this.livePoller);
+      this.livePoller = null;
+    }
+    this.crewLines.clear();
+    this.crewMarkers.clear();
+    if (this.offRouteTrailPolyline) {
+      this.map?.removeLayer(this.offRouteTrailPolyline);
+      this.offRouteTrailPolyline = null;
+    }
+    if (this.activeRoutePolyline) {
+      this.map?.removeLayer(this.activeRoutePolyline);
+      this.activeRoutePolyline = null;
+    }
+    if (this.ghanaPostMarker) {
+      this.map?.removeLayer(this.ghanaPostMarker);
+      this.ghanaPostMarker = null;
+    }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -1195,7 +1689,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
 
     this.resizeObserver = new ResizeObserver(() => {
       if (this.map) {
-        this.map.invalidateSize();
+        this.map.invalidateSize({ pan: false });
       }
     });
     this.resizeObserver.observe(container);
@@ -1229,18 +1723,42 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
         attributionControl: true
       });
 
+      // Detect user map navigation (pan/drag/zoom/click) to avoid hijacking camera and minimize HUD immediately
+      this.map.on('dragstart zoomstart', () => {
+        this.userHasInteractedWithMap = true;
+        this.minimizeHudOnMapInteraction();
+      });
+      this.map.on('movestart', () => {
+        this.userHasInteractedWithMap = true;
+        if (Date.now() > this.suppressMapMinimizeUntil) {
+          this.minimizeHudOnMapInteraction();
+        }
+      });
+      this.map.on('click', () => {
+        if (Date.now() > this.suppressMapMinimizeUntil) {
+          this.minimizeHudOnMapInteraction();
+          this.scheduleHudAutoRestore();
+        }
+      });
+      this.map.on('dragend zoomend moveend', () => {
+        if (Date.now() > this.suppressMapMinimizeUntil) {
+          this.scheduleHudAutoRestore();
+        }
+      });
+
       this.updateTileLayer();
       this.renderAllMapLayers();
 
       const job = this.selectedJob();
       if (job) {
-        this.onJobSelectionChanged(job);
+        this.currentlyRoutedJobId = job.id;
+        this.onJobSelectionChanged(job, true);
       } else {
         this.fitAllMarkers();
       }
 
       setTimeout(() => {
-        this.map?.invalidateSize();
+        this.map?.invalidateSize({ pan: false });
       }, 300);
     } catch (e) {
       console.warn('Map initialization notice:', e);
@@ -1339,11 +1857,11 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     jobs.forEach(j => {
       const coords = this.getJobCoordinates(j);
       const isSelected = j.id === currentSel;
-      
+
       const isDispatched = j.status === 'dispatched';
       const isOnSite = j.status === 'on_site' || j.status === 'delivered_on_site';
       const isCompleted = j.status === 'completed' || j.status === 'bonus_awarded';
-      
+
       let bg = '#d97706'; // Pending: Amber
       let statusLabel = 'PENDING';
       let iconEmoji = '🟡';
@@ -1367,6 +1885,8 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       }
 
       const border = isSelected ? '#5eead4' : '#fff';
+      const gp = this.extractGhanaPostCode(j.client?.siteAddress);
+      const gpBadge = gp ? `<span style="background:rgba(13,148,136,0.9); color:#fff; font-size:7.5px; padding:1px 3.5px; border-radius:3px; font-family:monospace; font-weight:900;">🇬🇭 ${gp}</span>` : '';
 
       const icon = leaflet.divIcon({
         className: 'custom-dest-pin',
@@ -1376,18 +1896,19 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
             <div style="background:${bg}; color:#fff; padding:4px 8px; border-radius:12px; font-weight:bold; font-size:9.5px; font-family:sans-serif; box-shadow:0 4px 14px rgba(0,0,0,0.5); border:2px solid ${border}; display:flex; align-items:center; gap:4px; white-space:nowrap;">
               <span>${iconEmoji}</span>
               <span>${j.client.name.split(' ')[0]}</span>
+              ${gpBadge}
               <span style="background:rgba(255,255,255,0.25); color:#fff; font-size:7.5px; padding:1px 3.5px; border-radius:4px; font-weight:900;">${statusLabel}</span>
             </div>
           </div>
         `,
-        iconSize: [160, 26],
-        iconAnchor: [80, 13]
+        iconSize: [175, 26],
+        iconAnchor: [87, 13]
       });
 
       const marker = leaflet.marker([coords.lat, coords.lng], { icon })
         .addTo(this.map!)
         .on('click', () => {
-          this.selectJob(j.id);
+          this.onMapEntityClicked(j.id);
         });
 
       this.destinationMarkers.set(j.id, marker);
@@ -1395,7 +1916,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Render active live GPS transmitting units (Dispatchers & Technicians)
+   * Render active live GPS transmitting units (Dispatchers & Installers)
    */
   private renderLiveUnitMarkers() {
     const leaflet = L;
@@ -1405,8 +1926,12 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     this.liveUnitMarkers.clear();
 
     const units = this.liveTelemetryUnits();
+    const trackedUserIds = new Set(this.crewTracks().map(t => t.userId));
 
     units.forEach(u => {
+      // Units travelling on an accepted work order are drawn by the crew tracking layer
+      if (trackedUserIds.has(u.userId)) return;
+
       const isDriver = u.role === 'dispatcher';
       const isTech = u.role === 'installer';
 
@@ -1415,56 +1940,578 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
 
       const bgColor = isDriver ? '#0284c7' : '#10b981';
       const symbol = isDriver ? '🚚' : '🛠️';
-      const roleLabel = isDriver ? 'Truck Fleet' : 'Technician';
+      const roleLabel = isDriver ? 'Truck Fleet' : 'Installer';
+      const moving = this.isUnitMoving(u.userId, u.latitude, u.longitude, u.speedKmh);
+      const pulse = moving
+        ? `<div style="position:absolute; width:40px; height:40px; background:${bgColor}33; border-radius:50%; top:-8px; left:-8px; animation:ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>`
+        : '';
+      const motionLabel = moving
+        ? (u.speedKmh && u.speedKmh >= 2 ? `${u.speedKmh} km/h` : 'Moving')
+        : 'Stationary';
 
-      const icon = leaflet.divIcon({
-        className: 'custom-live-unit-pin',
-        html: `
-          <div style="position:relative; cursor:pointer;" title="${u.userName || 'Field Unit'} (${roleLabel})">
-            <div style="position:absolute; width:40px; height:40px; background:${bgColor}33; border-radius:50%; top:-8px; left:-8px; animation:ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-            <div style="background:${bgColor}; color:#fff; width:26px; height:26px; border-radius:50%; border:2px solid #fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 12px rgba(0,0,0,0.5); font-size:12px;">
-              ${symbol}
-            </div>
-            <div style="background:rgba(15,23,42,0.92); color:#fff; font-size:8.5px; font-family:monospace; font-weight:bold; padding:2px 6px; border-radius:5px; border:1px solid rgba(255,255,255,0.25); white-space:nowrap; position:absolute; left:30px; top:2px;">
-              ${u.userName ? u.userName.split(' ')[0] : roleLabel} · ${u.speedKmh ? u.speedKmh + ' km/h' : 'Live'}
-            </div>
-          </div>
-        `,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13]
-      });
+      const isSelf = this.isCurrentSelfUnit(u.userId, u.userName, u.role);
+      const shortName = isSelf ? 'Me' : (u.userName ? u.userName.split(' ')[0] : roleLabel);
+      const popupName = isSelf ? 'Me' : (u.userName || 'Field Staff');
+
+      const icon = isSelf
+        ? leaflet.divIcon({
+            className: 'custom-live-unit-pin',
+            html: this.selfPinIconHtml(`Me · ${motionLabel}`, pulse),
+            iconSize: [22, 28],
+            iconAnchor: [11, 27]
+          })
+        : leaflet.divIcon({
+            className: 'custom-live-unit-pin',
+            html: `
+              <div style="position:relative; cursor:pointer;" title="${popupName} (${roleLabel})">
+                ${pulse}
+                <div style="background:${bgColor}; color:#fff; width:26px; height:26px; border-radius:50%; border:2px solid #fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 12px rgba(0,0,0,0.5); font-size:12px;">
+                  ${symbol}
+                </div>
+                <div style="background:rgba(15,23,42,0.92); color:#fff; font-size:8.5px; font-family:monospace; font-weight:bold; padding:2px 6px; border-radius:5px; border:1px solid rgba(255,255,255,0.25); white-space:nowrap; position:absolute; left:30px; top:2px;">
+                  ${shortName} · ${motionLabel}
+                </div>
+              </div>
+            `,
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
+          });
 
       const marker = leaflet.marker([u.latitude, u.longitude], { icon })
         .addTo(this.map!)
         .bindPopup(`
           <div style="font-family:sans-serif; padding:2px;">
-            <strong style="color:#0f172a; font-size:12px;">${symbol} ${u.userName || 'Field Staff'}</strong>
+            <strong style="color:#0f172a; font-size:12px;">${symbol} ${popupName}</strong>
             <p style="color:#475569; font-size:10px; margin:3px 0;">Role: <strong>${roleLabel}</strong> · Status: ${u.status}</p>
             <p style="color:#0284c7; font-size:9.5px; font-family:monospace; margin:0;">GPS: ${u.latitude.toFixed(5)}, ${u.longitude.toFixed(5)}</p>
           </div>
-        `);
+        `)
+        .on('click', () => this.onMapEntityClicked(this.selectedJobId()));
 
       this.liveUnitMarkers.set(u.id, marker);
     });
   }
 
+  // ===========================================================================
+  // LIVE CREW TRACKING ENGINE
+  // Routes every accepted / auto-accepted installer & dispatch driver to their
+  // assigned client destination and advances them in real time. Uses real GPS
+  // fixes (store.liveLocations) when the crew member's device is transmitting;
+  // otherwise shows an estimated position along the road route since acceptance.
+  // Never moves the map camera.
+  // ===========================================================================
+
+  private acceptedInstallersFor(job: InstallationJob): { id: string; name: string; auto: boolean; at?: string }[] {
+    const post = DeliveryMap.POST_ACCEPT_STATUSES.includes(job.status);
+    const out: { id: string; name: string; auto: boolean; at?: string }[] = [];
+
+    if (job.assignedInstallers && job.assignedInstallers.length > 0) {
+      job.assignedInstallers.forEach(m => {
+        const st = (m.status || '').toLowerCase();
+        if (st === 'rejected' || st === 'declined') return;
+        const accepted =
+          st === 'accepted' || st === 'auto_accepted' || !!m.autoAccepted || post ||
+          (!st && job.installerAssignmentStatus === 'accepted');
+        if (accepted) {
+          out.push({
+            id: m.id,
+            name: m.name,
+            auto: !!m.autoAccepted || (!!job.installerAutoAccepted && !m.respondedAt),
+            at: m.respondedAt || job.installerRespondedAt || job.acceptedAt
+          });
+        }
+      });
+    } else if (job.assignedInstallerId && (job.installerAssignmentStatus === 'accepted' || post)) {
+      out.push({
+        id: job.assignedInstallerId,
+        name: job.assignedInstallerName || 'Installer',
+        auto: !!job.installerAutoAccepted,
+        at: job.installerRespondedAt || job.acceptedAt
+      });
+    }
+    return out;
+  }
+
+  private isDriverAccepted(job: InstallationJob): boolean {
+    if (!job.dispatcherId) return false;
+    if (job.driverAssignmentStatus === 'rejected') return false;
+    return job.driverAssignmentStatus === 'accepted' || !!job.driverAutoAccepted ||
+      DeliveryMap.POST_ACCEPT_STATUSES.includes(job.status);
+  }
+
+  private findLive(lives: LiveLocation[], userId: string): LiveLocation | null {
+    const l = lives.find(x => x.userId === userId);
+    if (!l || l.status === 'offline') return null;
+    const age = Date.now() - new Date(l.updatedAt).getTime();
+    return isNaN(age) || age <= 15 * 60 * 1000 ? l : null;
+  }
+
+  /** Deterministic small offset so several installers from the same branch don't stack. */
+  private offsetOrigin(base: { lat: number; lng: number }, seed: string): { lat: number; lng: number } {
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+    const angle = (Math.abs(h) % 360) * Math.PI / 180;
+    const r = 0.008 + (Math.abs(h >> 8) % 12) / 1000; // ~0.9 – 2.2 km
+    return { lat: base.lat + Math.sin(angle) * r, lng: base.lng + Math.cos(angle) * r };
+  }
+
+  private async fetchRoadRoute(
+    origin: { lat: number; lng: number },
+    destination: { lat: number; lng: number }
+  ): Promise<[number, number][]> {
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+      if (res.ok) {
+        const data = await res.json();
+        const coords = data?.routes?.[0]?.geometry?.coordinates;
+        if (Array.isArray(coords) && coords.length > 1) {
+          return coords.map((c: [number, number]) => [c[1], c[0]] as [number, number]);
+        }
+      }
+    } catch {
+      // fall back to procedural corridor
+    }
+    return this.generateAccraShortestRoadPath(origin, destination).points;
+  }
+
+  private buildCrewRoute(points: [number, number][], prevVersion = 0): CrewRoute {
+    const cum = [0];
+    for (let i = 1; i < points.length; i++) {
+      cum.push(cum[i - 1] + this.haversineKm(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]));
+    }
+    return { points, cum, totalKm: Math.max(cum[cum.length - 1], 0.05), computedAt: Date.now(), version: prevVersion + 1 };
+  }
+
+  /** Returns a cached road route for the track, (re)fetching in the background when needed. */
+  private ensureCrewRoute(t: CrewTrack): CrewRoute | null {
+    const cached = this.crewRouteCache.get(t.key);
+    let needsFetch = !cached;
+    let from = t.origin;
+
+    // Live GPS: re-route from the current position if the unit leaves the planned corridor
+    if (cached && t.live) {
+      const pos = { lat: t.live.latitude, lng: t.live.longitude };
+      const { distKm } = this.nearestOnRoute(cached, pos);
+      if (distKm > 0.25 && Date.now() - cached.computedAt > 30000) {
+        needsFetch = true;
+        from = pos;
+      }
+    } else if (!cached && t.live) {
+      from = { lat: t.live.latitude, lng: t.live.longitude };
+    }
+
+    if (needsFetch && !this.crewRoutePending.has(t.key)) {
+      this.crewRoutePending.add(t.key);
+      void this.fetchRoadRoute(from, t.destination).then(points => {
+        this.crewRouteCache.set(t.key, this.buildCrewRoute(points, cached?.version ?? 0));
+        this.crewRoutePending.delete(t.key);
+        this.syncCrewLayers();
+      });
+    }
+    return cached || null;
+  }
+
+  private nearestOnRoute(route: CrewRoute, pos: { lat: number; lng: number }): { idx: number; distKm: number } {
+    let idx = 0;
+    let best = Infinity;
+    route.points.forEach((p, i) => {
+      const d = this.haversineKm(pos.lat, pos.lng, p[0], p[1]);
+      if (d < best) { best = d; idx = i; }
+    });
+    return { idx, distKm: best };
+  }
+
+  private pointAlongRoute(route: CrewRoute, km: number): { lat: number; lng: number } {
+    const { points, cum } = route;
+    if (km <= 0) return { lat: points[0][0], lng: points[0][1] };
+    for (let i = 1; i < points.length; i++) {
+      if (cum[i] >= km) {
+        const seg = cum[i] - cum[i - 1] || 1;
+        const f = (km - cum[i - 1]) / seg;
+        return {
+          lat: points[i - 1][0] + (points[i][0] - points[i - 1][0]) * f,
+          lng: points[i - 1][1] + (points[i][1] - points[i - 1][1]) * f
+        };
+      }
+    }
+    const last = points[points.length - 1];
+    return { lat: last[0], lng: last[1] };
+  }
+
+  private lastLiveSample = new Map<string, { lat: number; lng: number; lastMovedAt: number }>();
+
+  /** Determines whether a signed-in GPS unit is actually moving on the ground. */
+  private isUnitMoving(userId: string, lat: number, lng: number, speedKmh?: number | null): boolean {
+    const now = Date.now();
+    const prev = this.lastLiveSample.get(userId);
+    let lastMovedAt = prev?.lastMovedAt ?? 0;
+
+    if (!prev) {
+      this.lastLiveSample.set(userId, { lat, lng, lastMovedAt: 0 });
+    } else {
+      const movedKm = this.haversineKm(prev.lat, prev.lng, lat, lng);
+      if (movedKm >= 0.01) {
+        // Moved >= 10 meters on the ground
+        lastMovedAt = now;
+        this.lastLiveSample.set(userId, { lat, lng, lastMovedAt });
+      }
+    }
+
+    if (speedKmh != null && speedKmh >= 2) {
+      return true;
+    }
+    if (speedKmh != null && speedKmh < 1 && (!prev || this.haversineKm(prev.lat, prev.lng, lat, lng) < 0.01)) {
+      return false;
+    }
+    return lastMovedAt > 0 && (now - lastMovedAt) < 45000;
+  }
+
+  private computeCrewState(t: CrewTrack, route: CrewRoute): CrewTrackState {
+    const speed = DeliveryMap.CREW_SPEED_KMH;
+
+    if (t.arrived) {
+      const pos = t.live ? { lat: t.live.latitude, lng: t.live.longitude } : t.destination;
+      return { mode: 'arrived', lat: pos.lat, lng: pos.lng, progress: 1, remainingKm: 0, etaMin: 0 };
+    }
+
+    // Simulation Mode Check: artificial movement for demo purposes & manual detours
+    if (this.isSimulationMode()) {
+      const sim = this.simulatedPositions()[t.key];
+      if (sim) {
+        const { idx } = this.nearestOnRoute(route, sim);
+        const remainingKm = Math.max(0, route.totalKm - route.cum[idx]);
+        const atSite = this.haversineKm(sim.lat, sim.lng, t.destination.lat, t.destination.lng) < 0.1;
+        return {
+          mode: sim.isOffRoute ? 'off-route' : (atSite ? 'arrived' : 'simulated'),
+          lat: sim.lat,
+          lng: sim.lng,
+          progress: atSite ? 1 : Math.min(1, route.cum[idx] / route.totalKm),
+          remainingKm: atSite ? 0 : remainingKm,
+          etaMin: atSite ? 0 : Math.max(1, Math.round((remainingKm / speed) * 60))
+        };
+      }
+
+      // Artificial road-following movement while in Simulation Mode
+      const demoSpeedKmh = 45;
+      const startMs = this.simulationStartedAt || this.mountedAt;
+      const travelledKm = Math.max(0, ((Date.now() - startMs) / 3600000) * demoSpeedKmh);
+      const progress = Math.min(1, travelledKm / route.totalKm);
+      const pos = this.pointAlongRoute(route, progress * route.totalKm);
+      const remainingKm = Math.max(0, route.totalKm - progress * route.totalKm);
+      return {
+        mode: progress >= 1 ? 'arrived' : 'simulated',
+        lat: pos.lat,
+        lng: pos.lng,
+        progress,
+        remainingKm,
+        etaMin: progress >= 1 ? 0 : Math.max(1, Math.round((remainingKm / demoSpeedKmh) * 60))
+      };
+    }
+
+    // Production Real-Time GPS: only moves when the unit's actual ground GPS coordinates move
+    if (t.live) {
+      const pos = { lat: t.live.latitude, lng: t.live.longitude };
+      const { idx } = this.nearestOnRoute(route, pos);
+      const remainingKm = Math.max(0, route.totalKm - route.cum[idx]);
+      const atSite = this.haversineKm(pos.lat, pos.lng, t.destination.lat, t.destination.lng) < 0.1;
+      const moving = !atSite && this.isUnitMoving(t.userId, pos.lat, pos.lng, t.live.speedKmh);
+      const liveSpeed = t.live.speedKmh && t.live.speedKmh > 5 ? t.live.speedKmh : speed;
+      return {
+        mode: atSite ? 'arrived' : (moving ? 'live' : 'stationary'),
+        lat: pos.lat,
+        lng: pos.lng,
+        progress: atSite ? 1 : Math.min(1, route.cum[idx] / route.totalKm),
+        remainingKm: atSite ? 0 : remainingKm,
+        etaMin: atSite ? 0 : Math.max(1, Math.round((remainingKm / liveSpeed) * 60))
+      };
+    }
+
+    // Not signed in / No live GPS fix: remain stationary at origin with zero fake movement
+    return {
+      mode: 'offline',
+      lat: t.origin.lat,
+      lng: t.origin.lng,
+      progress: 0,
+      remainingKm: route.totalKm,
+      etaMin: 0
+    };
+  }
+
+  isCurrentSelfUnit(userId?: string, userName?: string, role?: string): boolean {
+    const curRole = this.store.currentRole();
+    if (curRole !== 'installer' && curRole !== 'dispatcher') return false;
+    if (role && role !== curRole) return false;
+    const curUser = this.store.currentUser();
+    const apiId = this.store.apiUser()?.id;
+    if (userId) {
+      if (userId === curUser.id || (apiId && userId === apiId)) return true;
+      if (curRole === 'installer' && this.store.resolveActiveInstallerIds().has(userId)) return true;
+      if (curRole === 'dispatcher' && this.store.currentDispatcherId() === userId) return true;
+    }
+    if (userName && curUser.name && userName.trim().toLowerCase() === curUser.name.trim().toLowerCase()) {
+      return true;
+    }
+    return false;
+  }
+
+  private selfPinIconHtml(labelHtml: string, pulseHtml = ''): string {
+    return `
+      <div style="position:relative; cursor:pointer;" title="Me">
+        ${pulseHtml}
+        <svg width="22" height="28" viewBox="0 0 64 80" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 3px 6px rgba(0,0,0,0.45)); display:block;">
+          <defs>
+            <linearGradient id="dmRedPinGrad" x1="16" y1="6" x2="52" y2="72" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#ff3b30"/>
+              <stop offset="45%" stop-color="#dc2626"/>
+              <stop offset="100%" stop-color="#8b0000"/>
+            </linearGradient>
+            <linearGradient id="dmRedPinHighlight" x1="20" y1="8" x2="34" y2="36" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.65"/>
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M32 2C15.4315 2 2 15.4315 2 32C2 50.5 24.5 72.5 30.35 77.95C31.28 78.82 32.72 78.82 33.65 77.95C39.5 72.5 62 50.5 62 32C62 15.4315 48.5685 2 32 2ZM32 44C38.6274 44 44 38.6274 44 32C44 25.3726 38.6274 20 32 20C25.3726 20 20 25.3726 20 32C20 38.6274 25.3726 44 32 44Z" fill="url(#dmRedPinGrad)" stroke="#7f1d1d" stroke-width="1.5"/>
+          <path d="M13 24C14.5 14.5 22 8 31 7.5C23 11 17.5 17 15.5 25.5C14.5 26.5 12.7 25.8 13 24Z" fill="url(#dmRedPinHighlight)"/>
+        </svg>
+        <div style="background:rgba(15,23,42,0.92); color:#fff; font-size:8.5px; font-family:monospace; font-weight:800; padding:2px 6px; border-radius:5px; border:1px solid rgba(255,255,255,0.28); white-space:nowrap; position:absolute; left:25px; top:3px; display:flex; gap:4px; align-items:center;">
+          ${labelHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  private crewIconHtml(t: CrewTrack, st: CrewTrackState): string {
+    const isDriver = t.role === 'dispatcher';
+    const isSelf = this.isCurrentSelfUnit(t.userId, t.userName, t.role);
+    const bg = st.mode === 'off-route'
+      ? '#e11d48'
+      : (st.mode === 'offline' ? '#64748b' : (isDriver ? '#0284c7' : '#10b981'));
+    const symbol = isDriver ? '🚚' : '🛠️';
+    const first = isSelf ? 'Me' : ((t.userName || '').split(' ')[0] || (isDriver ? 'Driver' : 'Installer'));
+    const badge = st.mode === 'off-route'
+      ? 'OFF-ROUTE'
+      : (st.mode === 'simulated' ? 'SIM'
+        : (st.mode === 'live' ? 'MOVING'
+          : (st.mode === 'stationary' ? 'STATIONARY'
+            : (st.mode === 'arrived' ? 'ON SITE' : 'NOT SIGNED IN'))));
+    const badgeBg = st.mode === 'off-route'
+      ? '#e11d48'
+      : (st.mode === 'simulated' ? '#d97706'
+        : (st.mode === 'live' ? '#16a34a'
+          : (st.mode === 'stationary' ? '#0284c7'
+            : (st.mode === 'arrived' ? '#7c3aed' : '#64748b'))));
+    const showPulse = st.mode === 'live' || st.mode === 'simulated' || st.mode === 'off-route';
+    const pulse = showPulse
+      ? `<div style="position:absolute; width:40px; height:40px; background:${bg}33; border-radius:50%; top:-8px; left:-8px; animation:ping 1.8s cubic-bezier(0,0,0.2,1) infinite;"></div>`
+      : '';
+    if (isSelf) {
+      return this.selfPinIconHtml(
+        `<span>Me → ${t.jobId}</span><span style="background:${badgeBg}; padding:0 4px; border-radius:3px; font-size:7.5px;">${badge}</span>`,
+        pulse
+      );
+    }
+    return `
+      <div style="position:relative; cursor:pointer;">
+        ${pulse}
+        <div style="background:${bg}; color:#fff; width:26px; height:26px; border-radius:50%; border:2px solid #fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 12px rgba(0,0,0,0.5); font-size:12px;">${symbol}</div>
+        <div style="background:rgba(15,23,42,0.92); color:#fff; font-size:8.5px; font-family:monospace; font-weight:bold; padding:2px 6px; border-radius:5px; border:1px solid rgba(255,255,255,0.25); white-space:nowrap; position:absolute; left:30px; top:2px; display:flex; gap:4px; align-items:center;">
+          <span>${first} → ${t.jobId}</span>
+          <span style="background:${badgeBg}; padding:0 4px; border-radius:3px; font-size:7.5px;">${badge}</span>
+        </div>
+      </div>`;
+  }
+
+  /** Diff-based renderer for crew routes & markers. Only moves markers when real GPS or simulation moves them. */
+  private syncCrewLayers() {
+    const leaflet = L;
+    if (!this.map || !leaflet) return;
+
+    const tracks = this.crewTracks();
+    const showRoutes = this.showCrewRoutes();
+    const keys = new Set(tracks.map(t => t.key));
+
+    this.crewLines.forEach((entry, k) => {
+      if (!keys.has(k) || !showRoutes) {
+        this.map?.removeLayer(entry.line);
+        this.crewLines.delete(k);
+      }
+    });
+    this.crewMarkers.forEach((entry, k) => {
+      if (!keys.has(k)) {
+        this.map?.removeLayer(entry.marker);
+        this.crewMarkers.delete(k);
+      }
+    });
+
+    const states: Record<string, CrewTrackState> = {};
+
+    for (const t of tracks) {
+      const roleVisible = t.role === 'dispatcher' ? this.showTrucks() : this.showInstallers();
+      const route = this.ensureCrewRoute(t);
+      if (!route) continue;
+
+      const st = this.computeCrewState(t, route);
+      states[t.key] = st;
+
+      // Route polyline
+      const existingLine = this.crewLines.get(t.key);
+      const dashed = st.mode !== 'live' && st.mode !== 'stationary';
+      if (showRoutes && roleVisible) {
+        if (!existingLine || existingLine.version !== route.version || existingLine.dashed !== dashed) {
+          if (existingLine) this.map.removeLayer(existingLine.line);
+          const line = leaflet.polyline(route.points, {
+            color: t.role === 'dispatcher' ? '#0284c7' : '#10b981',
+            weight: 4,
+            opacity: (st.mode === 'arrived' || st.mode === 'offline') ? 0.35 : 0.75,
+            lineCap: 'round',
+            lineJoin: 'round',
+            dashArray: dashed ? '6, 8' : undefined,
+            interactive: false
+          }).addTo(this.map);
+          this.crewLines.set(t.key, { line, version: route.version, dashed });
+        }
+      } else if (existingLine) {
+        this.map.removeLayer(existingLine.line);
+        this.crewLines.delete(t.key);
+      }
+
+      // Moving marker
+      const existingMarker = this.crewMarkers.get(t.key);
+      if (!roleVisible) {
+        if (existingMarker) {
+          this.map.removeLayer(existingMarker.marker);
+          this.crewMarkers.delete(t.key);
+        }
+        continue;
+      }
+
+      const isSelf = this.isCurrentSelfUnit(t.userId, t.userName, t.role);
+      const crewDisplayName = isSelf ? 'Me' : t.userName;
+      const crewIconSize: [number, number] = isSelf ? [22, 28] : [26, 26];
+      const crewIconAnchor: [number, number] = isSelf ? [11, 27] : [13, 13];
+      const iconKey = `${t.role}|${st.mode}|${t.userName}|${t.jobId}|${isSelf}`;
+      if (!existingMarker) {
+        const marker = leaflet.marker([st.lat, st.lng], {
+          icon: leaflet.divIcon({ className: 'custom-crew-pin', html: this.crewIconHtml(t, st), iconSize: crewIconSize, iconAnchor: crewIconAnchor }),
+          zIndexOffset: isSelf ? 700 : 500
+        })
+          .addTo(this.map)
+          .bindPopup(`
+            <div style="font-family:sans-serif; padding:2px;">
+              <strong style="color:#0f172a; font-size:12px;">${isSelf ? '📍' : (t.role === 'dispatcher' ? '🚚' : '🛠️')} ${crewDisplayName}</strong>
+              <p style="color:#475569; font-size:10px; margin:3px 0;">${t.role === 'dispatcher' ? 'Dispatch Driver' : 'Installer'} · ${t.autoAccepted ? 'Auto-accepted' : 'Accepted'}</p>
+              <p style="color:#0f766e; font-size:10px; margin:0;">Work: <strong>${t.jobLabel}</strong></p>
+            </div>
+          `)
+          .on('click', () => this.onMapEntityClicked(t.jobId));
+        this.crewMarkers.set(t.key, { marker, iconKey });
+      } else {
+        existingMarker.marker.setLatLng([st.lat, st.lng]);
+        if (existingMarker.iconKey !== iconKey) {
+          existingMarker.marker.setIcon(
+            leaflet.divIcon({ className: 'custom-crew-pin', html: this.crewIconHtml(t, st), iconSize: crewIconSize, iconAnchor: crewIconAnchor })
+          );
+          existingMarker.iconKey = iconKey;
+        }
+      }
+    }
+
+    this.crewStates.set(states);
+  }
+
+  /** Explicit user action: pan to a crew member's current position and select their track. */
+  focusCrew(t: CrewTrack) {
+    this.selectedJobId.set(t.jobId);
+    this.selectedTrackKey.set(t.key);
+    const pos = this.getActiveCrewPosition(t);
+    if (!this.map) return;
+    this.userHasInteractedWithMap = true;
+    this.map.setView([pos.lat, pos.lng], Math.max(this.map.getZoom(), 15));
+    this.crewMarkers.get(t.key)?.marker.openPopup();
+  }
+
+  onWorkFilterChange(jobId: string) {
+    this.workFilter.set(jobId);
+    if (jobId !== 'all') {
+      this.selectJob(jobId);
+    }
+  }
+
+  collapseHudManually() {
+    if (this.hudRestoreTimer) {
+      clearTimeout(this.hudRestoreTimer);
+      this.hudRestoreTimer = null;
+    }
+    this.wasAutoMinimizedByMap = false;
+    this.isHudMinimized.set(true);
+  }
+
+  private minimizeHudOnMapInteraction() {
+    if (this.hudRestoreTimer) {
+      clearTimeout(this.hudRestoreTimer);
+      this.hudRestoreTimer = null;
+    }
+    if (!this.isHudMinimized()) {
+      this.wasAutoMinimizedByMap = true;
+      this.isHudMinimized.set(true);
+    }
+  }
+
+  private scheduleHudAutoRestore(delayMs = 3000) {
+    if (!this.wasAutoMinimizedByMap) return;
+    if (this.hudRestoreTimer) {
+      clearTimeout(this.hudRestoreTimer);
+    }
+    this.hudRestoreTimer = setTimeout(() => {
+      this.hudRestoreTimer = null;
+      if (this.wasAutoMinimizedByMap) {
+        this.wasAutoMinimizedByMap = false;
+        this.isHudMinimized.set(false);
+      }
+    }, delayMs);
+  }
+
+  onMapEntityClicked(jobId?: string | null) {
+    if (this.hudRestoreTimer) {
+      clearTimeout(this.hudRestoreTimer);
+      this.hudRestoreTimer = null;
+    }
+    this.wasAutoMinimizedByMap = false;
+    this.suppressMapMinimizeUntil = Date.now() + 700;
+    if (jobId) {
+      this.selectJob(jobId);
+    } else {
+      this.isHudMinimized.set(false);
+    }
+  }
+
   selectJob(jobId: string) {
+    this.suppressMapMinimizeUntil = Date.now() + 700;
+    this.wasAutoMinimizedByMap = false;
     this.selectedJobId.set(jobId);
+    this.isHudMinimized.set(false);
+    this.userHasInteractedWithMap = false; // User explicitly selected this job; allow route framing
     this.renderDestinationMarkers();
   }
 
-  private onJobSelectionChanged(job: InstallationJob) {
+  private onJobSelectionChanged(job: InstallationJob, allowFitBounds: boolean = false) {
     this.isOffRoute.set(false);
     this.hasRerouted.set(false);
     this.stepIndex = 0;
 
-    const origin = this.getJobOriginCoordinates(job);
+    if (this.offRouteTrailPolyline && this.map) {
+      this.map.removeLayer(this.offRouteTrailPolyline);
+      this.offRouteTrailPolyline = null;
+    }
+
+    const track = this.activeTrack();
+    const origin = track ? this.getActiveCrewPosition(track) : this.getJobOriginCoordinates(job);
     const destination = this.getJobCoordinates(job);
 
     this.riderPosition.set(origin);
-    this.renderRiderMarker(origin.lat, origin.lng);
 
-    this.calculateAndDisplayShortestRoute(origin, destination, false);
+    this.calculateAndDisplayShortestRoute(origin, destination, false, allowFitBounds);
   }
 
   private getJobOriginCoordinates(job: InstallationJob): { lat: number; lng: number } {
@@ -1479,14 +2526,110 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     return { lat: 5.6320, lng: -0.0980 }; // Accra Central Workshop
   }
 
+  /**
+   * Extracts a Ghana Post GPS code (e.g. GD-018-5574 or GA-183-9340) from any text string.
+   */
+  extractGhanaPostCode(addr?: string): string | null {
+    if (!addr) return null;
+    const match = addr.match(/\b([A-Z]{2}-?\d{3,4}-?\d{4})\b/i);
+    if (match) {
+      const c = match[1].toUpperCase();
+      return c.includes('-') ? c : `${c.slice(0, 2)}-${c.slice(2, 5)}-${c.slice(5)}`;
+    }
+    return null;
+  }
+
+  private resolveGhanaPostForJob(code: string) {
+    if (this.pendingGhanaPost.has(code)) return;
+    this.pendingGhanaPost.add(code);
+    void this.store.resolveGhanaPostGps(code).then(loc => {
+      this.pendingGhanaPost.delete(code);
+      if (loc) {
+        this.ghanaPostCoords.set(code, { lat: loc.lat, lng: loc.lng });
+        this.renderDestinationMarkers();
+        const cur = this.selectedJob();
+        if (cur && (cur.client?.siteAddress || '').includes(code)) {
+          this.onJobSelectionChanged(cur, false);
+        }
+      }
+    });
+  }
+
+  /**
+   * Search bar action: locate any Ghana Post GPS code on the map, drop a pin, and build route.
+   */
+  async locateGhanaPost(rawCode: string) {
+    const loc = await this.store.resolveGhanaPostGps(rawCode);
+    if (!loc) {
+      this.alert.toastWarning('Location Not Found', `Ghana Post GPS code "${rawCode}" could not be resolved.`);
+      return;
+    }
+
+    const leaflet = L;
+    if (!this.map || !leaflet) return;
+
+    this.userHasInteractedWithMap = true;
+    this.map.setView([loc.lat, loc.lng], 16);
+
+    if (this.ghanaPostMarker) {
+      this.map.removeLayer(this.ghanaPostMarker);
+    }
+
+    const icon = leaflet.divIcon({
+      className: 'custom-ghanapost-pin',
+      html: `
+        <div style="position:relative; cursor:pointer;" title="Ghana Post GPS: ${loc.code}">
+          <div style="position:absolute; width:48px; height:48px; background:#0d948840; border-radius:50%; top:-12px; left:-12px; animation:ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+          <div style="background:#0f766e; color:#fff; padding:5px 9px; border-radius:12px; font-weight:800; font-size:10px; font-family:sans-serif; box-shadow:0 4px 16px rgba(0,0,0,0.6); border:2px solid #5eead4; display:flex; align-items:center; gap:5px; white-space:nowrap;">
+            <span>🇬🇭</span>
+            <span>${loc.code}</span>
+            <span style="background:rgba(255,255,255,0.25); color:#fff; font-size:8px; padding:1px 4px; border-radius:4px; font-weight:bold;">${loc.area || loc.district}</span>
+          </div>
+        </div>
+      `,
+      iconSize: [180, 28],
+      iconAnchor: [90, 14]
+    });
+
+    this.ghanaPostMarker = leaflet.marker([loc.lat, loc.lng], { icon, zIndexOffset: 1200 })
+      .addTo(this.map)
+      .bindPopup(`
+        <div style="font-family:sans-serif; padding:4px;">
+          <strong style="color:#0f766e; font-size:13px;">🇬🇭 Ghana Post GPS: ${loc.code}</strong>
+          <p style="color:#334155; font-size:11px; margin:4px 0 2px 0;"><strong>Street:</strong> ${loc.street || 'Odikoatwei Ave'}</p>
+          <p style="color:#334155; font-size:11px; margin:0 0 2px 0;"><strong>Area / District:</strong> ${loc.area || loc.district}, ${loc.region}</p>
+          <p style="color:#0284c7; font-size:10px; font-family:monospace; margin:4px 0 0 0;">GPS: ${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}</p>
+        </div>
+      `)
+      .openPopup();
+
+    const branch = this.visibleBranches()[0];
+    const origin = branch ? { lat: branch.latitude, lng: branch.longitude } : { lat: 5.6320, lng: -0.0980 };
+    this.calculateAndDisplayShortestRoute(origin, { lat: loc.lat, lng: loc.lng }, false, false);
+
+    this.alert.toastSuccess('Ghana Post GPS Resolved', `${loc.code} (${loc.area || loc.district}) located on map.`);
+  }
+
   private getJobCoordinates(job: InstallationJob): { lat: number; lng: number } {
+    const rawAddr = job.client?.siteAddress || (job as any).address || '';
+
+    // 1. Check if client site address contains a Ghana Post GPS code (e.g. GD-018-5574)
+    const gpCode = this.extractGhanaPostCode(rawAddr);
+    if (gpCode) {
+      const resolved = this.ghanaPostCoords.get(gpCode);
+      if (resolved) {
+        return resolved;
+      }
+      this.resolveGhanaPostForJob(gpCode);
+    }
+
     if (job.client?.coordinates && job.client.coordinates.lat && job.client.coordinates.lng) {
       return job.client.coordinates;
     }
     if ((job as any).lat && (job as any).lng) {
       return { lat: (job as any).lat, lng: (job as any).lng };
     }
-    const addr = (job.client?.siteAddress || '').toLowerCase();
+    const addr = rawAddr.toLowerCase();
     if (addr.includes('amanfrokoo') || addr.includes('chapel')) return { lat: 5.70645, lng: -0.18220 };
     if (addr.includes('obeyeyie') || addr.includes('amasaman')) return { lat: 5.7020, lng: -0.3010 };
     if (addr.includes('spintex') || addr.includes('flower pot')) return { lat: 5.6320, lng: -0.0980 };
@@ -1500,7 +2643,8 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   private async calculateAndDisplayShortestRoute(
     origin: { lat: number; lng: number },
     destination: { lat: number; lng: number },
-    isReroute: boolean = false
+    isReroute: boolean = false,
+    autoFitBounds: boolean = false
   ) {
     const leaflet = L;
     if (!this.map || !leaflet) return;
@@ -1567,7 +2711,10 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       setTimeout(() => this.rerouteToast.set(null), 6000);
     }
 
-    this.fitRouteBounds();
+    // Only auto-frame camera if explicitly requested and the user hasn't panned/zoomed manually
+    if (autoFitBounds && !this.userHasInteractedWithMap) {
+      this.fitRouteBounds();
+    }
   }
 
   private generateAccraShortestRoadPath(
@@ -1603,41 +2750,77 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     };
   }
 
-  private renderRiderMarker(lat: number, lng: number) {
-    const leaflet = L;
-    if (!this.map || !leaflet) return;
+  getActiveCrewPosition(track: CrewTrack | null): { lat: number; lng: number } {
+    if (!track) {
+      const job = this.selectedJob();
+      if (job) {
+        return this.getJobOriginCoordinates(job);
+      }
+      return this.riderPosition();
+    }
 
-    if (!this.riderMarker) {
-      const icon = leaflet.divIcon({
-        className: 'custom-rider-icon',
-        html: `
-          <div style="position:relative; cursor:pointer;" title="Active Dispatch Unit">
-            <div style="position:absolute; width:44px; height:44px; background:#06b6d440; border-radius:50%; top:-9px; left:-9px; animation:ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-            <div style="background:#0284c7; color:#fff; width:28px; height:28px; border-radius:50%; border:2.5px solid #fff; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.6);">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="#ffffff" style="display:block;">
-                <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 7h10.29l1.04 3H5.81l1.04-3zM19 17H5v-4.66l.12-.34h13.77l.11.34V17z"/>
-                <circle cx="7.5" cy="14.5" r="1.5"/>
-                <circle cx="16.5" cy="14.5" r="1.5"/>
-              </svg>
-            </div>
-            <div style="background:rgba(15,23,42,0.95); color:#fff; font-size:9.5px; font-family:monospace; font-weight:bold; padding:2px 7px; border-radius:6px; border:1px solid rgba(255,255,255,0.3); white-space:nowrap; position:absolute; left:32px; top:4px; box-shadow:0 2px 8px rgba(0,0,0,0.5);">
-              Driver (Live GPS)
-            </div>
-          </div>
-        `,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
-      });
+    if (this.isSimulationMode()) {
+      const sim = this.simulatedPositions()[track.key];
+      if (sim) {
+        return { lat: sim.lat, lng: sim.lng };
+      }
+      const st = this.crewStates()[track.key];
+      if (st) {
+        return { lat: st.lat, lng: st.lng };
+      }
+    }
 
-      this.riderMarker = leaflet.marker([lat, lng], { icon }).addTo(this.map);
+    if (track.live) {
+      return { lat: track.live.latitude, lng: track.live.longitude };
+    }
+
+    const st = this.crewStates()[track.key];
+    if (st) {
+      return { lat: st.lat, lng: st.lng };
+    }
+
+    return track.origin;
+  }
+
+  toggleDataMode() {
+    const newMode = !this.isSimulationMode();
+    this.isSimulationMode.set(newMode);
+    this.showSimControls.set(newMode);
+    if (!newMode) {
+      // Switching back to Live GPS (Production): clear all simulated state & restore real-time locations
+      this.simulationStartedAt = 0;
+      this.simulatedPositions.set({});
+      if (this.offRouteTrailPolyline && this.map) {
+        this.map.removeLayer(this.offRouteTrailPolyline);
+        this.offRouteTrailPolyline = null;
+      }
+      this.isOffRoute.set(false);
+      this.hasRerouted.set(false);
+      this.syncCrewLayers();
+      const job = this.selectedJob();
+      if (job) {
+        this.onJobSelectionChanged(job, false);
+      }
+      this.alert.toastSuccess('Live GPS Active', 'Production mode enabled. Restored real-time live locations.');
     } else {
-      this.riderMarker.setLatLng([lat, lng]);
+      // Switching to Simulation (Demo): start artificial movement along routes
+      this.simulationStartedAt = Date.now();
+      this.simulatedPositions.set({});
+      this.syncCrewLayers();
+      this.alert.toastInfo('Simulation Mode', 'Demo mode active. Crew units are now moving artificially along their routes.');
     }
   }
 
   updateRiderPosition(newPos: { lat: number; lng: number }) {
     this.riderPosition.set(newPos);
-    this.renderRiderMarker(newPos.lat, newPos.lng);
+    const track = this.activeTrack();
+    if (track && this.isSimulationMode()) {
+      this.simulatedPositions.update(m => ({
+        ...m,
+        [track.key]: { lat: newPos.lat, lng: newPos.lng, isOffRoute: this.isOffRoute() }
+      }));
+    }
+    this.syncCrewLayers();
     this.checkAndHandleOffRoute(newPos);
   }
 
@@ -1661,7 +2844,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       const job = this.selectedJob();
       if (job) {
         const dest = this.getJobCoordinates(job);
-        this.calculateAndDisplayShortestRoute(pos, dest, true);
+        this.calculateAndDisplayShortestRoute(pos, dest, true, false);
       }
     } else {
       this.isOffRoute.set(false);
@@ -1669,11 +2852,27 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   }
 
   simulateOffRouteDeviation() {
-    const cur = this.riderPosition();
+    if (!this.isSimulationMode()) {
+      this.simulationStartedAt = Date.now();
+      this.isSimulationMode.set(true);
+    }
+
+    const track = this.activeTrack();
+    const cur = this.getActiveCrewPosition(track);
     const deviated = {
       lat: cur.lat + 0.0035,
-      lng: cur.lng - 0.0030
+      lng: cur.lng - 0.0030,
+      isOffRoute: true
     };
+
+    if (track) {
+      this.simulatedPositions.update(m => ({
+        ...m,
+        [track.key]: deviated
+      }));
+    }
+
+    this.riderPosition.set({ lat: deviated.lat, lng: deviated.lng });
 
     const leaflet = L;
     if (this.map && leaflet) {
@@ -1686,30 +2885,70 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       ).addTo(this.map);
     }
 
-    this.updateRiderPosition(deviated);
+    this.isOffRoute.set(true);
+    this.hasRerouted.set(false);
+    this.syncCrewLayers();
+
+    const unitName = track ? `${track.userName} (${track.role === 'dispatcher' ? 'Driver' : 'Installer'})` : 'Active Unit';
+    this.alert.toastWarning('Off-Route Detected', `${unitName} took an alternate turn. Dynamic re-routing initiated.`);
+
+    setTimeout(() => {
+      const job = this.selectedJob();
+      if (job) {
+        const dest = this.getJobCoordinates(job);
+        this.calculateAndDisplayShortestRoute({ lat: deviated.lat, lng: deviated.lng }, dest, true, false);
+      }
+    }, 1000);
   }
 
   simulateAdvanceAlongRoute() {
+    if (!this.isSimulationMode()) {
+      this.simulationStartedAt = Date.now();
+      this.isSimulationMode.set(true);
+    }
     if (this.currentPlannedRoute.length === 0) return;
     this.stepIndex = Math.min(this.currentPlannedRoute.length - 1, this.stepIndex + 3);
     const pt = this.currentPlannedRoute[this.stepIndex];
     if (pt) {
-      this.updateRiderPosition({ lat: pt[0], lng: pt[1] });
+      const newPos = { lat: pt[0], lng: pt[1], isOffRoute: false };
+      const track = this.activeTrack();
+      if (track) {
+        this.simulatedPositions.update(m => ({
+          ...m,
+          [track.key]: newPos
+        }));
+      }
+      if (this.offRouteTrailPolyline && this.map) {
+        this.map.removeLayer(this.offRouteTrailPolyline);
+        this.offRouteTrailPolyline = null;
+      }
+      this.riderPosition.set({ lat: pt[0], lng: pt[1] });
+      this.syncCrewLayers();
+      this.checkAndHandleOffRoute({ lat: pt[0], lng: pt[1] });
     }
   }
 
   recalculateCurrentRoute() {
     const job = this.selectedJob();
     if (!job) return;
-    const origin = this.riderPosition();
+    const track = this.activeTrack();
+    const origin = track ? this.getActiveCrewPosition(track) : this.riderPosition();
     const dest = this.getJobCoordinates(job);
     this.calculateAndDisplayShortestRoute(origin, dest, true);
   }
 
-  centerOnRider() {
+  centerOnActiveUnit() {
     if (!this.map) return;
-    const r = this.riderPosition();
-    this.map.setView([r.lat, r.lng], 15);
+    const track = this.activeTrack();
+    const pos = this.getActiveCrewPosition(track);
+    this.map.setView([pos.lat, pos.lng], 15);
+    if (track) {
+      this.crewMarkers.get(track.key)?.marker.openPopup();
+    }
+  }
+
+  centerOnRider() {
+    this.centerOnActiveUnit();
   }
 
   fitRouteBounds() {

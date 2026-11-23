@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
 import { AlertService } from '../../services/alert.service';
-import { NotificationItem } from '../../models/installation.model';
+import { InstallationJob, NotificationItem } from '../../models/installation.model';
 
 @Component({
   selector: 'app-notification-drawer',
@@ -94,6 +94,10 @@ import { NotificationItem } from '../../models/installation.model';
 
                     <div class="flex items-center gap-2">
                       @if (canInstallerRespond(notif)) {
+                        <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px] font-mono font-bold flex items-center gap-1">
+                          <mat-icon class="!text-[11px] !w-3 !h-3 animate-pulse">timer</mat-icon>
+                          <span>{{ store.formatInstallerRemaining(getJob(notif.jobId)) }}</span>
+                        </span>
                         <button
                           type="button"
                           (click)="acceptInstallerFromDrawer(notif)"
@@ -104,6 +108,25 @@ import { NotificationItem } from '../../models/installation.model';
                         <button
                           type="button"
                           (click)="declineInstallerFromDrawer(notif)"
+                          class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold cursor-pointer"
+                        >
+                          Reject
+                        </button>
+                      } @else if (canDriverRespond(notif)) {
+                        <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px] font-mono font-bold flex items-center gap-1">
+                          <mat-icon class="!text-[11px] !w-3 !h-3 animate-pulse">timer</mat-icon>
+                          <span>{{ store.formatDriverRemaining(getJob(notif.jobId)) }}</span>
+                        </span>
+                        <button
+                          type="button"
+                          (click)="acceptDriverFromDrawer(notif)"
+                          class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold cursor-pointer"
+                        >
+                          Accept Run
+                        </button>
+                        <button
+                          type="button"
+                          (click)="declineDriverFromDrawer(notif)"
                           class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold cursor-pointer"
                         >
                           Reject
@@ -158,6 +181,11 @@ export class NotificationDrawer {
   closed = output<void>();
   jobSelected = output<string>();
 
+  getJob(jobId?: string): InstallationJob | undefined {
+    if (!jobId) return undefined;
+    return this.store.jobs().find(j => j.id === jobId);
+  }
+
   canInstallerRespond(notif: NotificationItem): boolean {
     if (this.store.currentRole() !== 'installer' || !notif.jobId) return false;
     const job = this.store.jobs().find(j => j.id === notif.jobId);
@@ -182,6 +210,32 @@ export class NotificationDrawer {
     this.alert.warning('Installation Declined', `Job ${notif.jobId} declined. Operations Manager alerted.`);
     this.closed.emit();
     this.router.navigate(['/map']);
+  }
+
+  canDriverRespond(notif: NotificationItem): boolean {
+    if (this.store.currentRole() !== 'dispatcher' || !notif.jobId) return false;
+    const job = this.store.jobs().find(j => j.id === notif.jobId);
+    if (!job || !this.store.isDriverPendingAcceptance(job)) {
+      return false;
+    }
+    return true;
+  }
+
+  acceptDriverFromDrawer(notif: NotificationItem) {
+    if (!notif.jobId) return;
+    this.store.markNotificationRead(notif.id);
+    this.store.respondDriverAssignment(notif.jobId, true);
+    this.alert.success('Delivery Run Accepted', `Manifest for job ${notif.jobId} confirmed for you.`);
+    this.closed.emit();
+  }
+
+  declineDriverFromDrawer(notif: NotificationItem) {
+    if (!notif.jobId) return;
+    this.store.markNotificationRead(notif.id);
+    this.store.respondDriverAssignment(notif.jobId, false, 'Declined from notification drawer');
+    this.alert.warning('Delivery Run Declined', `Job ${notif.jobId} returned to queue for reassignment.`);
+    this.closed.emit();
+    this.router.navigate(['/overview']);
   }
 
   getIcon(type: NotificationItem['type']): string {

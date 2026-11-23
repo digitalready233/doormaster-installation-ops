@@ -6,19 +6,20 @@ import { InstallationStore } from '../../services/installation.store';
 import { AlertService } from '../../services/alert.service';
 import { AssignedInstallerTeamMember, DoorCategory, InstallationJob, JobDoorItem, ShopLocationSettings } from '../../models/installation.model';
 import { ClientLocationMap, ClientLocationResult } from '../../components/client-location-map/client-location-map';
+import { PhoneInputComponent } from '../../components/phone-input/phone-input';
 
 export interface ShopDoorItem extends JobDoorItem {
   isExpanded: boolean;
 }
 
-export type ShopTimeFilter = 'all' | 'day' | 'week' | 'month' | 'year';
+export type ShopTimeFilter = 'day' | 'week' | 'month' | 'year' | 'custom' | 'all';
 export type ShopSortField = 'id' | 'date' | 'door' | 'client' | 'amount' | 'status';
 export type SortDirection = 'asc' | 'desc';
 
 @Component({
   selector: 'app-shop-portal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, ReactiveFormsModule, FormsModule, ClientLocationMap],
+  imports: [CommonModule, MatIconModule, ReactiveFormsModule, FormsModule, ClientLocationMap, PhoneInputComponent],
   template: `
     <div class="space-y-6">
       <!-- Header -->
@@ -85,7 +86,7 @@ export type SortDirection = 'asc' | 'desc';
             <div class="flex items-center gap-2">
               <span class="w-3 h-3 rounded-full bg-cyan-500 animate-ping"></span>
               <h3 class="text-sm font-extrabold text-cyan-900 dark:text-cyan-200 uppercase tracking-wider">
-                Action Required: Shop Orders Awaiting Store Dispatcher ({{ jobsAwaitingDriver().length }})
+                Action Required: Shop Orders Awaiting Store Driver ({{ jobsAwaitingDriver().length }})
               </h3>
             </div>
             <span class="text-xs text-cyan-800 dark:text-cyan-300 font-mono">
@@ -103,7 +104,7 @@ export type SortDirection = 'asc' | 'desc';
                     <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ job.dimensions }} · {{ job.finish }}</p>
                   </div>
                   <span class="text-[10px] uppercase font-bold bg-cyan-100 dark:bg-cyan-950/70 text-cyan-800 dark:text-cyan-300 px-2 py-0.5 rounded border border-cyan-200 dark:border-cyan-800">
-                    Dispatcher Pending
+                    Driver Pending
                   </span>
                 </div>
 
@@ -115,7 +116,7 @@ export type SortDirection = 'asc' | 'desc';
                       <span>{{ job.scheduledDate }}</span>
                     </p>
                     <p class="text-[11px] text-slate-500 font-mono mt-0.5">
-                      {{ job.assignedInstallerName ? 'Tech: ' + job.assignedInstallerName : 'Tech: Operations Queue' }}
+                      {{ job.assignedInstallerName ? 'Installer: ' + getFirstName(job.assignedInstallerName) : 'Installer: Operations Queue' }}
                     </p>
                   </div>
 
@@ -137,7 +138,7 @@ export type SortDirection = 'asc' | 'desc';
                     class="px-3.5 py-1.5 bg-cyan-700 hover:bg-cyan-800 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95 cursor-pointer"
                   >
                     <mat-icon class="!text-xs">local_shipping</mat-icon>
-                    <span>Select Dispatcher</span>
+                    <span>Select Driver</span>
                   </button>
                 </div>
               </div>
@@ -155,7 +156,7 @@ export type SortDirection = 'asc' | 'desc';
               {{ isShopLocked() ? activeShop().shopName + ' — Bookings & Payment Registry' : 'Shop Installation Bookings & Payment Registry' }}
             </h3>
             <p class="text-xs text-slate-500 dark:text-slate-400">
-              {{ isShopLocked() ? 'Orders created at and scoped exclusively to ' + activeShop().shopName + ' (' + activeShop().branchCode + ')' : 'Scheduled by Shop Manager with client counter payments audited by Accounts' }}
+              {{ isShopLocked() ? 'Orders created at and scoped exclusively to ' + activeShop().shopName + ' (' + activeShop().branchCode + ')' : 'Scheduled by Shop Attendant with client counter payments audited by Accounts' }}
             </p>
           </div>
           <div class="flex items-center gap-2">
@@ -191,48 +192,106 @@ export type SortDirection = 'asc' | 'desc';
               }
             </div>
 
-            <!-- Time Filter Pills (Day, Week, Month, Year) -->
-            <div class="inline-flex items-center p-0.5 bg-slate-200/80 dark:bg-slate-800 rounded-xl text-xs font-semibold">
-              <button
-                type="button"
-                (click)="setTimeFilter('all')"
-                [class]="timeFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+            <!-- Shop Branch Filter (Combined All Shops by default for Manager / Admin) -->
+            @if (!isShopLocked()) {
+              <select
+                [ngModel]="selectedBranchFilter()"
+                (ngModelChange)="onBranchChange($event)"
+                [ngModelOptions]="{standalone: true}"
+                class="px-2.5 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:border-cyan-500 shadow-2xs max-w-[230px] truncate"
+                aria-label="Filter by Shop Branch"
               >
-                All
-              </button>
-              <button
-                type="button"
-                (click)="setTimeFilter('day')"
-                [class]="timeFilter() === 'day' ? 'bg-cyan-700 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-              >
-                Day
-              </button>
-              <button
-                type="button"
-                (click)="setTimeFilter('week')"
-                [class]="timeFilter() === 'week' ? 'bg-cyan-700 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-              >
-                Week
-              </button>
-              <button
-                type="button"
-                (click)="setTimeFilter('month')"
-                [class]="timeFilter() === 'month' ? 'bg-cyan-700 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-              >
-                Month
-              </button>
-              <button
-                type="button"
-                (click)="setTimeFilter('year')"
-                [class]="timeFilter() === 'year' ? 'bg-cyan-700 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-              >
-                Year
-              </button>
+                <option value="all">All Shop Branches ({{ store.jobs().length }})</option>
+                @for (branch of store.branches(); track branch.id) {
+                  <option [value]="branch.id">
+                    {{ branch.shopName }} ({{ countOrdersForBranch(branch.id) }})
+                  </option>
+                }
+              </select>
+            }
+
+            <!-- Time Filter Pills (Day default, Date Range, All last) -->
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="inline-flex items-center p-0.5 bg-slate-200/80 dark:bg-slate-800 rounded-xl text-xs font-semibold">
+                <button
+                  type="button"
+                  (click)="setTimeFilter('day')"
+                  [class]="timeFilter() === 'day' ? 'bg-cyan-700 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                  class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                >
+                  Day
+                </button>
+                <button
+                  type="button"
+                  (click)="setTimeFilter('week')"
+                  [class]="timeFilter() === 'week' ? 'bg-cyan-700 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                  class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                >
+                  Week
+                </button>
+                <button
+                  type="button"
+                  (click)="setTimeFilter('month')"
+                  [class]="timeFilter() === 'month' ? 'bg-cyan-700 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                  class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                >
+                  Month
+                </button>
+                <button
+                  type="button"
+                  (click)="setTimeFilter('year')"
+                  [class]="timeFilter() === 'year' ? 'bg-cyan-700 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                  class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                >
+                  Year
+                </button>
+                <button
+                  type="button"
+                  (click)="setTimeFilter('custom')"
+                  [class]="timeFilter() === 'custom' ? 'bg-cyan-700 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                  class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                >
+                  Date Range
+                </button>
+                <button
+                  type="button"
+                  (click)="setTimeFilter('all')"
+                  [class]="timeFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                  class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                >
+                  All
+                </button>
+              </div>
+
+              @if (timeFilter() === 'custom') {
+                <div class="inline-flex flex-wrap items-center gap-1.5 p-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs">
+                  <span class="text-[10px] text-slate-400 font-mono pl-1">From:</span>
+                  <input
+                    type="date"
+                    [ngModel]="customStartDate()"
+                    (ngModelChange)="onCustomDateChange('start', $event)"
+                    [ngModelOptions]="{standalone: true}"
+                    class="bg-transparent text-slate-800 dark:text-slate-200 text-xs px-1 focus:outline-none cursor-pointer"
+                  />
+                  <span class="text-[10px] text-slate-400 font-mono">To:</span>
+                  <input
+                    type="date"
+                    [ngModel]="customEndDate()"
+                    (ngModelChange)="onCustomDateChange('end', $event)"
+                    [ngModelOptions]="{standalone: true}"
+                    class="bg-transparent text-slate-800 dark:text-slate-200 text-xs px-1 focus:outline-none cursor-pointer"
+                  />
+                  @if (customStartDate() || customEndDate()) {
+                    <button
+                      type="button"
+                      (click)="clearCustomDateRange()"
+                      class="px-1.5 py-0.5 text-[10px] text-rose-600 hover:text-rose-700 font-bold cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  }
+                </div>
+              }
             </div>
           </div>
 
@@ -240,15 +299,16 @@ export type SortDirection = 'asc' | 'desc';
           <div class="flex items-center gap-2 text-xs">
             <span class="text-slate-500 dark:text-slate-400 font-medium">Page Size:</span>
             <select
-              [value]="pageSize()"
-              (change)="onPageSizeChange($any($event.target).value)"
+              [ngModel]="pageSize()"
+              (ngModelChange)="onPageSizeChange($event)"
+              [ngModelOptions]="{standalone: true}"
               class="px-2.5 py-1 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:border-cyan-500 shadow-2xs"
             >
-              <option value="5" [selected]="pageSize() === 5">5</option>
-              <option value="10" [selected]="pageSize() === 10">10</option>
-              <option value="25" [selected]="pageSize() === 25">25</option>
-              <option value="50" [selected]="pageSize() === 50">50</option>
-              <option value="100" [selected]="pageSize() === 100">100</option>
+              <option [ngValue]="5">5</option>
+              <option [ngValue]="10">10</option>
+              <option [ngValue]="25">25</option>
+              <option [ngValue]="50">50</option>
+              <option [ngValue]="100">100</option>
             </select>
           </div>
         </div>
@@ -305,7 +365,7 @@ export type SortDirection = 'asc' | 'desc';
                 <th class="py-2.5 px-3">Audit</th>
                 <th class="py-2.5 px-3 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors" (click)="toggleSort('status')">
                   <div class="flex items-center gap-1">
-                    <span>Status</span>
+                    <span>Status (Installer / Driver)</span>
                     <mat-icon class="!text-xs !w-3 !h-3 text-slate-400">
                       {{ sortField() === 'status' ? (sortDirection() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}
                     </mat-icon>
@@ -351,7 +411,7 @@ export type SortDirection = 'asc' | 'desc';
                   <!-- Single line Door Model -->
                   <td class="py-2.5 px-3 whitespace-nowrap">
                     <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[200px] inline-block align-middle" [title]="job.doorModel">
-                      {{ job.doorModel }}
+                      {{ store.formatDoorColumnLabel(job) }}
                     </span>
                   </td>
 
@@ -398,12 +458,23 @@ export type SortDirection = 'asc' | 'desc';
                       @if (job.assignedInstallers && job.assignedInstallers.length > 0) {
                         <div class="flex flex-col gap-0.5">
                           @for (inst of job.assignedInstallers; track inst.id) {
+                            @let instStatus = inst.status || job.installerAssignmentStatus;
                             <span
                               class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border"
                               [class]="getInstallerMemberBadgeClass(job, inst)"
                             >
-                              <mat-icon class="!text-[10px] !w-2.5 !h-2.5">{{ getInstallerMemberIcon(job, inst) }}</mat-icon>
-                              <span>{{ inst.name.split(' ')[0] }}: {{ getInstallerMemberStatusLabel(job, inst) }}</span>
+                              <mat-icon class="!text-[10px] !w-2.5 !h-2.5">person</mat-icon>
+                              <span>Installer: {{ getFirstName(inst.name) }}</span>
+                              @if (instStatus === 'accepted') {
+                                <mat-icon class="!text-[10px] !w-2.5 !h-2.5 text-emerald-600 dark:text-emerald-400" [title]="(inst.autoAccepted ?? job.installerAutoAccepted) ? 'Auto-Accepted' : 'Accepted'">check_circle</mat-icon>
+                                @if (inst.autoAccepted ?? job.installerAutoAccepted) {
+                                  <span class="text-[8px] opacity-80 font-mono">(auto)</span>
+                                }
+                              } @else if (instStatus === 'rejected') {
+                                <mat-icon class="!text-[10px] !w-2.5 !h-2.5 text-rose-600 dark:text-rose-400" title="Declined">cancel</mat-icon>
+                              } @else {
+                                <span class="text-[8px] opacity-80 font-mono">({{ store.formatInstallerRemaining(job, inst) }} Pending)</span>
+                              }
                             </span>
                           }
                         </div>
@@ -416,23 +487,60 @@ export type SortDirection = 'asc' | 'desc';
                               ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
                               : 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800')"
                         >
-                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5">{{ job.installerAssignmentStatus === 'accepted' ? 'check_circle' : (job.installerAssignmentStatus === 'rejected' ? 'cancel' : 'schedule') }}</mat-icon>
-                          <span>{{ job.assignedInstallerName }} · {{ job.installerAssignmentStatus === 'accepted' ? (job.installerAutoAccepted ? 'Auto-Accepted' : 'Accepted') : (job.installerAssignmentStatus === 'rejected' ? 'Declined' : '10m Pending') }}</span>
+                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5">person</mat-icon>
+                          <span>Installer: {{ getFirstName(job.assignedInstallerName) }}</span>
+                          @if (job.installerAssignmentStatus === 'accepted') {
+                            <mat-icon class="!text-[10px] !w-2.5 !h-2.5 text-emerald-600 dark:text-emerald-400" [title]="job.installerAutoAccepted ? 'Auto-Accepted' : 'Accepted'">check_circle</mat-icon>
+                            @if (job.installerAutoAccepted) {
+                              <span class="text-[8px] opacity-80 font-mono">(auto)</span>
+                            }
+                          } @else if (job.installerAssignmentStatus === 'rejected') {
+                            <mat-icon class="!text-[10px] !w-2.5 !h-2.5 text-rose-600 dark:text-rose-400" title="Declined">cancel</mat-icon>
+                          } @else {
+                            <span class="text-[8px] opacity-80 font-mono">({{ store.formatInstallerRemaining(job) }} Pending)</span>
+                          }
                         </span>
                       } @else if (job.installerAssignmentStatus === 'rejected') {
                         <span class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5">cancel</mat-icon>
-                          <span>{{ job.rejectedByInstallerName ? job.rejectedByInstallerName + ': Declined' : 'Declined · Ops Reassigning' }}</span>
+                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5">person</mat-icon>
+                          <span>Installer: {{ job.rejectedByInstallerName ? getFirstName(job.rejectedByInstallerName) : 'Declined' }}</span>
+                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5 text-rose-600 dark:text-rose-400" title="Declined">cancel</mat-icon>
+                        </span>
+                      } @else {
+                        <span
+                          class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border bg-amber-50/60 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/60"
+                        >
+                          <mat-icon class="!text-[10px] !w-2.5 !h-2.5">person</mat-icon>
+                          <span>Installer: Pending</span>
                         </span>
                       }
 
                       <!-- Dispatcher Status Info -->
                       @if (job.dispatcherName || job.dispatcherId) {
+                        @let isDriverAuto = !!(job.driverAutoAccepted ?? job.logisticsTruck?.driverAutoAccepted);
+                        @let isDriverPending = job.driverAssignmentStatus === 'pending';
+                        @let isDriverRejected = job.driverAssignmentStatus === 'rejected';
                         <span
-                          class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border-teal-200 dark:border-teal-800"
+                          class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border"
+                          [class]="isDriverPending
+                            ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                            : (isDriverRejected
+                              ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                              : 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border-teal-200 dark:border-teal-800')"
+                          [title]="job.logisticsTruck?.truckPlate || 'Dispatched'"
                         >
                           <mat-icon class="!text-[10px] !w-2.5 !h-2.5">local_shipping</mat-icon>
-                          <span>Driver: {{ job.dispatcherName || 'Assigned' }} ({{ job.logisticsTruck?.truckPlate || 'Dispatched' }})</span>
+                          <span>Driver: {{ getFirstName(job.dispatcherName) || 'Assigned' }}</span>
+                          @if (isDriverRejected) {
+                            <mat-icon class="!text-[10px] !w-2.5 !h-2.5 text-rose-600 dark:text-rose-400" title="Declined">cancel</mat-icon>
+                          } @else if (isDriverPending) {
+                            <span class="text-[8px] opacity-80 font-mono">({{ store.formatDriverRemaining(job) }} Pending)</span>
+                          } @else {
+                            <mat-icon class="!text-[10px] !w-2.5 !h-2.5 text-teal-600 dark:text-teal-400" [title]="isDriverAuto ? 'Auto-Accepted' : 'Accepted'">check_circle</mat-icon>
+                            @if (isDriverAuto) {
+                              <span class="text-[8px] opacity-80 font-mono">(auto)</span>
+                            }
+                          }
                         </span>
                       } @else if (store.hasJobAcceptedInstallers(job)) {
                         <span
@@ -460,10 +568,10 @@ export type SortDirection = 'asc' | 'desc';
                           type="button"
                           [disabled]="!store.hasJobAcceptedInstallers(job)"
                           (click)="store.hasJobAcceptedInstallers(job) ? openAssignDriverModal(job) : null"
-                          [title]="store.hasJobAcceptedInstallers(job) ? 'Select Dispatcher' : 'Dispatch Driver locked: Awaiting installer acceptance from Operations Manager'"
+                          [title]="store.hasJobAcceptedInstallers(job) ? 'Select Driver' : 'Driver selection locked: Awaiting installer acceptance from Operations Manager'"
                           [class]="store.hasJobAcceptedInstallers(job)
-                            ? 'p-1.5 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/60 rounded-lg transition-colors cursor-pointer'
-                            : 'p-1.5 text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-40'"
+                            ? 'p-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-2xs transition-colors cursor-pointer'
+                            : 'p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg cursor-not-allowed opacity-70'"
                         >
                           <mat-icon class="!text-base !w-4 !h-4">{{ store.hasJobAcceptedInstallers(job) ? 'local_shipping' : 'lock' }}</mat-icon>
                         </button>
@@ -472,7 +580,7 @@ export type SortDirection = 'asc' | 'desc';
                         type="button"
                         (click)="jobSelected.emit(job.id)"
                         title="View Details"
-                        class="p-1.5 text-slate-500 dark:text-slate-400 hover:text-cyan-700 dark:hover:text-cyan-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                        class="p-1.5 bg-[#59000A] hover:bg-[#73000E] text-white rounded-lg shadow-2xs transition-colors cursor-pointer"
                       >
                         <mat-icon class="!text-base !w-4 !h-4">visibility</mat-icon>
                       </button>
@@ -536,7 +644,7 @@ export type SortDirection = 'asc' | 'desc';
                 </div>
                 <div>
                   <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Schedule Installation Request</h3>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">Master Shop Manager: Book door, lock & counter customer payment</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">Shop Attendant: Book door, lock & counter customer payment</p>
                 </div>
               </div>
               <button 
@@ -631,9 +739,11 @@ export type SortDirection = 'asc' | 'desc';
                             </button>
                           </div>
 
-                          <span class="text-xs font-mono font-black text-cyan-700 dark:text-cyan-400 min-w-[70px] text-right">
-                            GH₵{{ (door.unitPrice * door.quantity).toLocaleString() }}
-                          </span>
+                          @if (store.canViewDoorPrices()) {
+                            <span class="text-xs font-mono font-black text-cyan-700 dark:text-cyan-400 min-w-[70px] text-right">
+                              GH₵{{ (door.unitPrice * door.quantity).toLocaleString() }}
+                            </span>
+                          }
 
                           <!-- Desktop actions -->
                           <div class="hidden sm:flex items-center gap-1">
@@ -671,7 +781,7 @@ export type SortDirection = 'asc' | 'desc';
                               <option value="">-- Select catalog template --</option>
                               @for (catDoor of store.doors(); track catDoor.id) {
                                 <option [value]="catDoor.id" [selected]="catDoor.id === door.catalogDoorId">
-                                  {{ catDoor.name }} ({{ catDoor.modelCode }}) - {{ catDoor.formattedPrice || ('GH₵' + catDoor.unitPrice) }} • {{ catDoor.category }}
+                                  {{ catDoor.name }} ({{ catDoor.modelCode }})@if (store.canViewDoorPrices()) { - {{ catDoor.formattedPrice || ('GH₵' + catDoor.unitPrice) }}} • {{ catDoor.category }}
                                 </option>
                               }
                             </select>
@@ -758,16 +868,18 @@ export type SortDirection = 'asc' | 'desc';
                                 class="w-full px-2.5 py-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs"
                               />
                             </div>
-                            <div>
-                              <label class="block font-bold text-slate-700 dark:text-slate-300 mb-0.5 text-[10px] uppercase">Unit Price (GH₵)</label>
-                              <input 
-                                type="number"
-                                [ngModel]="door.unitPrice"
-                                (ngModelChange)="updateShopDoorField(i, 'unitPrice', +$event)"
-                                [ngModelOptions]="{standalone: true}"
-                                class="w-full px-2.5 py-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold text-xs"
-                              />
-                            </div>
+                            @if (store.canViewDoorPrices()) {
+                              <div>
+                                <label class="block font-bold text-slate-700 dark:text-slate-300 mb-0.5 text-[10px] uppercase">Unit Price (GH₵)</label>
+                                <input 
+                                  type="number"
+                                  [ngModel]="door.unitPrice"
+                                  (ngModelChange)="updateShopDoorField(i, 'unitPrice', +$event)"
+                                  [ngModelOptions]="{standalone: true}"
+                                  class="w-full px-2.5 py-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                            }
                           </div>
                         </div>
                       }
@@ -825,13 +937,11 @@ export type SortDirection = 'asc' | 'desc';
 
                   <div>
                     <label for="clientPhoneInput" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Phone Number *</label>
-                    <input 
+                    <app-phone-input 
                       id="clientPhoneInput"
-                      type="text" 
                       formControlName="clientPhone"
-                      class="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                      placeholder="+233 24 000 1234"
-                    />
+                      placeholder="24 000 1234"
+                    ></app-phone-input>
                   </div>
 
                   <div>
@@ -946,6 +1056,7 @@ export type SortDirection = 'asc' | 'desc';
                       <option value="cash">Counter Cash</option>
                       <option value="pos_card">POS Terminal (Card)</option>
                       <option value="bank_transfer">Direct Bank Transfer</option>
+                      <option value="dm_door">DM Door</option>
                     </select>
                   </div>
 
@@ -1010,7 +1121,7 @@ export type SortDirection = 'asc' | 'desc';
                   <mat-icon class="!text-sm">local_shipping</mat-icon>
                 </div>
                 <div>
-                  <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Select Store Dispatcher</h3>
+                  <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Select Store Driver</h3>
                   <p class="text-xs text-slate-500 dark:text-slate-400">Order {{ job.id }} · {{ job.doorModel }}</p>
                 </div>
               </div>
@@ -1043,7 +1154,7 @@ export type SortDirection = 'asc' | 'desc';
                   <div>
                     <span class="text-[10px] text-slate-400 uppercase font-bold block">Assigned Installer:</span>
                     <p class="font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                      <mat-icon class="!text-xs">handyman</mat-icon>
+                      <mat-icon class="!text-xs">person</mat-icon>
                       <span>{{ job.assignedInstallerName || 'Installer' }}</span>
                     </p>
                     <span class="text-[10px] text-slate-500 block mt-0.5">Scheduled: {{ job.scheduledDate }}</span>
@@ -1054,7 +1165,7 @@ export type SortDirection = 'asc' | 'desc';
               <!-- Driver Selection -->
               <div class="space-y-2">
                 <label for="driverSelect" class="block font-bold text-slate-700 dark:text-slate-300">
-                  Select Dispatcher Available to Store *
+                  Select Driver Available to Store *
                 </label>
                 <select 
                   id="driverSelect"
@@ -1126,7 +1237,7 @@ export type SortDirection = 'asc' | 'desc';
                     class="px-5 py-2 bg-cyan-700 hover:bg-cyan-800 disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer"
                   >
                     <mat-icon class="!text-sm">local_shipping</mat-icon>
-                    <span>Select Dispatcher</span>
+                    <span>Select Driver</span>
                   </button>
                 </div>
               </div>
@@ -1327,7 +1438,7 @@ export type SortDirection = 'asc' | 'desc';
                 </h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div class="space-y-1">
-                    <label class="font-bold text-slate-700 dark:text-slate-300">Shop Manager Name</label>
+                    <label class="font-bold text-slate-700 dark:text-slate-300">Shop Attendant Name</label>
                     <input 
                       type="text" 
                       formControlName="managerName" 
@@ -1353,12 +1464,10 @@ export type SortDirection = 'asc' | 'desc';
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div class="space-y-1">
                     <label class="font-bold text-slate-700 dark:text-slate-300">Workshop Phone (SMS Alerts) *</label>
-                    <input 
-                      type="text" 
+                    <app-phone-input 
                       formControlName="phone" 
-                      placeholder="+233 24 100 0002" 
-                      class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
-                    />
+                      placeholder="24 100 0002" 
+                    ></app-phone-input>
                   </div>
                   <div class="space-y-1">
                     <label class="font-bold text-slate-700 dark:text-slate-300">Workshop Official Email</label>
@@ -1428,8 +1537,8 @@ export class ShopPortal {
     dimensions: new FormControl<string>('2100 × 900 × 45mm', { nonNullable: true, validators: [Validators.required] }),
     finish: new FormControl<string>('Walnut Natural Wood Grain', { nonNullable: true }),
     hardwareSpecs: new FormControl<string>('Heavy-Duty Concealed Hinges & 3-Point Lockset', { nonNullable: true }),
-    shopId: new FormControl<string>('dm-branch-central', { nonNullable: true }),
-    shopBranch: new FormControl<string>('DoorMaster Flagship Showroom - Accra Central', { nonNullable: true }),
+    shopId: new FormControl<string>('dm-branch-obeyeyie', { nonNullable: true }),
+    shopBranch: new FormControl<string>('DoorMaster Obeyeyie Branch', { nonNullable: true }),
     clientName: new FormControl<string>('', { nonNullable: true, validators: [Validators.required] }),
     clientPhone: new FormControl<string>('', { nonNullable: true, validators: [Validators.required] }),
     clientEmail: new FormControl<string>('', { nonNullable: true }),
@@ -1440,7 +1549,7 @@ export class ShopPortal {
     doorPrice: new FormControl<number>(4750, { nonNullable: true }),
     installationFee: new FormControl<number>(450, { nonNullable: true }),
     amountPaidAtShop: new FormControl<number>(4750, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
-    paymentMethod: new FormControl<'cash' | 'momo' | 'pos_card' | 'bank_transfer'>('momo', { nonNullable: true }),
+    paymentMethod: new FormControl<'cash' | 'momo' | 'pos_card' | 'bank_transfer' | 'dm_door'>('momo', { nonNullable: true }),
     receiptNumber: new FormControl<string>(`REC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`, { nonNullable: true, validators: [Validators.required] })
   });
 
@@ -1526,6 +1635,12 @@ export class ShopPortal {
     }
   }
 
+  countOrdersForBranch(branchId: string | number | undefined): number {
+    if (!branchId) return 0;
+    const idStr = String(branchId);
+    return this.store.jobs().filter(j => this.store.getJobShopId(j) === idStr).length;
+  }
+
   readonly bookedAtShopCount = computed(() => {
     return this.shopScopedJobs().filter(j => j.status === 'booked_at_shop').length;
   });
@@ -1564,7 +1679,9 @@ export class ShopPortal {
 
   // Table filtering, pagination and sorting state
   readonly tableSearchQuery = signal<string>('');
-  readonly timeFilter = signal<ShopTimeFilter>('all');
+  readonly timeFilter = signal<ShopTimeFilter>('day');
+  readonly customStartDate = signal<string>('');
+  readonly customEndDate = signal<string>('');
   readonly pageSize = signal<number>(10);
   readonly currentPage = signal<number>(1);
   readonly sortField = signal<ShopSortField>('date');
@@ -1606,6 +1723,22 @@ export class ShopPortal {
 
     if (filter === 'year') {
       return jobDate.getFullYear() === now.getFullYear();
+    }
+
+    if (filter === 'custom') {
+      const startStr = this.customStartDate();
+      const endStr = this.customEndDate();
+      if (startStr) {
+        const s = new Date(startStr);
+        s.setHours(0, 0, 0, 0);
+        if (time < s.getTime()) return false;
+      }
+      if (endStr) {
+        const e = new Date(endStr);
+        e.setHours(23, 59, 59, 999);
+        if (time > e.getTime()) return false;
+      }
+      return true;
     }
 
     return true;
@@ -1682,6 +1815,19 @@ export class ShopPortal {
 
   setTimeFilter(filter: ShopTimeFilter) {
     this.timeFilter.set(filter);
+    this.currentPage.set(1);
+  }
+
+  onCustomDateChange(bound: 'start' | 'end', val: string) {
+    if (bound === 'start') this.customStartDate.set(val);
+    else this.customEndDate.set(val);
+    this.currentPage.set(1);
+  }
+
+  clearCustomDateRange() {
+    this.customStartDate.set('');
+    this.customEndDate.set('');
+    this.timeFilter.set('day');
     this.currentPage.set(1);
   }
 
@@ -1962,7 +2108,7 @@ export class ShopPortal {
       dimensions: primaryDoor.dimensions,
       finish: primaryDoor.finish,
       hardwareSpecs: primaryDoor.hardwareSpecs,
-      shopId: String(targetBranch.id || 'dm-branch-central'),
+      shopId: String(targetBranch.id || 'dm-branch-obeyeyie'),
       branchCode: targetBranch.branchCode,
       shopBranch: targetBranch.shopName,
       clientName: val.clientName,
@@ -1989,11 +2135,11 @@ export class ShopPortal {
 
   openAssignDriverModal(job: InstallationJob) {
     if (!this.store.canCurrentRoleSelectDispatcher()) {
-      this.alert.warning('Access Restricted', 'Dispatch driver selection is managed exclusively on the Shop Manager portal.');
+      this.alert.warning('Access Restricted', 'Driver selection is managed exclusively on the Shop Attendant portal.');
       return;
     }
     if (!this.store.canShopManagerAssignDriver(job)) {
-      this.alert.warning('Access Restricted', 'Only the Shop Manager who created this order can assign the Dispatch Driver.');
+      this.alert.warning('Access Restricted', 'Only the Shop Attendant who created this order can assign the Driver.');
       return;
     }
     if (!this.store.hasJobAcceptedInstallers(job)) {
@@ -2046,7 +2192,7 @@ export class ShopPortal {
     });
 
     this.closeAssignDriverModal();
-    this.alert.toastSuccess('Dispatcher Selected', `Dispatcher assigned with transport truck ${val.truckPlate}.`);
+    this.alert.toastSuccess('Driver Selected', `Driver assigned with transport truck ${val.truckPlate}.`);
   }
 
   openLocationSettingsModal() {
@@ -2171,7 +2317,7 @@ export class ShopPortal {
     if (status === 'rejected') {
       return 'Declined';
     }
-    return '10m Pending';
+    return `${this.store.formatInstallerRemaining(job, member)} Pending`;
   }
 
   getInstallerMemberBadgeClass(job: InstallationJob, member: AssignedInstallerTeamMember): string {
@@ -2190,5 +2336,12 @@ export class ShopPortal {
     if (status === 'accepted') return 'check_circle';
     if (status === 'rejected') return 'cancel';
     return 'schedule';
+  }
+
+  getFirstName(name?: string | null): string {
+    if (!name) return '';
+    const clean = name.trim();
+    if (!clean) return '';
+    return clean.split(/\s+/)[0];
   }
 }

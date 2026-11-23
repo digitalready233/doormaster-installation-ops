@@ -164,7 +164,7 @@ export async function resolveShopLocationReference(input: {
       b => b.id.toLowerCase() === candidateId.toLowerCase() || (b.branchCode || '').toLowerCase() === candidateId.toLowerCase()
     );
     if (byId) {
-      return { id: byId.id, shopName: byId.shopName, branchCode: byId.branchCode || 'DM-GH-HQ-SPX' };
+      return { id: byId.id, shopName: byId.shopName, branchCode: byId.branchCode || 'DM-GH-OBY' };
     }
   }
 
@@ -172,7 +172,7 @@ export async function resolveShopLocationReference(input: {
   if (candidateCode) {
     const byCode = branches.find(b => (b.branchCode || '').toLowerCase() === candidateCode);
     if (byCode) {
-      return { id: byCode.id, shopName: byCode.shopName, branchCode: byCode.branchCode || 'DM-GH-HQ-SPX' };
+      return { id: byCode.id, shopName: byCode.shopName, branchCode: byCode.branchCode || 'DM-GH-OBY' };
     }
   }
 
@@ -182,14 +182,14 @@ export async function resolveShopLocationReference(input: {
     if (norm) {
       const exact = branches.find(b => normalizeBranchSearchLabel(b.shopName) === norm);
       if (exact) {
-        return { id: exact.id, shopName: exact.shopName, branchCode: exact.branchCode || 'DM-GH-HQ-SPX' };
+        return { id: exact.id, shopName: exact.shopName, branchCode: exact.branchCode || 'DM-GH-OBY' };
       }
       const partials = branches.filter(b => {
         const bNorm = normalizeBranchSearchLabel(b.shopName);
         return bNorm && (norm.includes(bNorm) || bNorm.includes(norm));
       });
       if (partials.length === 1) {
-        return { id: partials[0].id, shopName: partials[0].shopName, branchCode: partials[0].branchCode || 'DM-GH-HQ-SPX' };
+        return { id: partials[0].id, shopName: partials[0].shopName, branchCode: partials[0].branchCode || 'DM-GH-OBY' };
       }
     }
 
@@ -197,15 +197,11 @@ export async function resolveShopLocationReference(input: {
     if (
       lower.includes('flagship') ||
       lower.includes('spintex') ||
-      lower.includes('atelier main') ||
-      lower.includes('central showroom') ||
-      lower.includes('central atelier') ||
-      lower.includes('downtown atelier') ||
       lower.includes('accra central')
     ) {
       const primary = branches.find(b => b.isPrimary) || branches[0];
       if (primary) {
-        return { id: primary.id, shopName: primary.shopName, branchCode: primary.branchCode || 'DM-GH-HQ-SPX' };
+        return { id: primary.id, shopName: primary.shopName, branchCode: primary.branchCode || 'DM-GH-OBY' };
       }
     }
   }
@@ -313,7 +309,19 @@ export async function getJobsFromDb(filterShopId?: string): Promise<DbInstallati
       }
 
       // 10-Minute Installer Auto-Acceptance & Deadline Sync Check:
-      const assignedInstallers = Array.isArray(r.assignedInstallers) ? (r.assignedInstallers as any[]) : [];
+      const assignedIds = new Set<string>();
+      if (Array.isArray(r.assignedInstallerIds) && r.assignedInstallerIds.length > 0) {
+        r.assignedInstallerIds.forEach((id: any) => { if (id) assignedIds.add(String(id)); });
+      } else if (r.assignedInstallerId) {
+        assignedIds.add(String(r.assignedInstallerId));
+      }
+
+      const rawInstallers = Array.isArray(r.assignedInstallers) ? (r.assignedInstallers as any[]) : [];
+      // Strictly restrict assignedInstallers to members who are actually assigned
+      const assignedInstallers = assignedIds.size > 0
+        ? rawInstallers.filter((inst: any) => assignedIds.has(String(inst.id)))
+        : rawInstallers;
+
       const rawShopBooking = (r.shopBooking && typeof r.shopBooking === 'object' && !Array.isArray(r.shopBooking))
         ? (r.shopBooking as Record<string, any>)
         : {};
@@ -364,6 +372,7 @@ export async function getJobsFromDb(filterShopId?: string): Promise<DbInstallati
 
       const instDeadline = instDeadlineStr ? new Date(instDeadlineStr) : null;
       const hasExpiredPendingMember = assignedInstallers.some((inst: any) => {
+        if (assignedIds.size > 0 && !assignedIds.has(String(inst.id))) return false;
         if (inst.status === 'accepted' || inst.status === 'rejected') return false;
         const dStr = inst.deadlineAt || instDeadlineStr;
         const d = dStr ? new Date(dStr) : null;
@@ -377,6 +386,9 @@ export async function getJobsFromDb(filterShopId?: string): Promise<DbInstallati
         installerMeta.acceptedAt = respondedAtIso;
 
         const updatedInstallers = assignedInstallers.map((inst: any) => {
+          if (assignedIds.size > 0 && !assignedIds.has(String(inst.id))) {
+            return inst;
+          }
           if (inst.status === 'accepted' || inst.status === 'rejected') {
             return inst;
           }
@@ -421,7 +433,17 @@ export async function getJobsFromDb(filterShopId?: string): Promise<DbInstallati
     }
 
     return rows.map((r) => {
-      const assignedInstallers = Array.isArray(r.assignedInstallers) ? (r.assignedInstallers as any[]) : undefined;
+      const assignedIds = new Set<string>();
+      if (Array.isArray(r.assignedInstallerIds) && r.assignedInstallerIds.length > 0) {
+        r.assignedInstallerIds.forEach((id: any) => { if (id) assignedIds.add(String(id)); });
+      } else if (r.assignedInstallerId) {
+        assignedIds.add(String(r.assignedInstallerId));
+      }
+
+      let assignedInstallers = Array.isArray(r.assignedInstallers) ? (r.assignedInstallers as any[]) : undefined;
+      if (assignedInstallers && assignedIds.size > 0) {
+        assignedInstallers = assignedInstallers.filter((inst: any) => assignedIds.has(String(inst.id)));
+      }
       const installerMeta = (r.shopBooking as any)?.installerMeta || {};
       const clientRel = r.clientRel;
       const doorRel = r.door;
@@ -530,9 +552,9 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       shopBooking: job.shopBooking ?? existingJob?.shopBooking
     });
 
-    const effectiveShopId = existingJob?.shopId || resolvedShop?.id || job.shopId || 'dm-branch-central';
-    const effectiveBranchCode = existingJob?.shopBranchCode || resolvedShop?.branchCode || job.shopBranchCode || (job.shopBooking as any)?.branchCode || 'DM-GH-HQ-SPX';
-    const effectiveShopBranch = (existingJob?.shopId ? existingJob.shopBranch : null) || resolvedShop?.shopName || job.shopBranch || existingJob?.shopBranch || 'DoorMaster Central Showroom & Atelier';
+    const effectiveShopId = existingJob?.shopId || resolvedShop?.id || job.shopId || 'dm-branch-obeyeyie';
+    const effectiveBranchCode = existingJob?.shopBranchCode || resolvedShop?.branchCode || job.shopBranchCode || (job.shopBooking as any)?.branchCode || 'DM-GH-OBY';
+    const effectiveShopBranch = (existingJob?.shopId ? existingJob.shopBranch : null) || resolvedShop?.shopName || job.shopBranch || existingJob?.shopBranch || 'DoorMaster Obeyeyie Branch';
     const effectiveCreatedByUserId = existingJob?.createdByUserId || job.createdByUserId || null;
 
     const existingMeta = ((existingJob?.shopBooking as any)?.installerMeta) || {};
@@ -562,14 +584,25 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
       }
     }
 
-    const enrichedAssignedInstallers = Array.isArray(job.assignedInstallers)
-      ? job.assignedInstallers.map((inst: any) => ({
+    const saveAssignedIds = new Set<string>();
+    if (Array.isArray(job.assignedInstallerIds) && job.assignedInstallerIds.length > 0) {
+      job.assignedInstallerIds.forEach((iid: any) => { if (iid) saveAssignedIds.add(String(iid)); });
+    } else if (job.assignedInstallerId) {
+      saveAssignedIds.add(String(job.assignedInstallerId));
+    }
+
+    const filteredJobInstallers = Array.isArray(job.assignedInstallers)
+      ? (saveAssignedIds.size > 0 ? job.assignedInstallers.filter((inst: any) => saveAssignedIds.has(String(inst.id))) : job.assignedInstallers)
+      : job.assignedInstallers;
+
+    const enrichedAssignedInstallers = Array.isArray(filteredJobInstallers)
+      ? filteredJobInstallers.map((inst: any) => ({
           ...inst,
           assignedAt: inst.assignedAt || mergedInstallerMeta.installerAssignedAt,
           deadlineAt: inst.deadlineAt || mergedInstallerMeta.installerDeadlineAt,
           status: inst.status || job.installerAssignmentStatus || 'pending'
         }))
-      : job.assignedInstallers;
+      : filteredJobInstallers;
 
     const baseBooking =
       job.shopBooking && typeof job.shopBooking === 'object'
@@ -735,7 +768,10 @@ export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbIn
     });
 
     const savedMeta = (saved.shopBooking as any)?.installerMeta || mergedInstallerMeta;
-    const savedInstallers = Array.isArray(saved.assignedInstallers) ? (saved.assignedInstallers as any[]) : undefined;
+    const rawSavedInstallers = Array.isArray(saved.assignedInstallers) ? (saved.assignedInstallers as any[]) : undefined;
+    const savedInstallers = rawSavedInstallers
+      ? (saveAssignedIds.size > 0 ? rawSavedInstallers.filter((inst: any) => saveAssignedIds.has(String(inst.id))) : rawSavedInstallers)
+      : undefined;
 
     return {
       id: saved.id,
@@ -825,7 +861,7 @@ export async function saveInstallerTrackSession(session: Partial<DbInstallerTrac
       data: {
         id,
         installerId: session.installerId || 'inst_unknown',
-        installerName: session.installerName || 'Field Technician',
+        installerName: session.installerName || 'Field Installer',
         jobId: session.jobId || null,
         sessionType: session.sessionType || 'clock_in',
         clockInTime: session.clockInTime ? new Date(session.clockInTime) : new Date(),
@@ -1197,7 +1233,7 @@ function normalizeRoleNotificationFields<
     message = message
       .replace(/Please\s+configure\s+delivery\s+truck\s*&\s*assign\s+available\s+Installer\.?/gi, 'Please select an Installation Team (Lead + Assistants).')
       .replace(/Please\s+assign\s+Installation\s+Team\s*\(Lead\s*\+\s*Assistants\)\s*and\s+delivery\s+truck\.?/gi, 'Please select an Installation Team (Lead + Assistants).')
-      .replace(/Reassignment\s+required\.$/i, 'Shop Manager has been notified to select another dispatcher.');
+      .replace(/Reassignment\s+required\.$/i, 'Shop Attendant has been notified to select another driver.');
 
     return {
       ...n,
@@ -1220,7 +1256,7 @@ function normalizeRoleNotificationFields<
   if (/installer\s+rejection/i.test(title) || /queued\s+for\s+shop\s+manager\s+reassignment/i.test(message)) {
     title = 'Select Dispatcher for Installation Order';
     message = message
-      .replace(/Queued for Shop Manager reassignment\.?/gi, 'Please select a store dispatcher for delivery.')
+      .replace(/Queued for Shop (?:Manager|Attendant) reassignment\.?/gi, 'Please select a store driver for delivery.')
       .replace(/installer\s+reassignment/gi, 'dispatcher selection');
     actionLabel = 'Select Dispatcher';
   }
@@ -1410,22 +1446,6 @@ export interface DbShopLocation {
 
 export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'updatedAt'>[] = [
   {
-    id: 'dm-branch-central',
-    shopName: 'DoorMaster Central Showroom & Atelier',
-    branchCode: 'DM-GH-HQ-SPX',
-    address: 'Plot 48, Spintex Road Industrial Area, Accra',
-    city: 'Accra',
-    region: 'Greater Accra',
-    phone: '0542745222 / 0500212447',
-    email: 'shop@doormasterops.com',
-    latitude: 5.632000,
-    longitude: -0.098000,
-    dispatchRadiusKm: 35.0,
-    operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Elena Rostova (Master Joiner & Central Shop Head)',
-    isPrimary: true
-  },
-  {
     id: 'dm-branch-obeyeyie',
     shopName: 'DoorMaster Obeyeyie Branch',
     branchCode: 'DM-GH-OBY',
@@ -1438,8 +1458,8 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.151583,
     dispatchRadiusKm: 25.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Kofi Boateng (Obeyeyie Shop Manager)',
-    isPrimary: false
+    managerName: 'Kofi Boateng',
+    isPrimary: true
   },
   {
     id: 'dm-branch-pobiman-turkey',
@@ -1454,7 +1474,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.312972,
     dispatchRadiusKm: 25.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Yaw Antwi (Pobiman Turkey Shop Manager)',
+    managerName: 'Yaw Antwi',
     isPrimary: false
   },
   {
@@ -1470,7 +1490,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.313306,
     dispatchRadiusKm: 25.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Kwabena Agyeman (Pobiman Economy Shop Manager)',
+    managerName: 'Kwabena Agyeman',
     isPrimary: false
   },
   {
@@ -1486,7 +1506,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.268083,
     dispatchRadiusKm: 25.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Akua Darko (ACP Shop Manager)',
+    managerName: 'Akua Darko',
     isPrimary: false
   },
   {
@@ -1502,7 +1522,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.363750,
     dispatchRadiusKm: 30.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Kwame Appiah (Nsawam Overhead Shop Manager)',
+    managerName: 'Kwame Appiah',
     isPrimary: false
   },
   {
@@ -1518,7 +1538,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.361500,
     dispatchRadiusKm: 30.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Ama Serwaa (Nsawam Hospital Rd Shop Manager)',
+    managerName: 'Ama Serwaa',
     isPrimary: false
   },
   {
@@ -1534,7 +1554,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.012167,
     dispatchRadiusKm: 30.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Ebenezer Quaye (Tema Branch Shop Manager)',
+    managerName: 'Ebenezer Quaye',
     isPrimary: false
   },
   {
@@ -1550,7 +1570,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.449917,
     dispatchRadiusKm: 35.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Daniel Asare (Suhum Branch Shop Manager)',
+    managerName: 'Daniel Asare',
     isPrimary: false
   },
   {
@@ -1566,7 +1586,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.362028,
     dispatchRadiusKm: 25.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Francis Mensah (Ashalaja Branch Shop Manager)',
+    managerName: 'Francis Mensah',
     isPrimary: false
   },
   {
@@ -1582,7 +1602,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -1.623972,
     dispatchRadiusKm: 35.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Osei Tutu (Kumasi Ahinsan Shop Manager)',
+    managerName: 'Osei Tutu',
     isPrimary: false
   },
   {
@@ -1598,7 +1618,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.458250,
     dispatchRadiusKm: 30.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Kojo Baidoo (Kasoa Tipa Shop Manager)',
+    managerName: 'Kojo Baidoo',
     isPrimary: false
   },
   {
@@ -1614,7 +1634,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.126510,
     dispatchRadiusKm: 25.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Priscilla Kyei (Amrahia Branch Shop Manager)',
+    managerName: 'Priscilla Kyei',
     isPrimary: false
   },
   {
@@ -1630,7 +1650,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -0.141520,
     dispatchRadiusKm: 25.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Nathaniel Tagoe (Tseaddo Branch Shop Manager)',
+    managerName: 'Nathaniel Tagoe',
     isPrimary: false
   },
   {
@@ -1646,7 +1666,7 @@ export const DEFAULT_DOORMASTER_BRANCHES: Omit<DbShopLocation, 'createdAt' | 'up
     longitude: -1.638540,
     dispatchRadiusKm: 35.0,
     operatingHours: 'Mon - Sat: 08:00 - 18:00',
-    managerName: 'Baffour Gyan (Kronum Kumasi Shop Manager)',
+    managerName: 'Baffour Gyan',
     isPrimary: false
   }
 ];
@@ -1729,7 +1749,12 @@ export async function getPrimaryShopLocationFromDb(): Promise<DbShopLocation> {
 
 export async function seedAllBranches(): Promise<void> {
   try {
-    await prisma.shopLocation.deleteMany({ where: { id: 'shop_loc_main' } });
+    await prisma.shopLocation.deleteMany({ where: { id: { in: ['shop_loc_main', 'dm-branch-central'] } } });
+    await prisma.user.updateMany({ where: { shopId: 'dm-branch-central' }, data: { shopId: 'dm-branch-obeyeyie' } });
+    await prisma.installationJob.updateMany({
+      where: { shopId: 'dm-branch-central' },
+      data: { shopId: 'dm-branch-obeyeyie', shopBranch: 'DoorMaster Obeyeyie Branch' }
+    });
   } catch {
     // ignore if not present
   }
@@ -1810,7 +1835,7 @@ export async function saveShopLocationToDb(data: Partial<DbShopLocation>): Promi
       saved = await prisma.shopLocation.create({
         data: {
           id,
-          shopName: data.shopName || 'DoorMaster Flagship Workshop - Atelier A',
+          shopName: data.shopName || 'DoorMaster Obeyeyie Branch',
           branchCode: data.branchCode || 'DM-ACC-01',
           address: data.address || 'Plot 48, Spintex Road Industrial Area, Accra, Ghana',
           city: data.city || 'Accra',
@@ -2156,7 +2181,7 @@ export async function getClientByIdFromDb(clientId: string): Promise<DbClientWit
 }
 
 /**
- * Fetch installation job by ID with full relational joins (client, door, shop, technician, driver, sessions)
+ * Fetch installation job by ID with full relational joins (client, door, shop, installer, driver, sessions)
  */
 export async function getJobByIdWithRelations(id: string) {
   try {

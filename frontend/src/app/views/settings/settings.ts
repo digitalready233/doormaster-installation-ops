@@ -6,13 +6,14 @@ import { InstallationStore } from '../../services/installation.store';
 import { ThemeStore } from '../../services/theme';
 import { AlertService } from '../../services/alert.service';
 import { SmsProviderType, ShopLocationSettings } from '../../models/installation.model';
+import { PhoneInputComponent } from '../../components/phone-input/phone-input';
 
 export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
 
 @Component({
   selector: 'app-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, ReactiveFormsModule, FormsModule, SlicePipe],
+  imports: [CommonModule, MatIconModule, ReactiveFormsModule, FormsModule, SlicePipe, PhoneInputComponent],
   template: `
     <div class="space-y-6">
       
@@ -354,7 +355,7 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
               </h3>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1">
-                  <label class="font-bold text-slate-700 dark:text-slate-300">Shop Manager Name</label>
+                  <label class="font-bold text-slate-700 dark:text-slate-300">Shop Attendant Name</label>
                   <input 
                     type="text" 
                     formControlName="managerName" 
@@ -380,12 +381,10 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1">
                   <label class="font-bold text-slate-700 dark:text-slate-300">Workshop Direct Phone (SMS Alerts) *</label>
-                  <input 
-                    type="text" 
+                  <app-phone-input 
                     formControlName="phone" 
-                    placeholder="+233 24 100 0002" 
-                    class="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
-                  />
+                    placeholder="24 100 0002"
+                  ></app-phone-input>
                 </div>
                 <div class="space-y-1">
                   <label class="font-bold text-slate-700 dark:text-slate-300">Workshop Official Email</label>
@@ -452,26 +451,22 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
                   <mat-icon class="!text-sm">storefront</mat-icon>
                   <span>Shop Attendant / Manager *</span>
                 </div>
-                <input 
-                  type="text" 
+                <app-phone-input 
                   formControlName="shop_manager"
-                  class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 font-mono text-slate-900 dark:text-white font-medium"
-                  placeholder="+233 24 100 0002"
-                />
+                  placeholder="24 100 0002"
+                ></app-phone-input>
                 <span class="text-[10px] text-slate-400 block">Receives booking confirmations & installer assignment SMS</span>
               </div>
 
               <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 space-y-2">
                 <div class="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-bold">
                   <mat-icon class="!text-sm">admin_panel_settings</mat-icon>
-                  <span>Operations Manager *</span>
+                  <span>Manager *</span>
                 </div>
-                <input 
-                  type="text" 
+                <app-phone-input 
                   formControlName="manager"
-                  class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 font-mono text-slate-900 dark:text-white font-medium"
-                  placeholder="+233 24 100 0001"
-                />
+                  placeholder="24 100 0001"
+                ></app-phone-input>
                 <span class="text-[10px] text-slate-400 block">Receives booking alerts when shop manager creates requests</span>
               </div>
 
@@ -480,12 +475,10 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
                   <mat-icon class="!text-sm">local_shipping</mat-icon>
                   <span>Dispatch Driver (Transport) *</span>
                 </div>
-                <input 
-                  type="text" 
+                <app-phone-input 
                   formControlName="dispatcher"
-                  class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 font-mono text-slate-900 dark:text-white font-medium"
-                  placeholder="+233 24 555 0192"
-                />
+                  placeholder="24 555 0192"
+                ></app-phone-input>
                 <span class="text-[10px] text-slate-400 block">Receives truck cargo manifests & customer site route coordinates</span>
               </div>
 
@@ -494,12 +487,10 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
                   <mat-icon class="!text-sm">handyman</mat-icon>
                   <span>Installer *</span>
                 </div>
-                <input 
-                  type="text" 
+                <app-phone-input 
                   formControlName="installer"
-                  class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 font-mono text-slate-900 dark:text-white font-medium"
-                  placeholder="+233 24 881 0293"
-                />
+                  placeholder="24 881 0293"
+                ></app-phone-input>
                 <span class="text-[10px] text-slate-400 block">Receives job assignments & customer smart lock fitting alerts</span>
               </div>
 
@@ -508,12 +499,10 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
                   <mat-icon class="!text-sm">person_pin_circle</mat-icon>
                   <span>Client / Site Owner *</span>
                 </div>
-                <input 
-                  type="text" 
+                <app-phone-input 
                   formControlName="client"
-                  class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 font-mono text-slate-900 dark:text-white font-medium"
-                  placeholder="+233 24 883 9921"
-                />
+                  placeholder="24 883 9921"
+                ></app-phone-input>
                 <span class="text-[10px] text-slate-400 block">Receives booking receipt, live delivery approach & ETA links</span>
               </div>
 
@@ -522,13 +511,11 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
                   <mat-icon class="!text-sm">account_balance_wallet</mat-icon>
                   <span>Accounts & Finance Officer</span>
                 </div>
-                <input 
-                  type="text" 
+                <app-phone-input 
                   formControlName="account_officer"
-                  class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 font-mono text-slate-900 dark:text-white font-medium"
-                  placeholder="+233 24 100 0005"
-                />
-                <span class="text-[10px] text-slate-400 block">Receives counter deposit verifications & technician disbursement release requests</span>
+                  placeholder="24 100 0005"
+                ></app-phone-input>
+                <span class="text-[10px] text-slate-400 block">Receives counter deposit verifications & installer disbursement release requests</span>
               </div>
 
             </div>
@@ -554,7 +541,7 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
               <span>SMS Gateway Credentials & Provider Settings</span>
             </h2>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Connect Hubtel, Arkesel, or Twilio API keys to send real telco SMS messages to technicians and homeowners across Ghana.
+              Connect Hubtel, Arkesel, or Twilio API keys to send real telco SMS messages to installers and homeowners across Ghana.
             </p>
           </div>
 
@@ -775,7 +762,7 @@ export type SettingsTab = 'shop' | 'phones' | 'gateway' | 'inbox' | 'theme';
               </div>
               <div>
                 <h3 class="text-sm font-bold text-slate-900 dark:text-white">Clean Light Theme</h3>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">High-contrast daytime visibility for site technicians & dispatch desk.</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">High-contrast daytime visibility for site installers & dispatch desk.</p>
               </div>
             </button>
 

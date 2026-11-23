@@ -268,7 +268,6 @@ export class OsmLiveMap implements AfterViewInit, OnDestroy {
   // Key static hubs for Greater Accra corridor
   readonly staticHubs: MapHubLocation[] = [
     { id: 'h1', name: 'SPINTEX_WORKSHOP', label: '🏭 ATELIER (SPINTEX)', lat: 5.6320, lng: -0.0980, color: '#0284c7', bgColor: '#0284c7' },
-    { id: 'h2', name: 'ACCRA_CENTRAL', label: '🏛️ CENTRAL SHOWROOM', lat: 5.5560, lng: -0.2010, color: '#10b981', bgColor: '#10b981' },
     { id: 'h3', name: 'TEMA_DEPOT', label: '🚢 TEMA DEPOT', lat: 5.6698, lng: -0.0166, color: '#6366f1', bgColor: '#6366f1' },
     { id: 'h4', name: 'CANTONMENTS', label: '📍 CANTONMENTS', lat: 5.5840, lng: -0.1780, color: '#f59e0b', bgColor: '#f59e0b' },
     { id: 'h5', name: 'AIRPORT_RES', label: '📍 AIRPORT RES', lat: 5.6020, lng: -0.1870, color: '#ec4899', bgColor: '#ec4899' },
@@ -502,7 +501,7 @@ export class OsmLiveMap implements AfterViewInit, OnDestroy {
             <strong>Landmark:</strong> ${branch.landmark || branch.address}
           </div>
           <div style="font-size:11px; color:#334155; margin-bottom:4px;">
-            <strong>Shop Manager:</strong> ${branch.managerName || 'Station Master'}
+            <strong>Shop Attendant:</strong> ${branch.managerName || 'Station Master'}
           </div>
           <div style="font-size:11px; margin-bottom:6px;">
             <strong>Direct Phone:</strong> <a href="tel:${branch.phone.split('/')[0].trim()}" style="color:#0284c7; font-weight:bold; text-decoration:none;">📞 ${branch.phone}</a>

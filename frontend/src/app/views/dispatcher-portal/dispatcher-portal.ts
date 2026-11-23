@@ -26,7 +26,7 @@ import { InstallationJob, NotificationItem } from '../../models/installation.mod
               <span>Truck Dispatch Active</span>
             </span>
           </div>
-          <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Logistics Dispatcher & Delivery Portal</h1>
+          <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Driver & Delivery Portal</h1>
         </div>
 
         <!-- Driver / Truck Selector (Hidden on Operations Manager & Dispatcher portals) -->
@@ -48,6 +48,78 @@ import { InstallationJob, NotificationItem } from '../../models/installation.mod
           </div>
         }
       </div>
+
+      <!-- =================================================================== -->
+      <!-- TOP AMBER BANNER: PENDING DELIVERY RUNS AWAITING DRIVER ACCEPTANCE -->
+      <!-- (Reject option disappears after 10 mins & system auto-accepts)      -->
+      <!-- =================================================================== -->
+      @if (pendingDriverAcceptanceRuns().length > 0) {
+        <div class="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 border-2 border-amber-400/90 rounded-2xl p-4 sm:p-5 text-white shadow-xl space-y-3.5 animate-in fade-in">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-500/30 pb-2.5">
+            <div class="flex items-center gap-2.5">
+              <span class="w-3 h-3 rounded-full bg-amber-400 animate-ping"></span>
+              <h3 class="text-xs sm:text-sm font-black uppercase tracking-wider text-amber-300">
+                Assigned Delivery Run Alert ({{ pendingDriverAcceptanceRuns().length }}) · Respond Within 10 Minutes
+              </h3>
+            </div>
+            <span class="text-[11px] font-mono text-amber-200">
+              Assigned to: <strong>{{ activeDispatcher()?.name || store.currentUser().name }}</strong> (Truck Driver) · Auto-accepts after 10 mins
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3">
+            @for (task of pendingDriverAcceptanceRuns(); track task.id) {
+              @let timer = getDriverTimeRemaining(task);
+              <div class="bg-slate-900/90 border border-amber-500/40 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div class="space-y-1.5">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-[10px] font-black font-mono uppercase">
+                      {{ task.id }}
+                    </span>
+                    <span class="px-2.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-200 text-xs font-mono font-extrabold flex items-center gap-1">
+                      <mat-icon class="!text-xs !w-3.5 !h-3.5 animate-pulse">timer</mat-icon>
+                      <span>{{ timer.text }} left before system auto-accept</span>
+                    </span>
+                    @if (task.logisticsTruck?.truckPlate) {
+                      <span class="px-2 py-0.5 rounded bg-teal-500/20 border border-teal-400/40 text-teal-200 text-[10px] font-mono font-bold flex items-center gap-1">
+                        <mat-icon class="!text-[11px] !w-3 !h-3">local_shipping</mat-icon>
+                        <span>Truck: {{ task.logisticsTruck?.truckPlate }}</span>
+                      </span>
+                    }
+                  </div>
+
+                  <h4 class="text-sm sm:text-base font-extrabold text-white">
+                    {{ task.doorModel }} — {{ task.client.name }}
+                  </h4>
+                  <p class="text-xs text-slate-300 font-mono">
+                    📍 Workshop Origin: {{ task.shopBranch }} ➔ Site: {{ task.client.siteAddress }} · 🗓 Scheduled: {{ task.scheduledDate }} · 📞 {{ task.client.phone }}
+                  </p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    (click)="acceptRun(task.id)"
+                    class="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <mat-icon class="!text-sm">check_circle</mat-icon>
+                    <span>Accept Immediately</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    (click)="openRejectModal(task.id)"
+                    class="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <mat-icon class="!text-sm">cancel</mat-icon>
+                    <span>Reject Run ({{ timer.text }})</span>
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
 
       <!-- Live Acceptance Notice Alert Banner (Instant Push Toast) -->
       @if (latestAcceptanceNotice()) {
@@ -89,7 +161,7 @@ import { InstallationJob, NotificationItem } from '../../models/installation.mod
                   </button>
                   <span class="text-xs text-teal-300 flex items-center gap-1.5 font-medium">
                     <mat-icon class="!text-sm text-teal-400">check_circle</mat-icon>
-                    <span>SMS broadcast sent to Shop Manager & Client</span>
+                    <span>SMS broadcast sent to Shop Attendant & Client</span>
                   </span>
                 </div>
               </div>
@@ -641,7 +713,7 @@ import { InstallationJob, NotificationItem } from '../../models/installation.mod
                 <div class="flex items-center justify-between text-xs">
                   <span class="font-bold flex items-center gap-1.5 text-teal-400 uppercase tracking-wider text-[11px]">
                     <mat-icon class="!text-xs">route</mat-icon>
-                    <span>Dispatcher Trip Controls</span>
+                    <span>Driver Trip Controls</span>
                   </span>
                   <span class="text-[11px] text-slate-400 font-mono">
                     @if (job.status === 'truck_assigned' || job.status === 'booked_at_shop' || job.status === 'site_funds_dispatched' || job.status === 'approved') {
@@ -688,7 +760,7 @@ import { InstallationJob, NotificationItem } from '../../models/installation.mod
                   } @else if (job.status === 'delivered_on_site') {
                     <div class="flex items-center gap-2 text-emerald-400 font-bold text-xs">
                       <mat-icon class="!text-sm">verified</mat-icon>
-                      <span>Cargo Handed Over on Site. Technician ready for lock installation.</span>
+                      <span>Cargo Handed Over on Site. Installer ready for lock installation.</span>
                     </div>
                   } @else {
                     <div class="flex items-center gap-2 text-slate-400 font-medium text-xs">
@@ -790,25 +862,22 @@ export class DispatcherPortal {
   );
 
   getDriverTimeRemaining(job: InstallationJob): { expired: boolean; text: string; percent: number } {
-    if (!job.driverDeadlineAt) return { expired: false, text: '10:00', percent: 100 };
-    const deadline = new Date(job.driverDeadlineAt).getTime();
-    const diffMs = deadline - this.currentTime();
-    if (diffMs <= 0) {
+    const diffSec = this.store.getDriverRemainingSeconds(job);
+    if (diffSec <= 0) {
       return { expired: true, text: 'Auto-accepted', percent: 0 };
     }
-    const totalMs = 10 * 60 * 1000;
-    const percent = Math.max(0, Math.min(100, (diffMs / totalMs) * 100));
-    const totalSec = Math.floor(diffMs / 1000);
-    const minutes = Math.floor(totalSec / 60);
-    const seconds = totalSec % 60;
+    const totalSec = 10 * 60;
+    const percent = Math.max(0, Math.min(100, (diffSec / totalSec) * 100));
     return {
       expired: false,
-      text: `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`,
+      text: this.store.formatDriverRemaining(job),
       percent
     };
   }
 
   readonly activeDispatcher = computed(() => this.store.activeDispatcher());
+
+  readonly pendingDriverAcceptanceRuns = computed(() => this.store.driverPendingAcceptanceJobs());
 
   readonly pendingLoadingJobs = computed(() => 
     this.store.dispatcherJobs().filter(j => j.status === 'truck_assigned' || j.status === 'site_funds_dispatched' || jobMatchesShopApproval(j))

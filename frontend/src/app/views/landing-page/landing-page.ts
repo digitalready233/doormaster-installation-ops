@@ -6,12 +6,13 @@ import { InstallationStore } from '../../services/installation.store';
 import { ThemeStore } from '../../services/theme';
 import { AlertService } from '../../services/alert.service';
 import { DoorCategory, InstallationInquiry } from '../../models/installation.model';
+import { PhoneInputComponent } from '../../components/phone-input/phone-input';
 
 export interface HeroSlide {
   id: number;
   badge: string;
-  technicianName: string;
-  technicianRole: string;
+  installerName: string;
+  installerRole: string;
   doorTitle: string;
   doorCategory: string;
   location: string;
@@ -26,9 +27,9 @@ export interface HeroSlide {
 @Component({
   selector: 'app-landing-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, MatIconModule],
+  imports: [ReactiveFormsModule, MatIconModule, PhoneInputComponent],
   template: `
-    <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200 selection:bg-emerald-500 selection:text-slate-950">
+    <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200 selection:bg-emerald-500 selection:text-white">
       
       <!-- ========================================================================= -->
       <!-- TOP NAVIGATION BAR                                                        -->
@@ -36,34 +37,29 @@ export interface HeroSlide {
       <nav class="sticky top-0 z-50 backdrop-blur-md bg-white/90 dark:bg-slate-950/85 border-b border-slate-200/90 dark:border-slate-800/80 transition-colors duration-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <!-- Brand -->
-          <div class="flex items-center gap-3.5 cursor-pointer">
-            <div class="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-mono font-black text-lg shadow-lg shadow-emerald-500/20 shrink-0">
+          <div class="flex items-center gap-3 cursor-pointer">
+            <div class="w-10 h-10 rounded-xl bg-[#59000A] text-white flex items-center justify-center font-mono font-black text-lg shadow-md shrink-0">
               DM
             </div>
             <div>
-              <div class="flex items-center gap-2">
-                <span class="text-lg font-black tracking-tight text-slate-900 dark:text-white">DoorMaster</span>
-                <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 rounded font-semibold tracking-wider">
-                  PRECISION
-                </span>
-              </div>
-              <p class="text-[11px] text-slate-500 dark:text-slate-400 font-mono">Architectural Door Installation & Field Ops</p>
+              <span class="text-lg font-black tracking-tight text-[#111215] dark:text-white block">DoorMaster</span>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 font-mono">Installation Operations</p>
             </div>
           </div>
 
           <!-- Nav Links -->
           <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600 dark:text-slate-300">
-            <a href="#hero-slider" class="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+            <a href="#hero-slider" class="hover:text-[#59000A] dark:hover:text-rose-300 transition-colors flex items-center gap-1.5">
               <mat-icon class="!text-sm">handyman</mat-icon>
-              <span>Technicians at Work</span>
+              <span>Installations</span>
             </a>
-            <a href="#standards" class="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+            <a href="#standards" class="hover:text-[#59000A] dark:hover:text-rose-300 transition-colors flex items-center gap-1.5">
               <mat-icon class="!text-sm">verified</mat-icon>
-              <span>Quality Standards</span>
+              <span>How It Works</span>
             </a>
-            <a href="#contact-form" class="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+            <a href="#contact-form" class="hover:text-[#59000A] dark:hover:text-rose-300 transition-colors flex items-center gap-1.5">
               <mat-icon class="!text-sm">calendar_month</mat-icon>
-              <span>Book Installation</span>
+              <span>Request Installation</span>
             </a>
           </div>
 
@@ -92,14 +88,14 @@ export interface HeroSlide {
               (click)="navigateToSignIn()" 
               class="h-10 px-3.5 sm:px-4 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 flex items-center gap-1.5 sm:gap-2 transition-all shadow-xs active:scale-95 cursor-pointer"
             >
-              <mat-icon class="!text-base text-emerald-600 dark:text-emerald-400">login</mat-icon>
-              <span>Sign In / Portals</span>
+              <mat-icon class="!text-base text-[#59000A] dark:text-rose-300">login</mat-icon>
+              <span>Sign In</span>
             </button>
 
             <!-- Request Installation Primary CTA -->
             <a 
               href="#contact-form"
-              class="hidden sm:inline-flex h-10 px-4 rounded-xl text-xs font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 dark:bg-emerald-400 dark:hover:bg-emerald-300 transition-all items-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95"
+              class="hidden sm:inline-flex h-10 px-4 rounded-xl text-xs font-bold text-white bg-[#59000A] hover:bg-[#73000E] transition-all items-center gap-1.5 shadow-md active:scale-95"
             >
               <span>Request Installation</span>
               <mat-icon class="!text-sm !w-4 !h-4">arrow_downward</mat-icon>
@@ -109,29 +105,25 @@ export interface HeroSlide {
       </nav>
 
       <!-- ========================================================================= -->
-      <!-- 1. HERO SLIDER SECTION: TECHNICIANS AT WORK                               -->
+      <!-- 1. HERO SLIDER SECTION: DOORMASTER INSTALLATION OPERATIONS                -->
       <!-- ========================================================================= -->
-      <section id="hero-slider" class="relative overflow-hidden bg-white dark:bg-slate-950 py-12 lg:py-20 border-b border-slate-200 dark:border-slate-800/80 transition-colors">
-        <!-- Subtle background glow -->
-        <div class="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
+      <section id="hero-slider" class="relative overflow-hidden bg-white dark:bg-[#111215] py-10 lg:py-16 border-b border-slate-200 dark:border-white/10 transition-colors">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <!-- Slider Header Controls -->
           <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
             <div>
-              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-semibold font-mono mb-3">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
-                LIVE FIELD CRAFTSMANSHIP
-              </div>
-              <h1 class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                Master Door Technicians. <br class="hidden sm:inline" />
-                <span class="bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 dark:from-emerald-400 dark:via-teal-300 dark:to-indigo-400 bg-clip-text text-transparent">
-                  Precision in Every Millimeter.
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#59000A]/10 dark:bg-[#59000A]/30 border border-[#59000A]/30 text-[#59000A] dark:text-rose-200 text-[11px] font-semibold font-mono mb-3">
+                DOORMASTER INSTALLATION OPS
+              </span>
+              <h1 class="text-3xl sm:text-5xl font-black text-[#111215] dark:text-white tracking-tight leading-tight">
+                Door Installation, <br class="hidden sm:inline" />
+                <span class="text-[#59000A] dark:text-rose-300">
+                  Tracked From Shop to Sign-Off.
                 </span>
               </h1>
               <p class="mt-3 text-slate-600 dark:text-slate-400 text-sm sm:text-base max-w-2xl">
-                Experience architectural door installation executed with surgical laser accuracy. Watch our certified Installers install custom pivot doors, sound-damped French suites, and sliding glass walls.
+                Book door installations, verify payments, dispatch drivers and installers with live GPS, and complete every job with checklists, before/after photos, and client sign-off.
               </p>
             </div>
 
@@ -190,14 +182,14 @@ export interface HeroSlide {
                     {{ slide.description }}
                   </p>
 
-                  <!-- Technician In Action Profile -->
+                  <!-- Installer In Action Profile -->
                   <div class="mt-6 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-slate-950 flex items-center justify-center font-bold text-base shadow-md shrink-0">
-                      {{ slide.technicianName.charAt(0) }}
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center font-bold text-base shadow-md shrink-0">
+                      {{ slide.installerName.charAt(0) }}
                     </div>
                     <div class="min-w-0 flex-1">
-                      <div class="text-sm font-bold text-slate-900 dark:text-white truncate">{{ slide.technicianName }}</div>
-                      <div class="text-xs text-slate-500 dark:text-slate-400">{{ slide.technicianRole }}</div>
+                      <div class="text-sm font-bold text-slate-900 dark:text-white truncate">{{ slide.installerName }}</div>
+                      <div class="text-xs text-slate-500 dark:text-slate-400">{{ slide.installerRole }}</div>
                       <div class="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-mono mt-0.5 font-semibold">
                         <mat-icon class="!text-[12px] !w-3 !h-3">task_alt</mat-icon>
                         <span>Stage: {{ slide.stage }}</span>
@@ -215,7 +207,7 @@ export interface HeroSlide {
 
                   <a 
                     href="#contact-form"
-                    class="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 dark:bg-emerald-400 dark:hover:bg-emerald-300 text-slate-950 font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-md transition-all active:scale-95"
+                    class="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 dark:bg-emerald-400 dark:hover:bg-emerald-300 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-md transition-all active:scale-95"
                   >
                     <span>Request Installation</span>
                     <mat-icon class="!text-sm">arrow_forward</mat-icon>
@@ -273,7 +265,7 @@ export interface HeroSlide {
                 </div>
                 <div class="truncate">
                   <div class="text-xs font-bold text-slate-900 dark:text-white truncate">{{ s.doorTitle }}</div>
-                  <div class="text-[10px] text-slate-500 dark:text-slate-400 truncate">{{ s.technicianName }}</div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 truncate">{{ s.installerName }}</div>
                 </div>
               </button>
             }
@@ -283,64 +275,64 @@ export interface HeroSlide {
       </section>
 
       <!-- ========================================================================= -->
-      <!-- 2. VALUE PROPOSITION & SYSTEM ASSURANCES                                  -->
+      <!-- 2. HOW DOORMASTER INSTALLATION OPS WORKS                                  -->
       <!-- ========================================================================= -->
-      <section id="standards" class="py-16 bg-slate-100/70 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800/80 transition-colors">
+      <section id="standards" class="py-14 bg-slate-50 dark:bg-[#181A1F] border-b border-slate-200 dark:border-white/10 transition-colors">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="text-center max-w-2xl mx-auto mb-12">
-            <span class="text-xs font-mono uppercase text-emerald-600 dark:text-emerald-400 tracking-wider font-semibold">Field Standards</span>
-            <h2 class="text-3xl font-black text-slate-900 dark:text-white mt-1">Why Architects & Homeowners Rely On Us</h2>
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <span class="text-xs font-mono uppercase text-[#59000A] dark:text-rose-300 tracking-wider font-semibold">How It Works</span>
+            <h2 class="text-2xl sm:text-3xl font-black text-[#111215] dark:text-white mt-1">End-to-End Installation Workflow</h2>
             <p class="text-sm text-slate-600 dark:text-slate-400 mt-2">
-              Every DoorMaster installation operates under our digital audit trail, verified from factory fabrication to client signature.
+              Every door order moves cleanly from branch counter booking to verified site completion.
             </p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <!-- Feature 1 -->
-            <div class="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
+            <div class="p-6 rounded-2xl bg-white dark:bg-[#111215] border border-slate-200 dark:border-white/10 shadow-sm flex flex-col justify-between transition-colors">
               <div>
-                <div class="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 flex items-center justify-center mb-4">
-                  <mat-icon class="!text-2xl">straighten</mat-icon>
+                <div class="w-11 h-11 rounded-xl bg-[#59000A]/10 text-[#59000A] dark:bg-[#59000A]/30 dark:text-rose-300 flex items-center justify-center mb-4">
+                  <mat-icon class="!text-2xl">receipt_long</mat-icon>
                 </div>
-                <h3 class="text-base font-bold text-slate-900 dark:text-white">Laser Plumb & Level Precision</h3>
+                <h3 class="text-base font-bold text-[#111215] dark:text-white">Shop Booking &amp; Account Verification</h3>
                 <p class="text-xs text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-                  Heavy pivot slabs and sound-rated doors require exact ±1.0mm tolerance. Our installers use cross-line green lasers and calibrate resistance damping on site.
+                  Shop Attendants select doors from the DoorMaster catalog and record payments. Account Officers verify receipts before dispatch begins.
                 </p>
               </div>
-              <div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800/80 text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                100% Level Guarantee
+              <div class="mt-4 pt-3 border-t border-slate-200 dark:border-white/10 text-[11px] font-mono text-[#59000A] dark:text-rose-300 font-semibold">
+                Verified Before Dispatch
               </div>
             </div>
 
             <!-- Feature 2 -->
-            <div class="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
+            <div class="p-6 rounded-2xl bg-white dark:bg-[#111215] border border-slate-200 dark:border-white/10 shadow-sm flex flex-col justify-between transition-colors">
               <div>
-                <div class="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center mb-4">
+                <div class="w-11 h-11 rounded-xl bg-[#59000A]/10 text-[#59000A] dark:bg-[#59000A]/30 dark:text-rose-300 flex items-center justify-center mb-4">
                   <mat-icon class="!text-2xl">gps_fixed</mat-icon>
                 </div>
-                <h3 class="text-base font-bold text-slate-900 dark:text-white">Real-Time Dispatch & Radar</h3>
+                <h3 class="text-base font-bold text-[#111215] dark:text-white">Team Dispatch &amp; Live GPS Map</h3>
                 <p class="text-xs text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-                  Uber-style tracking for door delivery and installer arrival. Clients receive live status pings from warehouse departure to site clock-in.
+                  Managers assign installation teams and Shop Attendants assign store drivers, with real-time route tracking from branch to site.
                 </p>
               </div>
-              <div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800/80 text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
-                Live Geofenced Tracking
+              <div class="mt-4 pt-3 border-t border-slate-200 dark:border-white/10 text-[11px] font-mono text-[#59000A] dark:text-rose-300 font-semibold">
+                Live GPS Tracking
               </div>
             </div>
 
             <!-- Feature 3 -->
-            <div class="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
+            <div class="p-6 rounded-2xl bg-white dark:bg-[#111215] border border-slate-200 dark:border-white/10 shadow-sm flex flex-col justify-between transition-colors">
               <div>
-                <div class="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 flex items-center justify-center mb-4">
-                  <mat-icon class="!text-2xl">military_tech</mat-icon>
+                <div class="w-11 h-11 rounded-xl bg-[#59000A]/10 text-[#59000A] dark:bg-[#59000A]/30 dark:text-rose-300 flex items-center justify-center mb-4">
+                  <mat-icon class="!text-2xl">fact_check</mat-icon>
                 </div>
-                <h3 class="text-base font-bold text-slate-900 dark:text-white">Incentivized Quality & Bonus</h3>
+                <h3 class="text-base font-bold text-[#111215] dark:text-white">Checklists, Photos &amp; Sign-Off</h3>
                 <p class="text-xs text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-                  Installers earn performance bonuses for 5-star customer ratings and immaculate multi-angle photographic documentation before handover.
+                  Installers clock in on site, complete door-specific checklists, upload before and after photos, and collect client digital sign-off.
                 </p>
               </div>
-              <div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800/80 text-[11px] font-mono text-amber-600 dark:text-amber-400 font-semibold">
-                Tied to Customer Satisfaction
+              <div class="mt-4 pt-3 border-t border-slate-200 dark:border-white/10 text-[11px] font-mono text-[#59000A] dark:text-rose-300 font-semibold">
+                Digital Handover Proof
               </div>
             </div>
           </div>
@@ -370,50 +362,39 @@ export interface HeroSlide {
 
               <!-- Operational Details -->
               <div class="mt-8 space-y-4">
-                <div class="flex items-start gap-3.5 p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
-                  <div class="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 flex items-center justify-center shrink-0">
+                <div class="flex items-start gap-3.5 p-4 rounded-xl bg-slate-50 dark:bg-[#181A1F] border border-slate-200 dark:border-white/10 shadow-2xs">
+                  <div class="w-9 h-9 rounded-lg bg-[#59000A]/10 text-[#59000A] dark:bg-[#59000A]/30 dark:text-rose-300 flex items-center justify-center shrink-0">
                     <mat-icon class="!text-lg">support_agent</mat-icon>
                   </div>
                   <div>
-                    <h4 class="text-xs font-bold text-slate-900 dark:text-white">Direct Operations Dispatch</h4>
-                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Calls routed directly to duty field coordinators.</p>
-                    <p class="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-bold mt-1">+1 (555) 800-DOOR (3667)</p>
+                    <h4 class="text-xs font-bold text-[#111215] dark:text-white">Direct Operations Support</h4>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Requests are routed directly to DoorMaster branch coordinators.</p>
+                    <p class="text-xs font-mono text-[#59000A] dark:text-rose-300 font-bold mt-1">0203169184 / 0207867882</p>
                   </div>
                 </div>
 
-                <div class="flex items-start gap-3.5 p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
-                  <div class="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center shrink-0">
+                <div class="flex items-start gap-3.5 p-4 rounded-xl bg-slate-50 dark:bg-[#181A1F] border border-slate-200 dark:border-white/10 shadow-2xs">
+                  <div class="w-9 h-9 rounded-lg bg-[#59000A]/10 text-[#59000A] dark:bg-[#59000A]/30 dark:text-rose-300 flex items-center justify-center shrink-0">
                     <mat-icon class="!text-lg">pin_drop</mat-icon>
                   </div>
                   <div>
-                    <h4 class="text-xs font-bold text-slate-900 dark:text-white">Fabrication & Dispatch Hubs</h4>
-                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Central Atelier • South Industrial Bay • Coastal Fleet</p>
-                    <p class="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-1">Rapid response across greater metro region</p>
-                  </div>
-                </div>
-
-                <div class="flex items-start gap-3.5 p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
-                  <div class="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 flex items-center justify-center shrink-0">
-                    <mat-icon class="!text-lg">shield</mat-icon>
-                  </div>
-                  <div>
-                    <h4 class="text-xs font-bold text-slate-900 dark:text-white">Full Manufacturer Warranty Retained</h4>
-                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Installation certified for FritsJurgens, DormaKaba, Schuco & Hafele hardware.</p>
+                    <h4 class="text-xs font-bold text-[#111215] dark:text-white">11 DoorMaster Branches</h4>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Obeyeyie • Pobiman • Tema • Kasoa • Nsawam • Suhum • Kumasi</p>
                   </div>
                 </div>
               </div>
 
               <!-- Quick Persona Sign In Callout -->
-              <div class="mt-8 p-4 rounded-2xl bg-gradient-to-r from-slate-100 to-slate-200/80 dark:from-slate-900 dark:to-slate-800/80 border border-slate-300 dark:border-slate-700/80">
+              <div class="mt-8 p-4 rounded-2xl bg-slate-100 dark:bg-[#181A1F] border border-slate-200 dark:border-white/10">
                 <div class="flex items-center justify-between">
                   <div>
-                    <div class="text-xs font-bold text-slate-900 dark:text-white">DoorMaster Team Member?</div>
-                    <div class="text-[11px] text-slate-600 dark:text-slate-400">Installer, Manager, Account Officer or Client?</div>
+                    <div class="text-xs font-bold text-[#111215] dark:text-white">DoorMaster Staff or Client?</div>
+                    <div class="text-[11px] text-slate-600 dark:text-slate-400">Manager, Shop Attendant, Driver, Installer, Accounts or Client</div>
                   </div>
                   <button 
                     type="button" 
                     (click)="navigateToSignIn()" 
-                    class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-950 font-bold text-xs flex items-center gap-1 transition-all shadow-sm cursor-pointer"
+                    class="px-3 py-1.5 rounded-lg bg-[#59000A] hover:bg-[#73000E] text-white font-bold text-xs flex items-center gap-1 transition-all shadow-sm cursor-pointer"
                   >
                     <span>Sign In</span>
                     <mat-icon class="!text-xs">arrow_forward</mat-icon>
@@ -447,7 +428,7 @@ export interface HeroSlide {
                     </div>
                     <div class="flex justify-between text-slate-600 dark:text-slate-400">
                       <span>Assigned Priority:</span>
-                      <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold uppercase">Rapid Technician Dispatch</span>
+                      <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold uppercase">Rapid Installer Dispatch</span>
                     </div>
                   </div>
 
@@ -463,7 +444,7 @@ export interface HeroSlide {
                     <button 
                       type="button" 
                       (click)="navigateToDashboard()" 
-                      class="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 dark:bg-emerald-400 dark:hover:bg-emerald-300 text-slate-950 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+                      class="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 dark:bg-emerald-400 dark:hover:bg-emerald-300 text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
                     >
                       <mat-icon class="!text-sm">dashboard</mat-icon>
                       <span>Sign In to Dashboard</span>
@@ -522,13 +503,11 @@ export interface HeroSlide {
                         <label for="contactPhone" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                           Phone Number *
                         </label>
-                        <input 
+                        <app-phone-input 
                           id="contactPhone"
-                          type="tel" 
                           formControlName="phone"
-                          placeholder="+1 (555) 782-9011"
-                          class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
-                        />
+                          placeholder="24 782 9011"
+                        ></app-phone-input>
                         @if (inquiryForm.get('phone')?.touched && inquiryForm.get('phone')?.invalid) {
                           <span class="text-[11px] text-red-500 dark:text-red-400 mt-1 block">Phone number is required.</span>
                         }
@@ -652,10 +631,10 @@ export interface HeroSlide {
                     <button 
                       type="submit"
                       [disabled]="isSubmitting()"
-                      class="w-full py-3.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 dark:bg-emerald-400 dark:hover:bg-emerald-300 text-slate-950 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                      class="w-full py-3.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 dark:bg-emerald-400 dark:hover:bg-emerald-300 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.99] disabled:opacity-50 cursor-pointer"
                     >
                       @if (isSubmitting()) {
-                        <span class="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                        <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                         <span>Routing Request to Dispatch...</span>
                       } @else {
                         <mat-icon class="!text-base">send</mat-icon>
@@ -679,12 +658,12 @@ export interface HeroSlide {
       <footer class="bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 py-12 transition-colors">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center font-mono font-bold text-sm shrink-0">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center font-mono font-bold text-sm shrink-0">
               DM
             </div>
             <div>
               <div class="text-sm font-bold text-slate-900 dark:text-white">DoorMaster Enterprise Installation Platform</div>
-              <div class="text-[11px] text-slate-500 dark:text-slate-400">Integrated field operations, technician bonuses & customer live tracking</div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400">Integrated field operations, installer bonuses & customer live tracking</div>
             </div>
           </div>
 
@@ -725,13 +704,13 @@ export class LandingPage {
   readonly submissionSuccess = signal<boolean>(false);
   readonly submittedInquiry = signal<InstallationInquiry | null>(null);
 
-  // Hero Slider items showcasing technicians at work
+  // Hero Slider items showcasing installers at work
   readonly slides: HeroSlide[] = [
     {
       id: 1,
       badge: 'Active Work in Progress',
-      technicianName: 'Marcus Vance',
-      technicianRole: 'Senior Master Installer • 4.95 Rating',
+      installerName: 'Marcus Vance',
+      installerRole: 'Senior Master Installer • 4.95 Rating',
       doorTitle: 'Grand Pivot Walnut Entrance Door',
       doorCategory: 'Architectural Pivot',
       location: 'The Glasshouse Residence • Highview',
@@ -745,8 +724,8 @@ export class LandingPage {
     {
       id: 2,
       badge: 'Precision Carpentry',
-      technicianName: 'Devon Sterling',
-      technicianRole: 'Acoustic & Hardware Specialist • 4.88 Rating',
+      installerName: 'Devon Sterling',
+      installerRole: 'Acoustic & Hardware Specialist • 4.88 Rating',
       doorTitle: 'Solid Wood European White Oak Foyer',
       doorCategory: 'Solid Timber Entrance',
       location: 'Pacific Heights Executive Manor',
@@ -760,8 +739,8 @@ export class LandingPage {
     {
       id: 3,
       badge: 'Patio & Exterior Enclosure',
-      technicianName: 'Elena Rostova & Field Crew',
-      technicianRole: 'Lead Joinery Technicians • 4.98 Rating',
+      installerName: 'Elena Rostova & Field Crew',
+      installerRole: 'Lead Joinery Installers • 4.98 Rating',
       doorTitle: 'Bi-Fold Architectural Patio Glass System',
       doorCategory: 'Multi-Panel Exterior Bi-Fold',
       location: 'Meadowbrook Modern Villa',
@@ -775,8 +754,8 @@ export class LandingPage {
     {
       id: 4,
       badge: 'Interior Architectural Suite',
-      technicianName: 'Tariq Al-Mansoor',
-      technicianRole: 'Master Finish Carpenter • 4.75 Rating',
+      installerName: 'Tariq Al-Mansoor',
+      installerRole: 'Master Finish Carpenter • 4.75 Rating',
       doorTitle: 'Concealed Pocket Sliding Acoustic Doors',
       doorCategory: 'Concealed Pocket System',
       location: 'Skyline Penthouse Suites',

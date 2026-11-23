@@ -13,6 +13,7 @@
     "dev:backend": "npm --prefix backend run dev",
     "build:backend": "npm --prefix backend run build",
     "build": "npm run build:backend && npm run build:frontend",
+    "build:hostinger": "node scripts/build-hostinger.mjs",
     "lint": "npm --prefix frontend run lint",
     "test": "npm --prefix frontend test",
     "prisma:generate": "npm --prefix backend run prisma:generate",

@@ -4,13 +4,15 @@ import { InstallationStore } from './services/installation.store';
 import { ThemeStore } from './services/theme';
 import { PwaService } from './services/pwa.service';
 import { PwaStatusBanner } from './components/pwa-status-banner/pwa-status-banner';
+import { PwaInstallPrompt } from './components/pwa-install-prompt/pwa-install-prompt';
 
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterOutlet,
-    PwaStatusBanner
+    PwaStatusBanner,
+    PwaInstallPrompt
   ],
   templateUrl: './app.html',
   styleUrl: './app.css'

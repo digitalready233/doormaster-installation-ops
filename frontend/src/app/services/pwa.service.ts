@@ -53,7 +53,7 @@ export class PwaService {
     totalCached: 0
   });
 
-  // Offline Sync Queue for Technicians
+  // Offline Sync Queue for Installers
   readonly offlineQueue = signal<OfflineAction[]>([]);
   readonly pendingSyncCount = computed(() => 
     this.offlineQueue().filter(item => !item.synced).length
@@ -76,8 +76,15 @@ export class PwaService {
       // Ignore storage read error
     }
 
-    // Detect standalone PWA mode
+    // Detect standalone PWA mode or persisted install state
+    let wasInstalled = false;
+    try {
+      wasInstalled = localStorage.getItem('dm_pwa_installed_v1') === '1';
+    } catch {
+      // Ignore storage read error
+    }
     const isStandalone =
+      wasInstalled ||
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
     this.isInstalled.set(isStandalone);
@@ -107,6 +114,11 @@ export class PwaService {
     });
 
     window.addEventListener('appinstalled', () => {
+      try {
+        localStorage.setItem('dm_pwa_installed_v1', '1');
+      } catch {
+        // Ignore storage write error
+      }
       this.isInstalled.set(true);
       this.isInstallable.set(false);
       this.deferredPrompt = null;
@@ -260,7 +272,7 @@ export class PwaService {
     const updated = queue.map(item => ({ ...item, synced: true }));
     this.offlineQueue.set(updated);
     this.persistOfflineQueue(updated);
-    console.log(`[PwaService] Synced ${pending.length} offline technician actions.`);
+    console.log(`[PwaService] Synced ${pending.length} offline installer actions.`);
   }
 
   /**

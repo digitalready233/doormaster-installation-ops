@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, NavigationEnd, RouterOutlet, RouterLink } from '@angular/router';
 import { filter } from 'rxjs';
@@ -12,20 +12,21 @@ import { BonusModal } from '../../components/bonus-modal/bonus-modal';
 import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-modal';
 import { AddUserModal } from '../../components/add-user-modal/add-user-modal';
 import { NotificationDrawer } from '../../components/notification-drawer/notification-drawer';
+import { RejectionModal } from '../../components/rejection-modal/rejection-modal';
+import { PwaInstallButton } from '../../components/pwa-install-button/pwa-install-button';
 import { AlertService } from '../../services/alert.service';
 import { InstallationJob, InstallerTeam, NotificationItem, RoleDefinition, RoleType } from '../../models/installation.model';
 
-export type ActiveView = 
-  | 'overview' 
-  | 'doors' 
-  | 'work' 
-  | 'shop' 
-  | 'dispatcher' 
-  | 'map' 
-  | 'performance' 
-  | 'finance' 
-  | 'roles' 
-  | 'settings' 
+export type ActiveView =
+  | 'overview'
+  | 'doors'
+  | 'work'
+  | 'shop'
+  | 'map'
+  | 'performance'
+  | 'finance'
+  | 'roles'
+  | 'settings'
   | 'profile'
 export interface MenuItemConfig {
   id: ActiveView;
@@ -57,11 +58,13 @@ export interface MenuSection {
     BonusModal,
     CustomRoleModal,
     AddUserModal,
-    NotificationDrawer
+    NotificationDrawer,
+    RejectionModal,
+    PwaInstallButton
   ],
   templateUrl: './dashboard-layout.html'
 })
-export class DashboardLayout {
+export class DashboardLayout implements OnDestroy {
   readonly store = inject(InstallationStore);
   readonly themeStore = inject(ThemeStore);
   readonly pwa = inject(PwaService);
@@ -83,6 +86,8 @@ export class DashboardLayout {
   readonly activeContactInfo = signal<{ name: string; phone: string; jobTitle: string; address: string } | null>(null);
   readonly profileDropdownOpen = signal<boolean>(false);
   readonly notificationDropdownOpen = signal<boolean>(false);
+  readonly nowTick = signal<number>(Date.now());
+  private clockInterval: any = null;
   private notificationCloseTimeout: any = null;
   private profileCloseTimeout: any = null;
   private profileHoverTime: number = 0;
@@ -217,7 +222,7 @@ export class DashboardLayout {
         return;
       }
       this.openJobDetails(notif.jobId);
-      if (this.store.canCurrentRoleSelectDispatcher() && notif.actionLabel === 'Select Dispatcher') {
+      if (this.store.canCurrentRoleSelectDispatcher() && (notif.actionLabel === 'Select Driver' || notif.actionLabel === 'Select Dispatcher')) {
         setTimeout(() => {
           if (typeof document !== 'undefined') {
             document.getElementById('detailDispatcherDropdown')?.focus();
@@ -269,6 +274,60 @@ export class DashboardLayout {
     this.store.respondInstallerAssignment(notif.jobId, false, 'Declined from quick notification');
     this.alert.warning('Installation Declined', `Job ${notif.jobId} declined. Operations Manager has been alerted.`);
     this.setView('map');
+  }
+
+  canDriverRespondToNotification(notif: NotificationItem): boolean {
+    if (this.store.currentRole() !== 'dispatcher' || !notif.jobId) return false;
+    const job = this.getJobForNotification(notif);
+    if (!job || !this.store.isDriverPendingAcceptance(job)) {
+      return false;
+    }
+    return true;
+  }
+
+  quickAcceptDriverFromNotif(notif: NotificationItem, event: Event) {
+    event.stopPropagation();
+    if (!notif.jobId) return;
+    this.store.markNotificationRead(notif.id);
+    this.store.respondDriverAssignment(notif.jobId, true);
+    this.alert.success('Delivery Run Accepted', `Manifest for job ${notif.jobId} confirmed for you.`);
+    this.closeNotificationDropdown();
+  }
+
+  quickDeclineDriverFromNotif(notif: NotificationItem, event: Event) {
+    event.stopPropagation();
+    if (!notif.jobId) return;
+    this.store.markNotificationRead(notif.id);
+    this.closeNotificationDropdown();
+    this.openDriverRejectModal(notif.jobId);
+  }
+
+  getDriverRemainingSeconds(job: InstallationJob): number {
+    return this.store.getDriverRemainingSeconds(job);
+  }
+
+  formatDriverRemaining(job: InstallationJob): string {
+    return this.store.formatDriverRemaining(job);
+  }
+
+  readonly rejectingDriverJobId = signal<string | null>(null);
+
+  quickAcceptDriver(jobId: string) {
+    this.store.respondDriverAssignment(jobId, true);
+    this.alert.success('Delivery Run Accepted', `Manifest for job ${jobId} confirmed for you.`);
+  }
+
+  openDriverRejectModal(jobId: string) {
+    this.rejectingDriverJobId.set(jobId);
+  }
+
+  handleDriverRejectSubmit(event: { reason: string; details: string; proposedSlot?: string }) {
+    const jobId = this.rejectingDriverJobId();
+    if (!jobId) return;
+    const combinedReason = `${event.reason}${event.details ? ': ' + event.details : ''}`;
+    this.store.respondDriverAssignment(jobId, false, combinedReason, event.proposedSlot);
+    this.alert.warning('Delivery Run Rejected', `Job ${jobId} returned to queue for reassignment.`);
+    this.rejectingDriverJobId.set(null);
   }
 
   selectTeamForReassignment(team: InstallerTeam) {
@@ -371,7 +430,7 @@ export class DashboardLayout {
   readonly currentView = computed<ActiveView>(() => {
     const url = this.currentUrl();
     const segment = url.split('?')[0].split('#')[0].replace(/^\//, '');
-    const valid: ActiveView[] = ['overview', 'doors', 'work', 'shop', 'dispatcher', 'map', 'performance', 'finance', 'roles', 'settings', 'profile'];
+    const valid: ActiveView[] = ['overview', 'doors', 'work', 'shop', 'map', 'performance', 'finance', 'roles', 'settings', 'profile'];
     return (valid.includes(segment as ActiveView) ? segment : 'overview') as ActiveView;
   });
 
@@ -379,9 +438,8 @@ export class DashboardLayout {
     const v = this.currentView();
     if (v === 'overview') return 'Dashboard';
     if (v === 'shop') return 'Shop & Counter';
-    if (v === 'doors') return 'Doors Catalog';
+    if (v === 'doors') return 'Doors in Catalog';
     if (v === 'work') return 'Work';
-    if (v === 'dispatcher') return 'Logistics Dispatch';
     if (v === 'map') return 'Map';
     if (v === 'performance') return 'Incentive Bonuses';
     if (v === 'finance') return 'Accounts Ledger';
@@ -417,7 +475,7 @@ export class DashboardLayout {
     },
     {
       id: 'doors',
-      label: 'Doors Catalog & Registry',
+      label: 'Doors in Catalog',
       icon: 'meeting_room',
       iconColor: 'text-emerald-600 dark:text-emerald-400',
       activeColor: 'text-emerald-600 dark:text-emerald-400',
@@ -434,16 +492,6 @@ export class DashboardLayout {
       category: 'field',
       badgeType: 'count',
       description: 'Assigned tasks and progress'
-    },
-    {
-      id: 'dispatcher',
-      label: 'Logistics Fleet Dispatch',
-      icon: 'local_shipping',
-      iconColor: 'text-teal-600 dark:text-teal-400',
-      activeColor: 'text-teal-600 dark:text-teal-400',
-      category: 'field',
-      badgeType: 'count',
-      description: 'Truck manifests, road transit & cargo site handover'
     },
     {
       id: 'map',
@@ -463,7 +511,7 @@ export class DashboardLayout {
       activeColor: 'text-emerald-600 dark:text-emerald-400',
       category: 'finance',
       badgeType: 'currency',
-      description: 'Technician bonus earnings & metrics'
+      description: 'Installer bonus earnings & metrics'
     },
     {
       id: 'finance',
@@ -495,6 +543,18 @@ export class DashboardLayout {
       this.enforceRoleAccess();
     });
     this.enforceRoleAccess();
+
+    if (typeof window !== 'undefined') {
+      this.clockInterval = setInterval(() => {
+        this.nowTick.set(Date.now());
+      }, 1000);
+    }
+  }
+
+  ngOnDestroy() {
+    if (this.clockInterval) {
+      clearInterval(this.clockInterval);
+    }
   }
 
   private enforceRoleAccess() {
@@ -503,11 +563,11 @@ export class DashboardLayout {
     const roleDef = this.store.currentRoleDefinition();
     if (!this.isViewAllowedForRole(view, roleId, roleDef)) {
       const target = roleId === 'client' ? '/map' :
-                     roleId === 'dispatcher' ? '/dispatcher' :
-                     roleId === 'installer' ? '/map' :
-                     roleId === 'shop_manager' ? '/shop' :
-                     roleId === 'account_officer' ? '/finance' :
-                     '/overview';
+        roleId === 'dispatcher' ? '/overview' :
+          roleId === 'installer' ? '/map' :
+            roleId === 'shop_manager' ? '/shop' :
+              roleId === 'account_officer' ? '/finance' :
+                '/overview';
       this.router.navigate([target]);
     }
   }
@@ -521,7 +581,7 @@ export class DashboardLayout {
       }
     }
     if (viewId === 'overview') {
-      return roleId !== 'client';
+      return true;
     }
     switch (roleId) {
       case 'admin':
@@ -533,11 +593,11 @@ export class DashboardLayout {
       case 'client':
         return false;
       case 'account_officer':
-        return viewId === 'finance' || viewId === 'performance';
+        return viewId === 'work' || viewId === 'finance' || viewId === 'performance';
       case 'shop_manager':
         return viewId === 'shop' || viewId === 'doors';
       case 'dispatcher':
-        return viewId === 'dispatcher';
+        return viewId === 'work';
       default: {
         const p = roleDef?.permissions;
         if (!p) return true;
@@ -553,8 +613,6 @@ export class DashboardLayout {
             return p.canViewFinancials;
           case 'roles':
             return roleId === 'admin' || p.canManageRoles;
-          case 'dispatcher':
-            return roleId === 'dispatcher';
           default:
             return false;
         }
@@ -568,6 +626,10 @@ export class DashboardLayout {
     return this.allMenuItems.filter(item => {
       return this.isViewAllowedForRole(item.id, roleId, roleDef);
     });
+  });
+
+  readonly mobileBottomMenuItems = computed(() => {
+    return this.filteredMenuItems().filter(i => i.id !== 'map').slice(0, 3);
   });
 
   readonly filteredMenuSections = computed<MenuSection[]>(() => {
@@ -610,7 +672,7 @@ export class DashboardLayout {
 
   setRoleDirect(roleId: RoleType) {
     this.store.currentRole.set(roleId);
-    
+
     let targetView: ActiveView = 'overview';
     if (this.currentView() === 'overview') {
       targetView = 'overview';
@@ -623,7 +685,7 @@ export class DashboardLayout {
     } else if (roleId === 'shop_manager') {
       targetView = 'shop';
     } else if (roleId === 'dispatcher') {
-      targetView = 'dispatcher';
+      targetView = 'overview';
     } else if (roleId === 'admin' || roleId === 'manager') {
       targetView = 'overview';
     } else {
@@ -661,6 +723,10 @@ export class DashboardLayout {
 
   closeJobDetails() {
     this.inspectedJobId.set(null);
+  }
+
+  openContactInstaller(job: InstallationJob) {
+    this.openContactTechnician(job);
   }
 
   openContactTechnician(job: InstallationJob) {

@@ -5,11 +5,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
 import { AlertService } from '../../services/alert.service';
 import { SmsProviderType } from '../../models/installation.model';
+import { PhoneInputComponent } from '../phone-input/phone-input';
 
 @Component({
   selector: 'app-profile-sms-settings-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatIconModule, ReactiveFormsModule, SlicePipe],
+  imports: [MatIconModule, ReactiveFormsModule, SlicePipe, PhoneInputComponent],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
       <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -87,27 +88,23 @@ import { SmsProviderType } from '../../models/installation.model';
                   <label for="phoneShopManager" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Shop Attendant / Manager Phone *
                   </label>
-                  <input 
+                  <app-phone-input 
                     id="phoneShopManager"
-                    type="text" 
                     formControlName="shop_manager"
-                    class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 font-mono font-medium text-slate-900 dark:text-white"
-                    placeholder="+233 24 100 0002"
-                  />
+                    placeholder="24 100 0002"
+                  ></app-phone-input>
                   <span class="text-[10px] text-slate-400">Receives booking confirmations & approval SMS</span>
                 </div>
 
                 <div>
                   <label for="phoneOperationsManager" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Operations Manager Phone *
+                    Manager Phone *
                   </label>
-                  <input 
+                  <app-phone-input 
                     id="phoneOperationsManager"
-                    type="text" 
                     formControlName="manager"
-                    class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 font-mono font-medium text-slate-900 dark:text-white"
-                    placeholder="+233 24 100 0001"
-                  />
+                    placeholder="24 100 0001"
+                  ></app-phone-input>
                   <span class="text-[10px] text-slate-400">Receives driver/installer responses & site alerts</span>
                 </div>
 
@@ -115,13 +112,11 @@ import { SmsProviderType } from '../../models/installation.model';
                   <label for="phoneDispatcher" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Dispatch Driver (Logistics Flatbed) *
                   </label>
-                  <input 
+                  <app-phone-input 
                     id="phoneDispatcher"
-                    type="text" 
                     formControlName="dispatcher"
-                    class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 font-mono font-medium text-slate-900 dark:text-white"
-                    placeholder="+233 24 555 0192"
-                  />
+                    placeholder="24 555 0192"
+                  ></app-phone-input>
                   <span class="text-[10px] text-slate-400">Receives delivery assignments & pickup notices</span>
                 </div>
 
@@ -129,13 +124,11 @@ import { SmsProviderType } from '../../models/installation.model';
                   <label for="phoneInstaller" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Field Installer / Locksmith *
                   </label>
-                  <input 
+                  <app-phone-input 
                     id="phoneInstaller"
-                    type="text" 
                     formControlName="installer"
-                    class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 font-mono font-medium text-slate-900 dark:text-white"
-                    placeholder="+233 24 881 0293"
-                  />
+                    placeholder="24 881 0293"
+                  ></app-phone-input>
                   <span class="text-[10px] text-slate-400">Receives smart lock installation assignments</span>
                 </div>
 
@@ -143,13 +136,11 @@ import { SmsProviderType } from '../../models/installation.model';
                   <label for="phoneClient" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Client / Site Owner Phone *
                   </label>
-                  <input 
+                  <app-phone-input 
                     id="phoneClient"
-                    type="text" 
                     formControlName="client"
-                    class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 font-mono font-medium text-slate-900 dark:text-white"
-                    placeholder="+233 24 883 9921"
-                  />
+                    placeholder="24 883 9921"
+                  ></app-phone-input>
                   <span class="text-[10px] text-slate-400">Receives live delivery approach & ETA links</span>
                 </div>
 
@@ -157,13 +148,11 @@ import { SmsProviderType } from '../../models/installation.model';
                   <label for="phoneAccountant" class="block font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Account Officer Phone
                   </label>
-                  <input 
+                  <app-phone-input 
                     id="phoneAccountant"
-                    type="text" 
                     formControlName="account_officer"
-                    class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 font-mono font-medium text-slate-900 dark:text-white"
-                    placeholder="+233 24 100 0005"
-                  />
+                    placeholder="24 100 0005"
+                  ></app-phone-input>
                   <span class="text-[10px] text-slate-400">Receives counter payment notifications</span>
                 </div>
               </div>

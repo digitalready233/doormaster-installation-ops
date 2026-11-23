@@ -261,12 +261,12 @@ export class CustomRoleModal {
     }
   }
 
-  handleCreateRole() {
+  async handleCreateRole() {
     if (this.roleForm.invalid) return;
     const v = this.roleForm.value;
     const roleId = `role_${Date.now()}`;
 
-    this.store.addCustomRole({
+    await this.store.addCustomRole({
       id: roleId,
       name: v.name || 'New Role',
       label: v.label || 'Role',

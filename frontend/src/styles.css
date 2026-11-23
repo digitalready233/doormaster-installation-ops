@@ -3,6 +3,93 @@
 @import "leaflet/dist/leaflet.css";
 @import "sweetalert2/dist/sweetalert2.min.css";
 
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  input[type="button"]:not(:disabled),
+  input[type="submit"]:not(:disabled),
+  input[type="reset"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
+/* ========================================================================= */
+/* DoorMaster Official Brand Palette: White (#FFFFFF), Burgundy (#59000A),   */
+/* and Obsidian Dark (#111215)                                               */
+/* ========================================================================= */
+:root {
+  --dm-white: #ffffff;
+  --dm-burgundy: #59000a;
+  --dm-burgundy-hover: #73000e;
+  --dm-burgundy-soft: rgba(89, 0, 10, 0.1);
+  --dm-dark: #111215;
+  --dm-dark-elevated: #181a1f;
+  --dm-dark-border: rgba(255, 255, 255, 0.1);
+}
+
+html,
+body {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+.safe-area-pb {
+  padding-bottom: max(0.375rem, env(safe-area-inset-bottom));
+}
+
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+html.dark body {
+  background-color: var(--dm-dark);
+  color: var(--dm-white);
+}
+
+html:not(.dark) body {
+  background-color: var(--dm-white);
+  color: var(--dm-dark);
+}
+
+/* Harmonize dark surfaces to DoorMaster Obsidian (#111215 / #181a1f) */
+.dark .bg-slate-950 {
+  background-color: #111215 !important;
+}
+
+.dark .bg-slate-900 {
+  background-color: #181a1f !important;
+}
+
+.dark .bg-slate-900\/95 {
+  background-color: rgba(24, 26, 31, 0.95) !important;
+}
+
+.dark .bg-slate-950\/95 {
+  background-color: rgba(17, 18, 21, 0.95) !important;
+}
+
+.dark .border-slate-800,
+.dark .border-slate-800\/80 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Burgundy primary accent highlights & focus rings */
+input:focus,
+select:focus,
+textarea:focus {
+  --tw-ring-color: rgba(89, 0, 10, 0.45);
+}
+
+::selection {
+  background-color: #59000a;
+  color: #ffffff;
+}
+
 /* Local High-Performance Font Definitions (Zero Network Dependencies & 100% Offline Resilience) */
 @font-face {
   font-family: 'Poppins';
@@ -82,7 +169,7 @@
   font-weight: 400;
   font-display: block;
   src: url('/fonts/material-symbols-outlined.woff2') format('woff2'),
-       url('/fonts/material-icons.woff2') format('woff2');
+    url('/fonts/material-icons.woff2') format('woff2');
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -96,12 +183,21 @@
   html {
     transition: background-color 0.25s ease, color 0.25s ease;
   }
-  
-  body, button, input, select, textarea, optgroup {
+
+  body,
+  button,
+  input,
+  select,
+  textarea,
+  optgroup {
     font-family: 'Poppins', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
-  
-  code, kbd, samp, pre, .font-mono {
+
+  code,
+  kbd,
+  samp,
+  pre,
+  .font-mono {
     font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
@@ -152,13 +248,16 @@
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.4);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.6);
 }
@@ -166,6 +265,7 @@
 .dark ::-webkit-scrollbar-thumb {
   background: rgba(100, 116, 139, 0.5);
 }
+
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.7);
 }
@@ -185,24 +285,31 @@
 .leaflet-pane {
   z-index: 1 !important;
 }
+
 .leaflet-tile-pane {
   z-index: 1 !important;
 }
+
 .leaflet-overlay-pane {
   z-index: 2 !important;
 }
+
 .leaflet-shadow-pane {
   z-index: 3 !important;
 }
+
 .leaflet-marker-pane {
   z-index: 4 !important;
 }
+
 .leaflet-tooltip-pane {
   z-index: 5 !important;
 }
+
 .leaflet-popup-pane {
   z-index: 6 !important;
 }
+
 .leaflet-top,
 .leaflet-bottom,
 .leaflet-control {
@@ -242,113 +349,127 @@
   color: #ffffff !important;
 }
 
-/* Vibrant, high-contrast alert background colors */
-.colored-toast.swal2-icon-success {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
-  background-color: #059669 !important;
-  border: 1px solid rgba(52, 211, 153, 0.45) !important;
-  box-shadow: 0 12px 26px -6px rgba(5, 150, 105, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
-}
 
-.colored-toast.swal2-icon-error {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
-  background-color: #dc2626 !important;
-  border: 1px solid rgba(252, 165, 165, 0.45) !important;
-  box-shadow: 0 12px 26px -6px rgba(220, 38, 38, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
-}
+  /* Vibrant, high-contrast alert background colors with deep accent left border */
+  .colored-toast.swal2-icon-success,
+  .swal2-container .swal2-popup.colored-toast.swal2-icon-success {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+    background-color: #059669 !important;
+    border: 1px solid rgba(110, 231, 183, 0.35) !important;
+    border-left: 6px solid #064e3b !important;
+    box-shadow: 0 12px 26px -6px rgba(5, 150, 105, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
+  }
 
-.colored-toast.swal2-icon-warning {
-  background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
-  background-color: #d97706 !important;
-  border: 1px solid rgba(252, 211, 77, 0.45) !important;
-  box-shadow: 0 12px 26px -6px rgba(217, 119, 6, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
-}
 
-.colored-toast.swal2-icon-info {
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
-  background-color: #0284c7 !important;
-  border: 1px solid rgba(125, 211, 252, 0.45) !important;
-  box-shadow: 0 12px 26px -6px rgba(2, 132, 199, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
-}
+    .colored-toast.swal2-icon-error,
+    .swal2-container .swal2-popup.colored-toast.swal2-icon-error {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+      background-color: #dc2626 !important;
+      border: 1px solid rgba(252, 165, 165, 0.35) !important;
+      border-left: 6px solid #7f1d1d !important;
+      box-shadow: 0 12px 26px -6px rgba(220, 38, 38, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
+    }
 
-.colored-toast.swal2-icon-question {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
-  background-color: #4f46e5 !important;
-  border: 1px solid rgba(165, 180, 252, 0.45) !important;
-  box-shadow: 0 12px 26px -6px rgba(79, 70, 229, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
-}
 
-/* White text, close buttons, and html container */
-.colored-toast .swal2-title,
-.colored-toast-title {
-  color: white !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
-  line-height: 1.25 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  text-align: left !important;
-}
+      .colored-toast.swal2-icon-warning,
+      .swal2-container .swal2-popup.colored-toast.swal2-icon-warning {
+        background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+        background-color: #d97706 !important;
+        border: 1px solid rgba(252, 211, 77, 0.35) !important;
+        border-left: 6px solid #78350f !important;
+        box-shadow: 0 12px 26px -6px rgba(217, 119, 6, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
+      }
 
-.colored-toast .swal2-close {
-  color: white !important;
-}
 
-.colored-toast .swal2-html-container,
-.colored-toast-html {
-  color: white !important;
-  font-size: 11px !important;
-  line-height: 1.3 !important;
-  margin: 2px 0 0 0 !important;
-  padding: 0 !important;
-  text-align: left !important;
-  overflow: visible !important;
-}
+        .colored-toast.swal2-icon-info,
+        .swal2-container .swal2-popup.colored-toast.swal2-icon-info {
+          background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+          background-color: #0284c7 !important;
+          border: 1px solid rgba(125, 211, 252, 0.35) !important;
+          border-left: 6px solid #0c4a6e !important;
+          box-shadow: 0 12px 26px -6px rgba(2, 132, 199, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
+        }
 
-/* Progress bar in crisp semi-transparent white */
-.colored-toast .swal2-timer-progress-bar,
-.colored-toast-progress {
-  background: rgba(255, 255, 255, 0.72) !important;
-  height: 3px !important;
-}
 
-.colored-toast .swal2-icon {
-  border-color: white !important;
-  color: white !important;
-}
+          .colored-toast.swal2-icon-question,
+          .swal2-container .swal2-popup.colored-toast.swal2-icon-question {
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+            background-color: #4f46e5 !important;
+            border: 1px solid rgba(165, 180, 252, 0.35) !important;
+            border-left: 6px solid #312e81 !important;
+            box-shadow: 0 12px 26px -6px rgba(79, 70, 229, 0.55), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
+          }
 
-/* Sub-icon and text layout directly below title in white */
-.colored-toast .dm-toast-sub {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 4px !important;
-  color: rgba(255, 255, 255, 0.95) !important;
-  white-space: normal !important;
-  word-break: break-word !important;
-}
+          /* White text, close buttons, and html container */
+          .colored-toast .swal2-title,
+          .colored-toast-title {
+            color: white !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            line-height: 1.25 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            text-align: left !important;
+          }
 
-.colored-toast .dm-sub-icon-wrap {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  flex-shrink: 0 !important;
-}
+          .colored-toast .swal2-close {
+            color: white !important;
+          }
 
-.colored-toast .dm-sub-icon {
-  width: 11px !important;
-  height: 11px !important;
-  min-width: 11px !important;
-  min-height: 11px !important;
-  color: white !important;
-  stroke: currentColor !important;
-  display: inline-block !important;
-  vertical-align: middle !important;
-}
+          .colored-toast .swal2-html-container,
+          .colored-toast-html {
+            color: white !important;
+            font-size: 11px !important;
+            line-height: 1.3 !important;
+            margin: 2px 0 0 0 !important;
+            padding: 0 !important;
+            text-align: left !important;
+            overflow: visible !important;
+          }
 
-.colored-toast .dm-sub-text {
-  font-size: 11px !important;
-  line-height: 1.25 !important;
-  font-weight: 500 !important;
-  color: rgba(255, 255, 255, 0.95) !important;
-}
+          /* Progress bar in crisp semi-transparent white */
+          .colored-toast .swal2-timer-progress-bar,
+          .colored-toast-progress {
+            background: rgba(255, 255, 255, 0.72) !important;
+            height: 3px !important;
+          }
 
+          .colored-toast .swal2-icon {
+            border-color: white !important;
+            color: white !important;
+          }
+
+          /* Sub-icon and text layout directly below title in white */
+          .colored-toast .dm-toast-sub {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            color: rgba(255, 255, 255, 0.95) !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+          }
+
+          .colored-toast .dm-sub-icon-wrap {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-shrink: 0 !important;
+          }
+
+          .colored-toast .dm-sub-icon {
+            width: 11px !important;
+            height: 11px !important;
+            min-width: 11px !important;
+            min-height: 11px !important;
+            color: white !important;
+            stroke: currentColor !important;
+            display: inline-block !important;
+            vertical-align: middle !important;
+          }
+
+          .colored-toast .dm-sub-text {
+            font-size: 11px !important;
+            line-height: 1.25 !important;
+            font-weight: 500 !important;
+            color: rgba(255, 255, 255, 0.95) !important;
+          }

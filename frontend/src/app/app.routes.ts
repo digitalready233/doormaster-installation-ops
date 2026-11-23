@@ -6,7 +6,6 @@ import { DashboardLayout } from './layouts/dashboard-layout/dashboard-layout';
 import { Overview } from './views/overview/overview';
 import { DoorsCatalog } from './views/doors-catalog/doors-catalog';
 import { ShopPortal } from './views/shop-portal/shop-portal';
-import { DispatcherPortal } from './views/dispatcher-portal/dispatcher-portal';
 import { DeliveryMap } from './views/delivery-map/delivery-map';
 import { PerformanceDashboard } from './views/performance-dashboard/performance-dashboard';
 import { FinancePortal } from './views/finance-portal/finance-portal';
@@ -52,7 +51,7 @@ export const routes: Routes = [
       {
         path: 'doors',
         component: DoorsCatalog,
-        title: 'Doors Catalog & Registry - DoorMaster'
+        title: 'Doors in Catalog - DoorMaster'
       },
       {
         path: 'installer',
@@ -68,11 +67,6 @@ export const routes: Routes = [
         path: 'shop',
         component: ShopPortal,
         title: 'Shop & Counter - DoorMaster'
-      },
-      {
-        path: 'dispatcher',
-        component: DispatcherPortal,
-        title: 'Logistics Fleet Dispatch - DoorMaster'
       },
       {
         path: 'map',

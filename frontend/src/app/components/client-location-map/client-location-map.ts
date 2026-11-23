@@ -15,6 +15,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
+import { GhanaPostLocation } from '../../models/installation.model';
 import type * as LType from 'leaflet';
 
 let L: typeof LType | null = null;
@@ -43,6 +44,55 @@ interface KnownLocation {
   template: `
     <div class="mt-2 space-y-2 select-none">
       
+      <!-- Ghana Post GPS Fast Digital Address Resolver Bar -->
+      <div class="p-2 rounded-xl bg-slate-900/95 dark:bg-slate-950/95 border border-emerald-500/30 shadow-md flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+        <div class="flex items-center gap-1.5 flex-1 min-w-[200px]">
+          <span class="text-xs">🇬🇭</span>
+          <span class="text-[10px] font-bold text-emerald-400 tracking-wider font-mono uppercase whitespace-nowrap">Ghana Post GPS:</span>
+          <div class="relative flex-1">
+            <input
+              #ghanaPostInput
+              type="text"
+              placeholder="e.g. GA-183-9340 or GD-018-5574"
+              (keydown.enter)="resolveCustomGhanaPost(ghanaPostInput.value); $event.preventDefault()"
+              class="w-full text-xs font-mono uppercase bg-slate-800/90 dark:bg-slate-900 border border-slate-700/80 rounded-md px-2.5 py-1 text-emerald-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            />
+          </div>
+          <button
+            type="button"
+            (click)="resolveCustomGhanaPost(ghanaPostInput.value)"
+            class="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-md transition-colors cursor-pointer flex items-center gap-1 shrink-0 shadow-xs"
+            title="Resolve Ghana Post GPS digital address to exact coordinates and building"
+          >
+            <mat-icon class="!text-xs">search</mat-icon>
+            <span>Pin Code</span>
+          </button>
+        </div>
+
+        <!-- Quick Ghana Post GPS Test Pills -->
+        <div class="flex items-center gap-1 overflow-x-auto shrink-0 text-[10px]">
+          <span class="text-[9px] text-slate-400 font-medium">Quick Codes:</span>
+          <button
+            type="button"
+            (click)="ghanaPostInput.value = 'GA-183-9340'; resolveCustomGhanaPost('GA-183-9340')"
+            class="font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1"
+            title="Bukom, Selwyn Market St (Central Accra) - GA-183-9340"
+          >
+            <span>GA-183-9340</span>
+            <span class="text-[9px] text-slate-400">(Bukom)</span>
+          </button>
+          <button
+            type="button"
+            (click)="ghanaPostInput.value = 'GD-018-5574'; resolveCustomGhanaPost('GD-018-5574')"
+            class="font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1"
+            title="Kwabenya / Musuku (North Accra) - GD-018-5574"
+          >
+            <span>GD-018-5574</span>
+            <span class="text-[9px] text-slate-400">(Kwabenya)</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Quick Location Preset Chips -->
       <div class="flex items-center gap-1.5 flex-wrap">
         <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
@@ -94,8 +144,14 @@ interface KnownLocation {
             </span>
           </div>
 
-          <!-- Recently Pinned Badge or Closest Branch -->
-          @if (recentlyPinned()) {
+          <!-- Recently Pinned Badge, Ghana Post Badge, or Closest Branch -->
+          @if (resolvedGhanaPost(); as gp) {
+            <div class="pointer-events-auto bg-emerald-700/95 backdrop-blur-md px-2.5 py-1 rounded-lg border border-emerald-400 text-white text-[10px] shadow-md font-mono flex items-center gap-1.5 animate-in fade-in" title="Ghana Post GPS Verified 5m building resolution">
+              <span class="text-xs">🇬🇭</span>
+              <span class="font-bold">{{ gp.code }}</span>
+              <span class="text-emerald-200">({{ gp.area || gp.district }})</span>
+            </div>
+          } @else if (recentlyPinned()) {
             <div class="pointer-events-auto bg-emerald-600/95 backdrop-blur-md px-2.5 py-1 rounded-lg border border-emerald-400 text-white text-[10px] shadow-md font-mono flex items-center gap-1.5 animate-in fade-in zoom-in-95" title="Auto-populated into Site Location input">
               <mat-icon class="!text-xs text-white">check_circle</mat-icon>
               <span class="font-bold">Auto-Populated to Form</span>
@@ -112,13 +168,13 @@ interface KnownLocation {
         <div class="absolute bottom-2 left-2 right-2 z-10 pointer-events-none flex items-center justify-between text-[10px] text-slate-300">
           <div class="pointer-events-auto bg-slate-900/90 backdrop-blur-xs px-2.5 py-1 rounded-md border border-slate-800 text-slate-200 flex items-center gap-1.5 shadow-sm font-medium">
             <mat-icon class="!text-xs text-emerald-400">touch_app</mat-icon>
-            <span>Click map or drag pin to auto-pick location</span>
+            <span>Click map, drag pin or type Ghana Post GPS</span>
           </div>
 
           @if (isSearching()) {
             <div class="pointer-events-auto bg-cyan-900/90 backdrop-blur-xs px-2.5 py-1 rounded-md text-cyan-200 flex items-center gap-1.5 font-mono shadow-sm">
               <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
-              <span>Resolving address...</span>
+              <span>Resolving digital address...</span>
             </div>
           }
         </div>
@@ -188,6 +244,7 @@ export class ClientLocationMap implements AfterViewInit, OnDestroy {
   readonly Math = Math;
   readonly isSearching = signal<boolean>(false);
   readonly recentlyPinned = signal<string | null>(null);
+  readonly resolvedGhanaPost = signal<GhanaPostLocation | null>(null);
   readonly currentLat = signal<number>(5.6020);
   readonly currentLng = signal<number>(-0.1870);
   readonly activeDistrict = signal<string>('Airport Residential');
@@ -274,9 +331,10 @@ export class ClientLocationMap implements AfterViewInit, OnDestroy {
     if (!L || !container) return;
 
     try {
+      const initialZoom = this.resolvedGhanaPost() ? 17 : 14;
       this.map = L.map(container, {
         center: [this.currentLat(), this.currentLng()],
-        zoom: 14,
+        zoom: initialZoom,
         zoomControl: true,
         attributionControl: true
       });
@@ -287,7 +345,7 @@ export class ClientLocationMap implements AfterViewInit, OnDestroy {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
       }).addTo(this.map);
 
-      this.updateMarker(this.currentLat(), this.currentLng());
+      this.updateMarker(this.currentLat(), this.currentLng(), this.resolvedGhanaPost());
       this.renderBranchMarkers();
 
       // Click anywhere on map to manually pin location and auto-populate form
@@ -303,7 +361,7 @@ export class ClientLocationMap implements AfterViewInit, OnDestroy {
     }
   }
 
-  private updateMarker(lat: number, lng: number) {
+  private updateMarker(lat: number, lng: number, ghanaPostInfo?: GhanaPostLocation | null) {
     if (!this.map || !L) return;
 
     const customPinHtml = `
@@ -336,15 +394,39 @@ export class ClientLocationMap implements AfterViewInit, OnDestroy {
       this.marker.on('dragend', (e: LType.LeafletEvent) => {
         const marker = e.target as LType.Marker;
         const position = marker.getLatLng();
+        this.resolvedGhanaPost.set(null);
         void this.handleManualPin(position.lat, position.lng);
       });
     }
 
+    if (ghanaPostInfo) {
+      const popupHtml = `
+        <div style="font-family:system-ui, -apple-system, sans-serif; padding:4px 6px; min-width: 190px;">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px; padding-bottom:4px; border-bottom:1px solid #e2e8f0;">
+            <span style="font-size:14px;">🇬🇭</span>
+            <span style="font-weight:800; color:#059669; font-size:12px; font-family:monospace; letter-spacing:0.5px;">${ghanaPostInfo.code}</span>
+          </div>
+          <div style="font-size:11px; line-height:1.4; color:#1e293b;">
+            ${ghanaPostInfo.street ? `<div style="font-weight:600; color:#0f172a;">📍 ${ghanaPostInfo.street}</div>` : ''}
+            <div style="color:#475569;">${ghanaPostInfo.area || ghanaPostInfo.district}, ${ghanaPostInfo.region}</div>
+            <div style="margin-top:4px; font-family:monospace; font-size:9.5px; color:#0284c7; background:#f0f9ff; padding:2px 4px; border-radius:4px; display:inline-block;">
+              GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}
+            </div>
+          </div>
+        </div>
+      `;
+      this.marker.bindPopup(popupHtml, { autoClose: false, closeOnClick: false }).openPopup();
+    } else {
+      this.marker.unbindPopup();
+    }
+
+    const radius = ghanaPostInfo ? 25 : 120;
     if (this.circle) {
       this.circle.setLatLng([lat, lng]);
+      this.circle.setRadius(radius);
     } else {
       this.circle = L.circle([lat, lng], {
-        radius: 120,
+        radius,
         color: '#10b981',
         weight: 1.5,
         fillColor: '#10b981',
@@ -421,11 +503,12 @@ export class ClientLocationMap implements AfterViewInit, OnDestroy {
    * with isExplicitUserAction = true so the parent form input is automatically populated.
    */
   async handleManualPin(lat: number, lng: number, customDistrictName?: string) {
+    this.resolvedGhanaPost.set(null);
     this.currentLat.set(lat);
     this.currentLng.set(lng);
 
-    // Update marker on map
-    this.updateMarker(lat, lng);
+    // Update marker on map without Ghana Post popup
+    this.updateMarker(lat, lng, null);
     if (this.map) {
       this.map.panTo([lat, lng], { animate: true });
     }
@@ -512,10 +595,12 @@ export class ClientLocationMap implements AfterViewInit, OnDestroy {
   }
 
   selectPresetZone(zone: KnownLocation) {
+    this.resolvedGhanaPost.set(null);
     void this.handleManualPin(zone.lat, zone.lng, zone.district);
   }
 
   useCurrentDeviceLocation() {
+    this.resolvedGhanaPost.set(null);
     if (typeof navigator !== 'undefined' && navigator.geolocation) {
       this.isSearching.set(true);
       navigator.geolocation.getCurrentPosition(
@@ -533,6 +618,26 @@ export class ClientLocationMap implements AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * Resolves a custom Ghana Post GPS code (e.g. "GA-183-9340" or "GD-018-5574"),
+   * flies directly into the building, shows verified popup, and auto-populates the booking form.
+   */
+  async resolveCustomGhanaPost(rawCode: string) {
+    if (!rawCode || !rawCode.trim()) return;
+    const clean = rawCode.trim();
+    this.isSearching.set(true);
+    try {
+      const loc = await this.store.resolveGhanaPostGps(clean);
+      if (loc) {
+        this.resolvedGhanaPost.set(loc);
+        const title = `${loc.street ? loc.street + ', ' : ''}${loc.area || loc.district} [${loc.code}]`;
+        this.setLocation(loc.lat, loc.lng, title, true, 17, loc);
+      }
+    } finally {
+      this.isSearching.set(false);
+    }
+  }
+
   private scheduleGeocoding(query: string) {
     if (this.searchTimeout) {
       clearTimeout(this.searchTimeout);
@@ -544,23 +649,41 @@ export class ClientLocationMap implements AfterViewInit, OnDestroy {
       const lat = parseFloat(gpsMatch[1]);
       const lng = parseFloat(gpsMatch[2]);
       if (!isNaN(lat) && !isNaN(lng)) {
-        this.setLocation(lat, lng, 'GPS Input', false);
+        this.resolvedGhanaPost.set(null);
+        this.setLocation(lat, lng, 'GPS Input', false, 16);
         return;
       }
     }
 
-    // 2. Local Accra Ghana database fast match
+    // 2. Ghana Post GPS digital address check (e.g. "GD-018-5574" or "GA-183-9340" or "GA 183 9340" or "ga1839340")
+    const ghanaPostMatch = query.match(/\b([A-Za-z]{2})\s*[-]?\s*(\d{3,4})\s*[-]?\s*(\d{4})\b/i);
+    if (ghanaPostMatch) {
+      const code = `${ghanaPostMatch[1].toUpperCase()}-${ghanaPostMatch[2]}-${ghanaPostMatch[3]}`;
+      this.isSearching.set(true);
+      void this.store.resolveGhanaPostGps(code).then(loc => {
+        this.isSearching.set(false);
+        if (loc) {
+          this.resolvedGhanaPost.set(loc);
+          const title = `${loc.street ? loc.street + ', ' : ''}${loc.area || loc.district} [${loc.code}]`;
+          this.setLocation(loc.lat, loc.lng, title, false, 17, loc);
+        }
+      });
+      return;
+    }
+
+    // 3. Local Accra Ghana database fast match
     const lowerQuery = query.toLowerCase();
     const matchedKnown = this.ACCRA_LOCAL_DATABASE.find(item => 
       item.keywords.some(kw => lowerQuery.includes(kw))
     );
 
     if (matchedKnown) {
-      this.setLocation(matchedKnown.lat, matchedKnown.lng, matchedKnown.district, false);
+      this.resolvedGhanaPost.set(null);
+      this.setLocation(matchedKnown.lat, matchedKnown.lng, matchedKnown.district, false, 14);
       return;
     }
 
-    // 3. Fallback online OpenStreetMap Nominatim with 350ms debounce
+    // 4. Fallback online OpenStreetMap Nominatim with 350ms debounce
     this.searchTimeout = setTimeout(() => {
       this.fetchNominatimGeocode(query);
     }, 350);
@@ -577,7 +700,8 @@ export class ClientLocationMap implements AfterViewInit, OnDestroy {
           const lat = parseFloat(data[0].lat);
           const lng = parseFloat(data[0].lon);
           const displayName = data[0].display_name.split(',')[0] || query;
-          this.setLocation(lat, lng, displayName, false);
+          this.resolvedGhanaPost.set(null);
+          this.setLocation(lat, lng, displayName, false, 15);
         }
       }
     } catch {
@@ -587,17 +711,37 @@ export class ClientLocationMap implements AfterViewInit, OnDestroy {
     }
   }
 
-  setLocation(lat: number, lng: number, districtName: string, isExplicitUserAction = false) {
+  setLocation(
+    lat: number, 
+    lng: number, 
+    districtName: string, 
+    isExplicitUserAction = false, 
+    zoom?: number,
+    ghanaPostInfo?: GhanaPostLocation | null
+  ) {
     this.currentLat.set(lat);
     this.currentLng.set(lng);
     this.activeDistrict.set(districtName);
 
-    this.updateMarker(lat, lng);
-    if (this.map) {
-      this.map.panTo([lat, lng], { animate: true });
+    if (ghanaPostInfo !== undefined) {
+      this.resolvedGhanaPost.set(ghanaPostInfo);
     }
 
-    const formattedAddress = `${districtName}, Accra (GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+    const gp = ghanaPostInfo !== undefined ? ghanaPostInfo : this.resolvedGhanaPost();
+    this.updateMarker(lat, lng, gp);
+
+    if (this.map) {
+      if (zoom) {
+        this.map.setView([lat, lng], zoom, { animate: true });
+      } else {
+        this.map.panTo([lat, lng], { animate: true });
+      }
+    }
+
+    const formattedAddress = gp
+      ? `${gp.code} - ${gp.street ? gp.street + ', ' : ''}${gp.area || gp.district}, ${gp.region} (GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)})`
+      : `${districtName}, Accra (GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+
     this.lastEmittedAddress = formattedAddress;
 
     this.locationSelected.emit({

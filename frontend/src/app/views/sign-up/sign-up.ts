@@ -10,8 +10,10 @@ import { Router, RouterLink } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators, FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
+import { ThemeStore } from '../../services/theme';
 import { AlertService } from '../../services/alert.service';
 import { RoleType } from '../../models/installation.model';
+import { PhoneInputComponent } from '../../components/phone-input/phone-input';
 
 export interface RoleOption {
   id: RoleType;
@@ -24,126 +26,124 @@ export interface RoleOption {
 @Component({
   selector: 'app-sign-up',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, MatIconModule],
+  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, MatIconModule, PhoneInputComponent],
   template: `
-    <div class="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center relative overflow-hidden font-sans p-3 sm:p-6 lg:p-10 selection:bg-emerald-500/30 selection:text-emerald-200">
+    <div class="min-h-screen bg-white text-[#111215] dark:bg-[#111215] dark:text-white flex items-center justify-center relative overflow-hidden font-sans p-3 sm:p-6 lg:p-10 selection:bg-[#59000A] selection:text-white transition-colors duration-200">
       
-      <!-- Ambient Studio Lighting & Grid Pattern -->
-      <div class="absolute -top-40 -right-40 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[160px] pointer-events-none"></div>
-      <div class="absolute -bottom-40 -left-40 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[160px] pointer-events-none"></div>
-      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-teal-500/5 rounded-full blur-[180px] pointer-events-none"></div>
-      <div class="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:28px_28px] opacity-35 pointer-events-none"></div>
+      <!-- Subtle Brand Accent Glow -->
+      <div class="absolute -top-40 -right-40 w-[600px] h-[600px] bg-[#59000A]/10 dark:bg-[#59000A]/30 rounded-full blur-[160px] pointer-events-none"></div>
+      <div class="absolute -bottom-40 -left-40 w-[600px] h-[600px] bg-[#59000A]/10 dark:bg-[#59000A]/20 rounded-full blur-[160px] pointer-events-none"></div>
 
       <!-- Main Shell Container -->
       <div class="w-full max-w-6xl mx-auto relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch my-auto">
 
         <!-- ========================================================================= -->
-        <!-- LEFT COLUMN: LUXURY ARCHITECTURAL SHOWCASE & CRAFTSMANSHIP                -->
+        <!-- LEFT COLUMN: ARCHITECTURAL SHOWCASE & ONBOARDING GUARANTEES               -->
         <!-- ========================================================================= -->
-        <div class="hidden lg:flex lg:col-span-5 flex-col justify-between p-8 rounded-3xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-xl relative overflow-hidden shadow-2xl">
+        <div class="hidden lg:flex lg:col-span-5 flex-col justify-between p-8 rounded-3xl bg-slate-50 dark:bg-[#181A1F] border border-slate-200 dark:border-white/10 relative overflow-hidden shadow-xl dark:shadow-2xl">
           
-          <!-- Subtle corner accent line -->
-          <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-500 via-emerald-500 to-indigo-500"></div>
+          <!-- Burgundy accent line -->
+          <div class="absolute top-0 left-0 right-0 h-1 bg-[#59000A]"></div>
 
           <!-- Top Brand Identity Header -->
           <div class="space-y-4">
             <div class="flex items-center justify-between">
               <a routerLink="/landing" class="flex items-center gap-3 group cursor-pointer">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-900 to-slate-950 border border-emerald-500/30 text-white flex items-center justify-center font-mono font-black text-sm shadow-md group-hover:border-emerald-400 transition-colors">
-                  <span class="text-emerald-400">DM</span>
+                <div class="w-10 h-10 rounded-xl bg-[#59000A] text-white flex items-center justify-center font-mono font-black text-sm shadow-md">
+                  DM
                 </div>
                 <div>
                   <div class="flex items-center gap-1.5">
-                    <span class="text-base font-black tracking-tight text-white">DoorMaster</span>
-                    <span class="text-[9px] uppercase font-mono px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded font-bold tracking-wider">
+                    <span class="text-base font-black tracking-tight text-[#111215] dark:text-white">DoorMaster</span>
+                    <span class="text-[9px] uppercase font-mono px-1.5 py-0.5 bg-[#59000A]/10 text-[#59000A] dark:bg-[#59000A]/40 dark:text-rose-200 border border-[#59000A]/30 rounded font-bold tracking-wider">
                       PRO
                     </span>
                   </div>
-                  <p class="text-[10px] text-slate-400 font-mono">Architectural Hardware & Fleet Ops</p>
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">Architectural Hardware &amp; Fleet Ops</p>
                 </div>
               </a>
 
-              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-[10px] font-mono text-emerald-400">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white dark:bg-[#111215] border border-slate-200 dark:border-white/10 text-[10px] font-mono text-[#59000A] dark:text-rose-300">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#59000A] dark:bg-rose-400 animate-pulse"></span>
                 <span>ONBOARDING DESK</span>
               </div>
             </div>
 
             <div class="pt-2">
-              <h1 class="text-2xl font-black text-white tracking-tight leading-tight">
+              <h1 class="text-2xl font-black text-[#111215] dark:text-white tracking-tight leading-tight">
                 Join the Precision <br />
-                <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-indigo-400">
+                <span class="text-[#59000A] dark:text-rose-300">
                   Installation Network.
                 </span>
               </h1>
-              <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              <p class="text-xs text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
                 Connect your field specialty to our digital audit trail. Seamless job routing, verified milestone payouts, and telemetry from atelier to handover.
               </p>
             </div>
           </div>
 
           <!-- Center Showcase Card: Quality & Standards Checklist -->
-          <div class="my-6 p-4 rounded-2xl bg-slate-950/70 border border-slate-800/80 space-y-3 shadow-inner">
-            <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1.5">
-              <mat-icon class="!text-sm text-emerald-400">verified_user</mat-icon>
+          <div class="my-6 p-4 rounded-2xl bg-white dark:bg-[#111215] border border-slate-200 dark:border-white/10 space-y-3 shadow-xs">
+            <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-1.5">
+              <mat-icon class="!text-sm text-[#59000A] dark:text-rose-300">verified_user</mat-icon>
               <span>Atelier Onboarding Guarantees</span>
             </span>
 
             <div class="space-y-2.5 text-xs">
               <div class="flex items-start gap-2.5">
-                <div class="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                <div class="w-5 h-5 rounded-full bg-[#59000A] text-white flex items-center justify-center shrink-0 mt-0.5">
                   <mat-icon class="!text-xs">check</mat-icon>
                 </div>
                 <div>
-                  <p class="font-bold text-white text-[11px]">Millimetric Audit Trail</p>
-                  <p class="text-[10px] text-slate-400 leading-normal">Digital plumb, level, and pivot checks recorded with GPS timestamp.</p>
+                  <p class="font-bold text-[#111215] dark:text-white text-[11px]">Millimetric Audit Trail</p>
+                  <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-normal">Digital plumb, level, and pivot checks recorded with GPS timestamp.</p>
                 </div>
               </div>
 
               <div class="flex items-start gap-2.5">
-                <div class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0 mt-0.5">
+                <div class="w-5 h-5 rounded-full bg-[#59000A] text-white flex items-center justify-center shrink-0 mt-0.5">
                   <mat-icon class="!text-xs">check</mat-icon>
                 </div>
                 <div>
-                  <p class="font-bold text-white text-[11px]">Instant Payout Verification</p>
-                  <p class="text-[10px] text-slate-400 leading-normal">Fast milestone clearances and bonus threshold allocations.</p>
+                  <p class="font-bold text-[#111215] dark:text-white text-[11px]">Instant Payout Verification</p>
+                  <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-normal">Fast milestone clearances and bonus threshold allocations.</p>
                 </div>
               </div>
 
               <div class="flex items-start gap-2.5">
-                <div class="w-5 h-5 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+                <div class="w-5 h-5 rounded-full bg-[#59000A] text-white flex items-center justify-center shrink-0 mt-0.5">
                   <mat-icon class="!text-xs">check</mat-icon>
                 </div>
                 <div>
-                  <p class="font-bold text-white text-[11px]">Real-Time Fleet Coordination</p>
-                  <p class="text-[10px] text-slate-400 leading-normal">Live delivery truck tracking with automated ETA notifications.</p>
+                  <p class="font-bold text-[#111215] dark:text-white text-[11px]">Real-Time Fleet Coordination</p>
+                  <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-normal">Live delivery truck tracking with automated ETA notifications.</p>
                 </div>
               </div>
             </div>
 
             <!-- Certified Standards Footer -->
-            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-center">
-              <div class="p-2 rounded-xl bg-slate-900/70 border border-slate-800/60">
-                <span class="block text-xs font-black font-mono text-emerald-400">EN 12209</span>
-                <span class="text-[9px] uppercase tracking-wider text-slate-400 font-mono">Hardware Spec</span>
+            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-white/10 text-center">
+              <div class="p-2 rounded-xl bg-slate-50 dark:bg-[#181A1F] border border-slate-200 dark:border-white/10">
+                <span class="block text-xs font-black font-mono text-[#59000A] dark:text-rose-300">EN 12209</span>
+                <span class="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">Hardware Spec</span>
               </div>
-              <div class="p-2 rounded-xl bg-slate-900/70 border border-slate-800/60">
-                <span class="block text-xs font-black font-mono text-teal-400">10-Year</span>
-                <span class="text-[9px] uppercase tracking-wider text-slate-400 font-mono">Core Warranty</span>
+              <div class="p-2 rounded-xl bg-slate-50 dark:bg-[#181A1F] border border-slate-200 dark:border-white/10">
+                <span class="block text-xs font-black font-mono text-[#111215] dark:text-white">10-Year</span>
+                <span class="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">Core Warranty</span>
               </div>
             </div>
           </div>
 
           <!-- Bottom Assurance / Standards -->
-          <div class="pt-4 border-t border-slate-800/80 space-y-2">
-            <div class="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+          <div class="pt-4 border-t border-slate-200 dark:border-white/10 space-y-2">
+            <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
               <span class="flex items-center gap-1.5">
-                <mat-icon class="!text-xs text-emerald-400">security</mat-icon>
+                <mat-icon class="!text-xs text-[#59000A] dark:text-rose-300">security</mat-icon>
                 <span>Enterprise Identity Governance</span>
               </span>
               <span>Encrypted Storage</span>
             </div>
-            <p class="text-[11px] text-slate-500 italic">
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 italic">
               "Accounts are verified by the Operations Governance Desk to preserve precision hanging certifications."
             </p>
           </div>
@@ -152,66 +152,80 @@ export interface RoleOption {
         <!-- ========================================================================= -->
         <!-- RIGHT COLUMN: REGISTRATION FORM                                            -->
         <!-- ========================================================================= -->
-        <div class="lg:col-span-7 p-6 sm:p-10 rounded-3xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-2xl shadow-2xl flex flex-col justify-between relative">
+        <div class="lg:col-span-7 p-6 sm:p-10 rounded-3xl bg-white dark:bg-[#181A1F] border border-slate-200 dark:border-white/10 shadow-xl dark:shadow-2xl flex flex-col justify-between relative">
           
           <div>
-            <!-- Top Controls: Showcase Backlink + Tab Switcher -->
-            <div class="flex items-center justify-between pb-6 border-b border-slate-800/80">
+            <!-- Top Controls: Backlink + Theme Toggle + Tab Switcher -->
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-6 border-b border-slate-200 dark:border-white/10">
               <a 
                 routerLink="/landing" 
-                class="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors group cursor-pointer"
+                class="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-[#111215] dark:hover:text-white transition-colors group cursor-pointer"
               >
                 <mat-icon class="!text-sm group-hover:-translate-x-0.5 transition-transform">arrow_back</mat-icon>
-                <span>Public Showcase</span>
+                <span>Back to Home</span>
               </a>
 
-              <div class="flex items-center p-1 rounded-xl bg-slate-950/80 border border-slate-800">
-                <a
-                  routerLink="/signin"
-                  class="px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-colors cursor-pointer"
-                >
-                  Sign In
-                </a>
+              <div class="flex items-center gap-2">
                 <button
                   type="button"
-                  class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-xs cursor-default"
+                  (click)="themeStore.toggleTheme()"
+                  class="h-8 px-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 hover:bg-slate-200 dark:bg-[#111215] dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                  [title]="themeStore.isDark() ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
                 >
-                  Create Account
+                  <mat-icon class="!text-sm" [class.text-amber-500]="!themeStore.isDark()" [class.text-rose-300]="themeStore.isDark()">
+                    {{ themeStore.isDark() ? 'dark_mode' : 'light_mode' }}
+                  </mat-icon>
+                  <span class="hidden sm:inline">{{ themeStore.isDark() ? 'Dark' : 'Light' }}</span>
                 </button>
+
+                <div class="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-[#111215] border border-slate-200 dark:border-white/10">
+                  <a
+                    routerLink="/signin"
+                    class="px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-[#111215] dark:hover:text-white transition-colors cursor-pointer"
+                  >
+                    Sign In
+                  </a>
+                  <button
+                    type="button"
+                    class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-[#59000A] text-white shadow-xs cursor-default"
+                  >
+                    Create Account
+                  </button>
+                </div>
               </div>
             </div>
 
             <!-- Header Text -->
             <div class="mt-6 mb-6">
               <div class="lg:hidden flex items-center gap-2.5 mb-4">
-                <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-900 to-slate-950 border border-emerald-500/30 text-white flex items-center justify-center font-mono font-black text-xs shadow-md">
-                  <span class="text-emerald-400">DM</span>
+                <div class="w-8 h-8 rounded-xl bg-[#59000A] text-white flex items-center justify-center font-mono font-black text-xs shadow-md">
+                  DM
                 </div>
                 <div class="flex items-center gap-1.5">
-                  <span class="text-sm font-black tracking-tight text-white">DoorMaster</span>
-                  <span class="text-[9px] uppercase font-mono px-1.5 py-0.2 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded font-bold">
+                  <span class="text-sm font-black tracking-tight text-[#111215] dark:text-white">DoorMaster</span>
+                  <span class="text-[9px] uppercase font-mono px-1.5 py-0.2 bg-[#59000A]/10 text-[#59000A] dark:bg-[#59000A]/40 dark:text-rose-200 border border-[#59000A]/30 rounded font-bold">
                     PRO
                   </span>
                 </div>
               </div>
 
-              <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">Create Atelier Account</h2>
-              <p class="text-xs sm:text-sm text-slate-400 mt-1">
+              <h2 class="text-2xl sm:text-3xl font-black text-[#111215] dark:text-white tracking-tight">Create Atelier Account</h2>
+              <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
                 Select your operational role and register credentials for DoorMaster operations access.
               </p>
             </div>
 
             <!-- Feedback Banners -->
             @if (authErrorMessage()) {
-              <div class="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 animate-in fade-in duration-150">
-                <mat-icon class="!text-base text-rose-400 shrink-0">error_outline</mat-icon>
+              <div class="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2 animate-in fade-in duration-150">
+                <mat-icon class="!text-base text-rose-500 dark:text-rose-400 shrink-0">error_outline</mat-icon>
                 <span>{{ authErrorMessage() }}</span>
               </div>
             }
 
             @if (authSuccessMessage()) {
-              <div class="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in duration-150">
-                <mat-icon class="!text-base text-emerald-400 shrink-0">check_circle</mat-icon>
+              <div class="mb-4 p-3 rounded-xl bg-[#59000A]/10 border border-[#59000A]/30 text-[#59000A] dark:text-rose-200 text-xs flex items-center gap-2 animate-in fade-in duration-150">
+                <mat-icon class="!text-base text-[#59000A] dark:text-rose-300 shrink-0">check_circle</mat-icon>
                 <span>{{ authSuccessMessage() }}</span>
               </div>
             }
@@ -223,17 +237,17 @@ export interface RoleOption {
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <!-- Full Name Input -->
                 <div>
-                  <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-300 mb-1.5">
+                  <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                     Full Legal Name *
                   </label>
                   <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                       <mat-icon class="!text-base">badge</mat-icon>
                     </div>
                     <input
                       type="text"
                       formControlName="name"
-                      class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all font-sans"
+                      class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-[#111215] border border-slate-200 dark:border-white/10 text-[#111215] dark:text-white text-xs sm:text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#59000A] focus:ring-4 focus:ring-[#59000A]/10 transition-all font-sans"
                       placeholder="e.g. David Mensah"
                     />
                   </div>
@@ -241,17 +255,17 @@ export interface RoleOption {
 
                 <!-- Work Email Input -->
                 <div>
-                  <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-300 mb-1.5">
+                  <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                     Work Email Identifier *
                   </label>
                   <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                       <mat-icon class="!text-base">alternate_email</mat-icon>
                     </div>
                     <input
                       type="email"
                       formControlName="email"
-                      class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all font-mono"
+                      class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-[#111215] border border-slate-200 dark:border-white/10 text-[#111215] dark:text-white text-xs sm:text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#59000A] focus:ring-4 focus:ring-[#59000A]/10 transition-all font-mono"
                       placeholder="david@doormasterops.com"
                     />
                   </div>
@@ -260,26 +274,20 @@ export interface RoleOption {
 
               <!-- Phone & Direct Contact -->
               <div>
-                <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-300 mb-1.5">
+                <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Direct Mobile Phone (Dispatch SMS) *
                 </label>
-                <div class="relative">
-                  <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <mat-icon class="!text-base">phone</mat-icon>
-                  </div>
-                  <input
-                    type="tel"
-                    formControlName="phone"
-                    class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all font-mono"
-                    placeholder="+233 24 555 0199"
-                  />
-                </div>
+                <app-phone-input 
+                  formControlName="phone"
+                  placeholder="24 555 0199"
+                  customBorderClass="border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#111215]"
+                ></app-phone-input>
               </div>
 
               <!-- Operational Role Selector: Interactive Visual Cards -->
               <div>
-                <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-300 mb-1.5">
-                  Operational Role & Access Tier *
+                <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Operational Role &amp; Access Tier *
                 </label>
                 
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -292,20 +300,21 @@ export interface RoleOption {
                       (keydown.space)="$event.preventDefault(); selectRole(role.id)"
                       class="p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between"
                       [class]="registerForm.get('role')?.value === role.id 
-                        ? 'border-emerald-500 bg-emerald-500/10 shadow-xs ring-1 ring-emerald-500/40 text-white' 
-                        : 'border-slate-800 bg-slate-950/60 hover:bg-slate-800/40 text-slate-300'"
+                        ? 'border-[#59000A] bg-[#59000A] text-white shadow-xs ring-1 ring-[#59000A]/40' 
+                        : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#111215] hover:bg-slate-100 dark:hover:bg-white/5 text-[#111215] dark:text-slate-300'"
                     >
                       <div class="flex items-center justify-between mb-1">
-                        <mat-icon class="!text-lg" [class]="registerForm.get('role')?.value === role.id ? 'text-emerald-400' : 'text-slate-400'">
+                        <mat-icon class="!text-lg" [class]="registerForm.get('role')?.value === role.id ? 'text-white' : 'text-slate-500 dark:text-slate-400'">
                           {{ role.icon }}
                         </mat-icon>
                         <span class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded" 
-                          [class]="registerForm.get('role')?.value === role.id ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'">
+                          [class]="registerForm.get('role')?.value === role.id ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-400'">
                           {{ role.badge }}
                         </span>
                       </div>
                       <p class="text-xs font-bold truncate leading-tight">{{ role.title }}</p>
-                      <p class="text-[10px] text-slate-400 line-clamp-1 mt-0.5 leading-tight">{{ role.description }}</p>
+                      <p class="text-[10px] line-clamp-1 mt-0.5 leading-tight"
+                        [class]="registerForm.get('role')?.value === role.id ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'">{{ role.description }}</p>
                     </div>
                   }
                 </div>
@@ -313,23 +322,23 @@ export interface RoleOption {
 
               <!-- Password Input with Live Strength Bar -->
               <div>
-                <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-300 mb-1.5">
+                <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Master Security Key (Password) *
                 </label>
                 <div class="relative">
-                  <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                     <mat-icon class="!text-base">lock</mat-icon>
                   </div>
                   <input
                     [type]="showPassword() ? 'text' : 'password'"
                     formControlName="password"
-                    class="w-full pl-10 pr-11 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all font-mono"
+                    class="w-full pl-10 pr-11 py-2.5 rounded-xl bg-slate-50 dark:bg-[#111215] border border-slate-200 dark:border-white/10 text-[#111215] dark:text-white text-xs sm:text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#59000A] focus:ring-4 focus:ring-[#59000A]/10 transition-all font-mono"
                     placeholder="Minimum 8 characters with numbers & symbols"
                   />
                   <button
                     type="button"
                     (click)="toggleShowPassword()"
-                    class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 cursor-pointer"
+                    class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 dark:text-slate-500 hover:text-[#111215] dark:hover:text-slate-300 cursor-pointer"
                     [title]="showPassword() ? 'Hide Password' : 'Show Password'"
                   >
                     <mat-icon class="!text-lg">{{ showPassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
@@ -339,27 +348,27 @@ export interface RoleOption {
                 <!-- Password Strength Meter -->
                 <div class="mt-2 space-y-1">
                   <div class="flex items-center justify-between text-[10px] font-mono">
-                    <span class="text-slate-400">Security Grade:</span>
-                    <span class="font-bold text-white">{{ passwordStrength().label }}</span>
+                    <span class="text-slate-500 dark:text-slate-400">Security Grade:</span>
+                    <span class="font-bold text-[#111215] dark:text-white">{{ passwordStrength().label }}</span>
                   </div>
                   <div class="grid grid-cols-4 gap-1.5 h-1">
-                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 1 ? passwordStrength().color : 'bg-slate-800'"></div>
-                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 2 ? passwordStrength().color : 'bg-slate-800'"></div>
-                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 3 ? passwordStrength().color : 'bg-slate-800'"></div>
-                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 4 ? passwordStrength().color : 'bg-slate-800'"></div>
+                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 1 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 2 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 3 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 4 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
                   </div>
                 </div>
               </div>
 
               <!-- Terms & Atelier Agreement -->
               <div class="pt-1">
-                <label class="flex items-start gap-2.5 cursor-pointer text-xs text-slate-400 select-none">
+                <label class="flex items-start gap-2.5 cursor-pointer text-xs text-slate-600 dark:text-slate-400 select-none">
                   <input 
                     type="checkbox" 
                     [ngModel]="agreedToTerms()" 
                     (ngModelChange)="agreedToTerms.set($event)"
                     [ngModelOptions]="{standalone: true}"
-                    class="w-4 h-4 rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-emerald-500/30 cursor-pointer mt-0.5 shrink-0" 
+                    class="w-4 h-4 rounded bg-slate-50 dark:bg-[#111215] border-slate-300 dark:border-white/20 text-[#59000A] focus:ring-[#59000A]/30 cursor-pointer mt-0.5 shrink-0" 
                   />
                   <span class="leading-relaxed">
                     I acknowledge DoorMaster precision standards (±1.5mm tolerance threshold) and agree to digital milestone sign-off rules.
@@ -371,10 +380,10 @@ export interface RoleOption {
               <button
                 type="submit"
                 [disabled]="isSubmitting() || !agreedToTerms()"
-                class="w-full mt-2 py-3.5 px-4 rounded-xl font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl transition-all active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:via-teal-400 hover:to-emerald-500 text-slate-950 shadow-emerald-500/20 font-mono"
+                class="w-full mt-2 py-3.5 px-4 rounded-xl font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl transition-all active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-[#59000A] hover:bg-[#72000E] text-white shadow-[#59000A]/25 font-mono"
               >
                 @if (isSubmitting()) {
-                  <span class="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                  <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   <span>Registering Credentials...</span>
                 } @else {
                   <mat-icon class="!text-base">person_add</mat-icon>
@@ -385,7 +394,7 @@ export interface RoleOption {
           </div>
 
           <!-- Footer Metadata -->
-          <div class="mt-8 pt-4 border-t border-slate-800/80 flex items-center justify-center text-[11px] text-slate-500 font-mono">
+          <div class="mt-8 pt-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-center text-[11px] text-slate-500 dark:text-slate-400 font-mono">
             <span>DoorMaster Systems &copy; 2026</span>
           </div>
         </div>
@@ -396,6 +405,7 @@ export interface RoleOption {
 })
 export class SignUp {
   readonly store = inject(InstallationStore);
+  readonly themeStore = inject(ThemeStore);
   readonly alert = inject(AlertService);
   readonly fb = inject(FormBuilder);
   readonly router = inject(Router);
@@ -417,7 +427,7 @@ export class SignUp {
     },
     {
       id: 'manager',
-      title: 'Operations Manager',
+      title: 'Manager',
       icon: 'shield_person',
       badge: 'HQ Oversight',
       description: 'Fleet radar, crew dispatch, bonus approvals'
@@ -431,14 +441,14 @@ export class SignUp {
     },
     {
       id: 'dispatcher',
-      title: 'Logistics Dispatcher',
+      title: 'Driver',
       icon: 'local_shipping',
       badge: 'Fleet Transit',
       description: 'Truck manifests, transit routes & site handover'
     },
     {
       id: 'shop_manager',
-      title: 'Shop Bay Head',
+      title: 'Shop Attendant',
       icon: 'storefront',
       badge: 'Workshop Bay',
       description: 'Bespoke door specs & counter bookings'

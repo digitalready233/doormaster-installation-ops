@@ -2,6 +2,7 @@ import prisma from './prisma';
 import { Prisma } from '@prisma/client';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { computeDefaultInstallationPrice, inferInstallationOption } from './doors-service';
 
 function getDataFile(): string {
   const candidates = [
@@ -221,6 +222,7 @@ export async function scrapeAllPages(startPage = 1, endPage = 28): Promise<{
       const codeMatch = p.title.match(/[A-Z0-9]+-[A-Z0-9-]+|[A-Z]{2,}\s?\d+|G\d+[\w-]+/i);
       const modelCode = codeMatch ? codeMatch[0].replace(/\s+/g, '-').toUpperCase() : `DM-${100 + count}`;
       const specs = inferSpecs(p.title, p.category);
+      const installOpt = inferInstallationOption(p.title, p.category);
       const doorId = `DMO-${String(count).padStart(3, '0')}`;
 
       const doorRecord = {
@@ -235,6 +237,7 @@ export async function scrapeAllPages(startPage = 1, endPage = 28): Promise<{
         fireRating: specs.fireRating,
         acousticRating: specs.acousticRating,
         unitPrice: new Prisma.Decimal(p.numericPrice),
+        installationPrice: new Prisma.Decimal(computeDefaultInstallationPrice(p.title, p.category)),
         formattedPrice: p.formattedPrice,
         stockQuantity: Math.floor(Math.random() * 8) + 2,
         leadTimeDays: specs.leadTimeDays,
@@ -247,7 +250,13 @@ export async function scrapeAllPages(startPage = 1, endPage = 28): Promise<{
         warrantyYears: specs.warrantyYears,
       };
 
-      allDoors.push(doorRecord);
+      allDoors.push({
+        ...doorRecord,
+        unitPrice: p.numericPrice,
+        installationPrice: installOpt.price,
+        installationSeries: installOpt.series,
+        installationVariant: installOpt.variant,
+      });
       categoryStats.set(p.category, (categoryStats.get(p.category) || 0) + 1);
 
       try {

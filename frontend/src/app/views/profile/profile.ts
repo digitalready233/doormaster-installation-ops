@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
 import { AlertService } from '../../services/alert.service';
 import { ApiAuthUser, RoleType } from '../../models/installation.model';
+import { PhoneInputComponent } from '../../components/phone-input/phone-input';
 
 export interface AvatarPreset {
   label: string;
@@ -14,7 +15,7 @@ export interface AvatarPreset {
 @Component({
   selector: 'app-profile',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, MatIconModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, MatIconModule, PhoneInputComponent],
   template: `
     <div class="space-y-6 max-w-7xl mx-auto">
       
@@ -214,17 +215,10 @@ export interface AvatarPreset {
                 <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 font-mono mb-1.5">
                   Direct Mobile Phone (Dispatch SMS) *
                 </label>
-                <div class="relative">
-                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <mat-icon class="!text-base">phone</mat-icon>
-                  </div>
-                  <input 
-                    type="tel" 
-                    formControlName="phone" 
-                    class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" 
-                    placeholder="+233 24 555 0100"
-                  />
-                </div>
+                <app-phone-input 
+                  formControlName="phone" 
+                  placeholder="24 555 0100"
+                ></app-phone-input>
               </div>
 
               <!-- Avatar Photo: URL Input + 1-Click Preset Gallery -->
@@ -340,7 +334,7 @@ export class Profile {
   readonly isSaving = signal<boolean>(false);
 
   readonly avatarPresets: AvatarPreset[] = [
-    { label: 'Ops Director', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80' },
+    { label: 'Manager', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80' },
     { label: 'Master Tech', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80' },
     { label: 'Fleet Driver', url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&auto=format&fit=crop&q=80' },
     { label: 'Joiner Head', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80' },
@@ -359,7 +353,10 @@ export class Profile {
 
   constructor() {
     effect(() => {
-      this.resetFormToCurrent();
+      // Only reset when form is not actively dirty / being edited by user
+      if (!this.profileForm.dirty) {
+        this.resetFormToCurrent();
+      }
     });
   }
 
@@ -426,12 +423,12 @@ export class Profile {
     const role = this.currentUser().role;
     switch (role) {
       case 'admin': return 'System Administrator';
-      case 'manager': return 'Operations Manager';
+      case 'manager': return 'Manager';
       case 'installer': return 'Master Field Installer';
       case 'client': return 'Client / Site Owner';
       case 'account_officer': return 'Accounts & Finance Officer';
-      case 'shop_manager': return 'Shop & Atelier Head';
-      case 'dispatcher': return 'Logistics Lead Driver';
+      case 'shop_manager': return 'Shop Attendant';
+      case 'dispatcher': return 'Driver';
       default: return role || 'Operational User';
     }
   });

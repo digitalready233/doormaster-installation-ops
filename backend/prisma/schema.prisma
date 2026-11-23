@@ -22,6 +22,7 @@ model Door {
   fireRating         String?           @default("Standard / FD30") @map("fire_rating") @db.VarChar(100)
   acousticRating     String?           @default("35 dB") @map("acoustic_rating") @db.VarChar(100)
   unitPrice          Decimal           @default(2500.00) @map("unit_price") @db.Decimal(12, 2)
+  installationPrice  Decimal           @default(250.00) @map("installation_price") @db.Decimal(12, 2)
   formattedPrice     String?           @default("₵2,500.00") @map("formatted_price") @db.VarChar(100)
   stockQuantity      Int               @default(5) @map("stock_quantity")
   leadTimeDays       Int               @default(3) @map("lead_time_days")

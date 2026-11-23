@@ -5,11 +5,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
 import { AlertService } from '../../services/alert.service';
 import { RoleType } from '../../models/installation.model';
+import { PhoneInputComponent } from '../phone-input/phone-input';
 
 @Component({
   selector: 'app-add-user-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, PhoneInputComponent],
   template: `
     <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
       
@@ -92,15 +93,10 @@ import { RoleType } from '../../models/installation.model';
                 <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Phone Number <span class="text-rose-500">*</span>
                 </label>
-                <div class="relative">
-                  <mat-icon class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 !text-lg !w-5 !h-5">phone</mat-icon>
-                  <input 
-                    type="tel" 
-                    formControlName="phone"
-                    placeholder="+233 24 555 0199"
-                    class="w-full pl-10 pr-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
+                <app-phone-input 
+                  formControlName="phone"
+                  placeholder="24 555 0199"
+                ></app-phone-input>
                 @if (userForm.get('phone')?.touched && userForm.get('phone')?.invalid) {
                   <p class="text-[11px] text-rose-500 mt-1">Phone number is required.</p>
                 }
@@ -119,10 +115,10 @@ import { RoleType } from '../../models/installation.model';
                   class="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer appearance-none"
                 >
                   <option value="admin">System Administrator (Full Security & Governance)</option>
-                  <option value="manager">Operations Manager (Fleet Dispatch & Operations)</option>
+                  <option value="manager">Manager (Fleet Dispatch & Operations)</option>
                   <option value="installer">Installer (Site Clock-in & Checklists)</option>
-                  <option value="shop_manager">Shop Manager (Showroom Counter & Booking)</option>
-                  <option value="dispatcher">Logistics Dispatcher / Driver (Fleet Transport)</option>
+                  <option value="shop_manager">Shop Attendant (Showroom Counter & Booking)</option>
+                  <option value="dispatcher">Driver (Fleet Delivery Transport)</option>
                   <option value="account_officer">Finance & Account Officer (Auditing & Funds)</option>
                   <option value="client">Client / Site Owner (Tracking & Verification)</option>
                   @for (customRole of customRoles(); track customRole.id) {
@@ -323,10 +319,10 @@ import { RoleType } from '../../models/installation.model';
             <button 
               type="submit"
               [disabled]="userForm.invalid || isSubmitting()"
-              class="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
+              class="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
             >
               @if (isSubmitting()) {
-                <span class="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                <span class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                 <span>Creating Account...</span>
               } @else {
                 <mat-icon class="!text-sm !w-4 !h-4">check</mat-icon>
@@ -358,13 +354,13 @@ export class AddUserModal {
 
   readonly selectedTeamId = signal<string>('team-alpha');
   readonly selectedTeamRole = signal<'lead' | 'assistant'>('assistant');
-  readonly selectedTeamPosition = signal<string>('Installation Technician');
+  readonly selectedTeamPosition = signal<string>('Installation Installer');
 
   readonly selectedTeamPositions = () => {
     const team = this.installerTeams().find(t => t.id === this.selectedTeamId());
     return team?.positions?.length
       ? team.positions
-      : ['Team Lead', 'Lead Master Tech', 'Senior Acoustic Tech', 'Smart Lock Specialist', 'Precision Joiner Tech', 'Installation Technician'];
+      : ['Team Lead', 'Lead Master Installer', 'Senior Acoustic Installer', 'Smart Lock Specialist', 'Precision Joiner Installer', 'Installation Installer'];
   };
 
   selectInstallerTeam(teamId: string) {
@@ -403,8 +399,8 @@ export class AddUserModal {
 
     const val = this.userForm.getRawValue();
     if (val.role === 'shop_manager' && !val.shopId) {
-      this.errorMessage.set('Please select the DoorMaster shop this Shop Manager is assigned to.');
-      this.alert.toastWarning('Shop Assignment Required', 'Shop Managers must be assigned to a DoorMaster shop.');
+      this.errorMessage.set('Please select the DoorMaster shop this Shop Attendant is assigned to.');
+      this.alert.toastWarning('Shop Assignment Required', 'Shop Attendants must be assigned to a DoorMaster shop.');
       return;
     }
 

@@ -64,7 +64,7 @@ import { InstallationJob } from '../../models/installation.model';
               GH₵{{ store.totalShopCollections().toLocaleString() }}
             </span>
           </div>
-          <p class="text-[11px] text-slate-400 mt-2">Collected at counter by Shop Manager</p>
+          <p class="text-[11px] text-slate-400 mt-2">Collected at counter by Shop Attendant</p>
         </div>
 
         <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
@@ -148,8 +148,11 @@ import { InstallationJob } from '../../models/installation.model';
                     </td>
 
                     <td class="py-3.5 px-4 whitespace-nowrap">
-                      <span class="uppercase font-bold text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                        {{ job.shopBooking?.paymentMethod || 'momo' }}
+                      <span
+                        class="uppercase font-bold text-[10px] px-2.5 py-0.5 rounded border inline-block"
+                        [class]="getPaymentMethodBadgeClass(job.shopBooking?.paymentMethod)"
+                      >
+                        {{ formatPaymentMethodLabel(job.shopBooking?.paymentMethod) }}
                       </span>
                     </td>
 
@@ -469,32 +472,60 @@ export class FinancePortal {
     return this.store.jobs().filter(j => j.shopBooking != null || j.status === 'booked_at_shop');
   });
 
-  verifyPayment(jobId: string) {
-    this.store.verifyShopPayment(jobId, 'Reconciled against counter POS & MoMo merchant statement');
+  formatPaymentMethodLabel(method?: string): string {
+    const normalized = (method || 'momo').toLowerCase().trim();
+    if (normalized === 'dm_door') return 'DM Door';
+    if (normalized === 'pos_card') return 'POS';
+    if (normalized === 'bank_transfer') return 'Bank';
+    return method || 'momo';
   }
 
-  openDispatchModal(job: InstallationJob) {
-    this.activeDispatchJob.set(job);
-    this.dispatchForm.patchValue({
-      amount: job.technicianSiteFunds?.amount || 250,
-      transactionRef: `MOMO-TRX-${Math.floor(10000 + Math.random() * 90000)}`
-    });
+  getPaymentMethodBadgeClass(method?: string): string {
+    const normalized = (method || 'momo').toLowerCase().trim();
+    if (normalized === 'cash') {
+      return 'bg-emerald-600 text-white border-emerald-700';
+    }
+    if (normalized === 'momo' || normalized.includes('mobile')) {
+      return 'bg-yellow-400 text-slate-950 border-yellow-500';
+    }
+      if (normalized === 'pos' || normalized.includes('pos')) {
+        return 'bg-[#111215] text-white border-slate-700';
+      }
+      if (normalized.includes('bank')) {
+        return 'bg-blue-600 text-white border-blue-700';
+      }
+      if (normalized === 'dm_door') {
+        return 'bg-[#59000A] text-white border-[#470008]';
+      }
+      return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+    }
+
+    verifyPayment(jobId: string) {
+      this.store.verifyShopPayment(jobId, 'Reconciled against counter POS & MoMo merchant statement');
+    }
+
+    openDispatchModal(job: InstallationJob) {
+      this.activeDispatchJob.set(job);
+      this.dispatchForm.patchValue({
+        amount: job.technicianSiteFunds?.amount || 250,
+        transactionRef: `MOMO-TRX-${Math.floor(10000 + Math.random() * 90000)}`
+      });
+    }
+
+    closeDispatchModal() {
+      this.activeDispatchJob.set(null);
+    }
+
+    confirmFundDispatch() {
+      const job = this.activeDispatchJob();
+      if (!job || !this.dispatchForm.valid) return;
+      const val = this.dispatchForm.getRawValue();
+
+      this.store.dispatchTechnicianSiteFunds(job.id, {
+        amount: val.amount,
+        transactionRef: val.transactionRef
+      });
+
+      this.closeDispatchModal();
+    }
   }
-
-  closeDispatchModal() {
-    this.activeDispatchJob.set(null);
-  }
-
-  confirmFundDispatch() {
-    const job = this.activeDispatchJob();
-    if (!job || !this.dispatchForm.valid) return;
-    const val = this.dispatchForm.getRawValue();
-
-    this.store.dispatchTechnicianSiteFunds(job.id, {
-      amount: val.amount,
-      transactionRef: val.transactionRef
-    });
-
-    this.closeDispatchModal();
-  }
-}

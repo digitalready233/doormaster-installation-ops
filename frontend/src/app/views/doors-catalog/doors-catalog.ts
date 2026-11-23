@@ -38,9 +38,6 @@ interface ImagePreset {
           <h1 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
             Door Catalog & Specifications
           </h1>
-          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
-            Live catalog synchronized with <strong>https://doormaster.online/shop/</strong> featuring genuine DoorMaster product lines (Premium Villa, Royal Series, Smart Lock Doors, Turkey Interior Series, Reeded Glass, and Antifade Exterior Doors).
-          </p>
         </div>
 
         <!-- Header Actions: Live Scraper & Manual Add (Restricted to Operations Manager & Admin) -->
@@ -93,7 +90,7 @@ interface ImagePreset {
       </div>
 
       <!-- 2. Inventory Metrics KPI Ribbon -->
-      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+      <div class="grid grid-cols-2 gap-3.5" [class.lg:grid-cols-5]="store.canViewDoorPrices()" [class.lg:grid-cols-4]="!store.canViewDoorPrices()">
         <!-- Total Models -->
 
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-2xs">
@@ -143,17 +140,19 @@ interface ImagePreset {
           <span class="text-[10px] text-slate-400">Fabricated on commission</span>
         </div>
 
-        <!-- Inventory Value -->
-        <div class="col-span-2 lg:col-span-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-2xs">
-          <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
-            <span class="text-[11px] font-mono uppercase tracking-wider font-semibold text-emerald-700 dark:text-emerald-400">Stock Value</span>
-            <mat-icon class="!text-base text-emerald-500">payments</mat-icon>
+        <!-- Inventory Value (Admin & Finance only) -->
+        @if (store.canViewDoorPrices()) {
+          <div class="col-span-2 lg:col-span-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-2xs">
+            <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+              <span class="text-[11px] font-mono uppercase tracking-wider font-semibold text-emerald-700 dark:text-emerald-400">Stock Value</span>
+              <mat-icon class="!text-base text-emerald-500">payments</mat-icon>
+            </div>
+            <div class="text-2xl font-black text-slate-900 dark:text-white font-mono">
+              ₵{{ formattedTotalValue() }}
+            </div>
+            <span class="text-[10px] text-slate-400">{{ store.doorStats().totalUnits }} physical units in warehouse</span>
           </div>
-          <div class="text-2xl font-black text-slate-900 dark:text-white font-mono">
-            ₵{{ formattedTotalValue() }}
-          </div>
-          <span class="text-[10px] text-slate-400">{{ store.doorStats().totalUnits }} physical units in warehouse</span>
-        </div>
+        }
       </div>
 
       <!-- 3. Filter Controls Toolbar & Category Quick-Pills -->
@@ -240,16 +239,16 @@ interface ImagePreset {
         </div>
 
         <!-- Quick DoorMaster Category Filter Pills -->
-        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 no-scrollbar text-xs border-t border-slate-100 dark:border-slate-800/60">
+        <div class="flex flex-wrap items-center gap-1.5 pt-1.5 pb-0.5 text-xs border-t border-slate-100 dark:border-slate-800/60">
           <span class="text-[10px] font-mono uppercase text-slate-400 shrink-0 mr-1 flex items-center gap-1">
-            <mat-icon class="!text-xs">label</mat-icon>
+            <mat-icon class="!text-[12px] !w-3 !h-3 !leading-none">label</mat-icon>
             <span>Series:</span>
           </span>
           <button
             type="button"
             (click)="selectedCategory.set('all')"
-            class="px-2.5 py-1 rounded-lg text-[11px] font-medium shrink-0 transition-colors cursor-pointer border"
-            [class]="selectedCategory() === 'all' ? 'bg-slate-950 text-white dark:bg-emerald-500 dark:text-slate-950 border-transparent font-bold' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'"
+            class="h-6 px-2 py-0.5 rounded-md text-[10px] leading-none font-medium shrink-0 transition-colors cursor-pointer border inline-flex items-center"
+            [class]="selectedCategory() === 'all' ? 'bg-slate-950 text-white dark:bg-emerald-500 dark:text-white border-transparent font-bold' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'"
           >
             All ({{ store.doors().length }})
           </button>
@@ -257,10 +256,10 @@ interface ImagePreset {
             <button
               type="button"
               (click)="selectedCategory.set(cat.name)"
-              class="px-2.5 py-1 rounded-lg text-[11px] font-medium shrink-0 transition-colors cursor-pointer border flex items-center gap-1"
+              class="h-6 px-2 py-0.5 rounded-md text-[10px] leading-none font-medium shrink-0 transition-colors cursor-pointer border inline-flex items-center gap-1"
               [class]="selectedCategory() === cat.name ? 'bg-emerald-600 text-white border-transparent font-bold shadow-xs' : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'"
             >
-              <mat-icon class="!text-xs">{{ getCategoryIcon(cat.name) }}</mat-icon>
+              <mat-icon class="!text-[12px] !w-3 !h-3 !leading-none">{{ getCategoryIcon(cat.name) }}</mat-icon>
               <span>{{ cat.name }} ({{ cat.count }})</span>
             </button>
           }
@@ -331,7 +330,10 @@ interface ImagePreset {
                   <th class="py-3.5 px-4">Series / Category</th>
                   <th class="py-3.5 px-4">Dimensions & Material</th>
                   <th class="py-3.5 px-4">Hardware & Ratings</th>
-                  <th class="py-3.5 px-4">Price (₵)</th>
+                  @if (store.canViewDoorPrices()) {
+                    <th class="py-3.5 px-4">Price (₵)</th>
+                  }
+                  <th class="py-3.5 px-4">Install (₵)</th>
                   <th class="py-3.5 px-4">Stock Level</th>
                   <th class="py-3.5 px-4">Status</th>
                   <th class="py-3.5 pr-6 pl-4 text-right">Actions</th>
@@ -383,10 +385,10 @@ interface ImagePreset {
                     <!-- Category Badge -->
                     <td class="py-3.5 px-4">
                       <span
-                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-mono font-bold border"
+                        class="inline-flex items-center gap-1 px-1.5 py-0.5 leading-none rounded text-[10px] font-mono font-bold border"
                         [class]="getCategoryBadgeClass(door.category)"
                       >
-                        <mat-icon class="!text-xs">{{ getCategoryIcon(door.category) }}</mat-icon>
+                        <mat-icon class="!text-[11px] !w-3 !h-3 leading-none">{{ getCategoryIcon(door.category) }}</mat-icon>
                         <span>{{ door.category }}</span>
                       </span>
                     </td>
@@ -410,30 +412,39 @@ interface ImagePreset {
                       <div class="text-[11px] text-slate-700 dark:text-slate-300 font-medium truncate" [title]="door.hardwareSpecs">
                         {{ door.hardwareSpecs }}
                       </div>
-                      <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                      <div class="flex flex-wrap items-center gap-1 mt-1">
                         @if (door.fireRating && door.fireRating !== 'None' && door.fireRating !== 'None / Standard' && door.fireRating !== 'None / Residential') {
-                          <span class="px-1.5 py-0.5 rounded bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20 text-[9px] font-mono font-bold flex items-center gap-0.5">
-                            <mat-icon class="!text-[10px]">local_fire_department</mat-icon>
+                          <span class="px-1.5 py-0 leading-tight rounded bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20 text-[9px] font-mono font-bold inline-flex items-center gap-0.5">
+                            <mat-icon class="!text-[10px] !w-2.5 !h-2.5 leading-none">local_fire_department</mat-icon>
                             <span>{{ door.fireRating }}</span>
                           </span>
                         }
                         @if (door.acousticRating && door.acousticRating !== 'Standard') {
-                          <span class="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20 text-[9px] font-mono font-bold flex items-center gap-0.5">
-                            <mat-icon class="!text-[10px]">volume_off</mat-icon>
+                          <span class="px-1.5 py-0 leading-tight rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20 text-[9px] font-mono font-bold inline-flex items-center gap-0.5">
+                            <mat-icon class="!text-[10px] !w-2.5 !h-2.5 leading-none">volume_off</mat-icon>
                             <span>{{ door.acousticRating }}</span>
                           </span>
                         }
                       </div>
                     </td>
 
-                    <!-- Unit Price -->
+                    <!-- Unit Price (Admin & Finance only) -->
+                    @if (store.canViewDoorPrices()) {
+                      <td class="py-3.5 px-4">
+                        <div class="text-sm font-black font-mono text-slate-900 dark:text-white">
+                          {{ door.formattedPrice || ('₵' + (door.unitPrice | number:'1.0-0')) }}
+                        </div>
+                        <div class="text-[10px] text-slate-400">
+                          Lead: {{ door.leadTimeDays }}d
+                        </div>
+                      </td>
+                    }
+
+                    <!-- Installation Price -->
                     <td class="py-3.5 px-4">
-                      <div class="text-sm font-black font-mono text-slate-900 dark:text-white">
-                        {{ door.formattedPrice || ('₵' + (door.unitPrice | number:'1.0-0')) }}
-                      </div>
-                      <div class="text-[10px] text-slate-400">
-                        Lead: {{ door.leadTimeDays }}d
-                      </div>
+                      <span class="inline-flex items-center px-2 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 font-mono font-bold text-xs">
+                        ₵{{ (door.installationPrice ?? 250) | number:'1.0-0' }}
+                      </span>
                     </td>
 
                     <!-- Inventory Stock -->
@@ -476,6 +487,15 @@ interface ImagePreset {
                         </button>
 
                         @if (store.currentRole() === 'manager' || store.currentRole() === 'admin') {
+                          <button
+                            type="button"
+                            (click)="openEditModal(door)"
+                            class="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                            title="Edit Door Specifications & Installation Price"
+                          >
+                            <mat-icon class="!text-base">edit</mat-icon>
+                          </button>
+
                           <button
                             type="button"
                             (click)="confirmDelete(door)"
@@ -522,10 +542,10 @@ interface ImagePreset {
                 </div>
                 <div>
                   <h2 class="text-base font-bold text-slate-900 dark:text-white">
-                    Add New Door to Catalog
+                    {{ editingDoorId() ? 'Edit Door Specifications & Installation Price' : 'Add New Door to Catalog' }}
                   </h2>
                   <p class="text-xs text-slate-500 dark:text-slate-400">
-                    Register full technical specifications, hardware requirements, ratings, and inventory status.
+                    {{ editingDoorId() ? 'Update unit pricing, installation fee, hardware specs, and inventory status.' : 'Register full technical specifications, hardware requirements, ratings, and inventory status.' }}
                   </p>
                 </div>
               </div>
@@ -724,20 +744,38 @@ interface ImagePreset {
                   <span>3. Pricing & Inventory Parameters</span>
                 </h3>
 
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-                  <!-- Unit Price -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3.5">
+                  <!-- Unit Price (Admin & Finance only) -->
+                  @if (store.canViewDoorPrices()) {
+                    <div>
+                      <label for="door-price" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Unit Price (₵) <span class="text-red-500">*</span>
+                      </label>
+                      <input
+                        id="door-price"
+                        type="number"
+                        formControlName="unitPrice"
+                        min="0"
+                        placeholder="4750"
+                        class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 transition-all"
+                        [class]="isFieldInvalid('unitPrice') ? 'border-red-500 focus:ring-red-500/30' : 'border-slate-200 dark:border-slate-800 focus:ring-emerald-500/30'"
+                      />
+                    </div>
+                  }
+
+                  <!-- Installation Price -->
                   <div>
-                    <label for="door-price" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Unit Price (₵ GHS) <span class="text-red-500">*</span>
+                    <label for="door-install-price" class="block text-xs font-semibold text-teal-700 dark:text-teal-300 mb-1">
+                      Install Price (₵) <span class="text-red-500">*</span>
                     </label>
                     <input
-                      id="door-price"
+                      id="door-install-price"
                       type="number"
-                      formControlName="unitPrice"
+                      formControlName="installationPrice"
                       min="0"
-                      placeholder="4750"
-                      class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 transition-all"
-                      [class]="isFieldInvalid('unitPrice') ? 'border-red-500 focus:ring-red-500/30' : 'border-slate-200 dark:border-slate-800 focus:ring-emerald-500/30'"
+                      placeholder="350"
+                      class="w-full px-3 py-2 bg-teal-50/50 dark:bg-teal-950/30 border rounded-xl text-xs font-mono font-bold text-teal-900 dark:text-teal-200 focus:outline-none focus:ring-2 transition-all"
+                      [class]="isFieldInvalid('installationPrice') ? 'border-red-500 focus:ring-red-500/30' : 'border-teal-200 dark:border-teal-800 focus:ring-teal-500/30'"
                     />
                   </div>
 
@@ -845,10 +883,10 @@ interface ImagePreset {
                 <button
                   type="submit"
                   [disabled]="isSubmitting()"
-                  class="px-5 py-2.5 bg-slate-950 hover:bg-slate-800 text-white dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-slate-950 font-bold rounded-xl text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  class="px-5 py-2.5 bg-slate-950 hover:bg-slate-800 text-white dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  <mat-icon class="!text-base">add</mat-icon>
-                  <span>Register Door Model</span>
+                  <mat-icon class="!text-base">{{ editingDoorId() ? 'save' : 'add' }}</mat-icon>
+                  <span>{{ editingDoorId() ? 'Save Changes' : 'Register Door Model' }}</span>
                 </button>
               </div>
             </form>
@@ -860,142 +898,173 @@ interface ImagePreset {
       @if (inspectingDoor()) {
         @let d = inspectingDoor()!;
         <div
-          class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4"
+          class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
           role="dialog"
           aria-modal="true"
           (keydown.escape)="inspectingDoor.set(null)"
         >
           <div
-            class="relative w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-8"
+            class="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-4 grid grid-cols-1 md:grid-cols-12 max-h-[90vh]"
           >
-            <!-- Hero Image Banner -->
-            <div class="relative h-64 w-full bg-slate-950">
+            <!-- Left Panel: Door Showcase Image -->
+            <div class="md:col-span-5 relative bg-slate-950 flex flex-col justify-between p-4 min-h-[280px] md:min-h-[460px] overflow-hidden">
               @if (d.imageUrl) {
-                <img [src]="d.imageUrl" [alt]="d.name" referrerpolicy="no-referrer" class="w-full h-full object-contain bg-slate-900" />
-                <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent"></div>
-              }
-              <button
-                type="button"
-                (click)="inspectingDoor.set(null)"
-                class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-950/60 backdrop-blur-md text-white hover:bg-slate-950 flex items-center justify-center transition-colors cursor-pointer"
-                title="Close"
-              >
-                <mat-icon class="!text-lg">close</mat-icon>
-              </button>
-
-              <div class="absolute bottom-4 left-6 right-6">
-                <div class="flex items-center gap-2 mb-1.5">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500 text-slate-950">
-                    {{ d.modelCode }}
-                  </span>
-                  <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-white/20 text-white backdrop-blur-xs">
-                    {{ d.category }}
-                  </span>
+                <img
+                  [src]="d.imageUrl"
+                  [alt]="d.name"
+                  referrerpolicy="no-referrer"
+                  class="absolute inset-0 w-full h-full object-cover"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/15 to-slate-950/40"></div>
+              } @else {
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-600">
+                  <mat-icon class="!text-5xl">door_front</mat-icon>
+                  <span class="text-[10px] mt-1 font-mono">No Preview</span>
                 </div>
-                <h3 class="text-xl font-black text-white tracking-tight leading-snug">
+              }
+
+              <div class="flex items-center justify-between gap-2 z-10 relative">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500 text-white shadow-sm">
+                  {{ d.modelCode }}
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-950/60 text-white backdrop-blur-xs border border-white/15">
+                  {{ d.category }}
+                </span>
+              </div>
+
+              <div class="z-10 relative pt-2">
+                <h3 class="text-base font-black text-white tracking-tight leading-snug drop-shadow-sm">
                   {{ d.name }}
                 </h3>
+                <p class="text-[11px] text-slate-200 font-mono mt-0.5 drop-shadow-sm">{{ d.dimensions }}</p>
               </div>
             </div>
 
-            <!-- Spec Grid Content -->
-            <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto text-xs">
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-950/50 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800">
+            <!-- Right Panel: Door Information & Specifications -->
+            <div class="md:col-span-7 flex flex-col max-h-[90vh] md:max-h-[85vh]">
+              <!-- Right Header -->
+              <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-950/60 shrink-0">
                 <div>
-                  <span class="text-[10px] font-mono uppercase text-slate-400 block">Unit Price</span>
-                  <span class="text-base font-black font-mono text-emerald-600 dark:text-emerald-400">
-                    {{ d.formattedPrice || ('₵' + (d.unitPrice | number:'1.0-0')) }}
-                  </span>
+                  <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400 block">Technical Specification</span>
+                  <h4 class="text-sm font-bold text-slate-900 dark:text-white truncate">{{ d.name }}</h4>
                 </div>
-                <div>
-                  <span class="text-[10px] font-mono uppercase text-slate-400 block">Stock Level</span>
-                  <span class="text-base font-black font-mono text-slate-900 dark:text-white">{{ d.stockQuantity }} units</span>
-                </div>
-                <div>
-                  <span class="text-[10px] font-mono uppercase text-slate-400 block">Lead Time</span>
-                  <span class="text-base font-black font-mono text-slate-900 dark:text-white">{{ d.leadTimeDays }} days</span>
-                </div>
-                <div>
-                  <span class="text-[10px] font-mono uppercase text-slate-400 block">Warranty</span>
-                  <span class="text-base font-black font-mono text-slate-900 dark:text-white">{{ d.warrantyYears }} years</span>
-                </div>
+                <button
+                  type="button"
+                  (click)="inspectingDoor.set(null)"
+                  class="w-7 h-7 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Close"
+                >
+                  <mat-icon class="!text-base">close</mat-icon>
+                </button>
               </div>
 
-              <!-- Technical Details Rows -->
-              <div class="space-y-2.5">
-                <div class="flex items-start justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                  <span class="text-slate-500 dark:text-slate-400 font-medium">Series / Category</span>
-                  <span class="font-bold text-slate-900 dark:text-white">{{ d.category }}</span>
-                </div>
-
-                <div class="flex items-start justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                  <span class="text-slate-500 dark:text-slate-400 font-medium">Dimensions</span>
-                  <span class="font-mono font-bold text-slate-900 dark:text-white">{{ d.dimensions }}</span>
-                </div>
-
-                <div class="flex items-start justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                  <span class="text-slate-500 dark:text-slate-400 font-medium">Substrate / Core</span>
-                  <span class="text-slate-900 dark:text-white text-right max-w-xs">{{ d.material }}</span>
-                </div>
-
-                <div class="flex items-start justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                  <span class="text-slate-500 dark:text-slate-400 font-medium">Finish & Tint</span>
-                  <span class="text-slate-900 dark:text-white text-right max-w-xs">{{ d.finish }}</span>
-                </div>
-
-                <div class="flex items-start justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                  <span class="text-slate-500 dark:text-slate-400 font-medium">Hardware Pack</span>
-                  <span class="text-slate-900 dark:text-white text-right max-w-xs">{{ d.hardwareSpecs }}</span>
-                </div>
-
-                <div class="flex items-start justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                  <span class="text-slate-500 dark:text-slate-400 font-medium">Fire Certification</span>
-                  <span class="font-bold text-slate-900 dark:text-white">{{ d.fireRating }}</span>
-                </div>
-
-                <div class="flex items-start justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                  <span class="text-slate-500 dark:text-slate-400 font-medium">Acoustic Attenuation</span>
-                  <span class="font-bold text-slate-900 dark:text-white">{{ d.acousticRating }}</span>
-                </div>
-
-                <div class="flex items-start justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                  <span class="text-slate-500 dark:text-slate-400 font-medium">Supplier & Source</span>
-                  <span class="text-slate-900 dark:text-white">{{ d.supplierOrWorkshop }}</span>
-                </div>
-
-                @if (d.sourceUrl) {
-                  <div class="flex items-start justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                    <span class="text-slate-500 dark:text-slate-400 font-medium">Live Website Product</span>
-                    <a
-                      [href]="d.sourceUrl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
-                    >
-                      <span>View on doormaster.online</span>
-                      <mat-icon class="!text-xs">open_in_new</mat-icon>
-                    </a>
+              <!-- Scrollable Spec Content -->
+              <div class="p-4 space-y-3 overflow-y-auto text-xs flex-1">
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 bg-slate-50 dark:bg-slate-950/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                  @if (store.canViewDoorPrices()) {
+                    <div>
+                      <span class="text-[9px] font-mono uppercase text-slate-400 block">Unit Price</span>
+                      <span class="text-sm font-black font-mono text-emerald-600 dark:text-emerald-400">
+                        {{ d.formattedPrice || ('₵' + (d.unitPrice | number:'1.0-0')) }}
+                      </span>
+                    </div>
+                  }
+                  <div>
+                    <span class="text-[9px] font-mono uppercase text-teal-600 dark:text-teal-400 block">Install Price</span>
+                    <span class="text-sm font-black font-mono text-teal-600 dark:text-teal-400">
+                      ₵{{ (d.installationPrice ?? 250) | number:'1.0-0' }}
+                    </span>
                   </div>
-                }
+                  <div>
+                    <span class="text-[9px] font-mono uppercase text-slate-400 block">Stock Level</span>
+                    <span class="text-sm font-black font-mono text-slate-900 dark:text-white">{{ d.stockQuantity }} units</span>
+                  </div>
+                  <div>
+                    <span class="text-[9px] font-mono uppercase text-slate-400 block">Lead Time</span>
+                    <span class="text-sm font-black font-mono text-slate-900 dark:text-white">{{ d.leadTimeDays }} days</span>
+                  </div>
+                  <div>
+                    <span class="text-[9px] font-mono uppercase text-slate-400 block">Warranty</span>
+                    <span class="text-sm font-black font-mono text-slate-900 dark:text-white">{{ d.warrantyYears }} years</span>
+                  </div>
+                </div>
+
+                <!-- Technical Details Rows -->
+                <div class="space-y-1.5 text-[11px]">
+                  <div class="flex items-start justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 gap-3">
+                    <span class="text-slate-500 dark:text-slate-400 font-medium shrink-0">Series / Category</span>
+                    <span class="font-bold text-slate-900 dark:text-white text-right">{{ d.category }}</span>
+                  </div>
+
+                  <div class="flex items-start justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 gap-3">
+                    <span class="text-slate-500 dark:text-slate-400 font-medium shrink-0">Dimensions</span>
+                    <span class="font-mono font-bold text-slate-900 dark:text-white text-right">{{ d.dimensions }}</span>
+                  </div>
+
+                  <div class="flex items-start justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 gap-3">
+                    <span class="text-slate-500 dark:text-slate-400 font-medium shrink-0">Substrate / Core</span>
+                    <span class="text-slate-900 dark:text-white text-right">{{ d.material }}</span>
+                  </div>
+
+                  <div class="flex items-start justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 gap-3">
+                    <span class="text-slate-500 dark:text-slate-400 font-medium shrink-0">Finish & Tint</span>
+                    <span class="text-slate-900 dark:text-white text-right">{{ d.finish }}</span>
+                  </div>
+
+                  <div class="flex items-start justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 gap-3">
+                    <span class="text-slate-500 dark:text-slate-400 font-medium shrink-0">Hardware Pack</span>
+                    <span class="text-slate-900 dark:text-white text-right">{{ d.hardwareSpecs }}</span>
+                  </div>
+
+                  <div class="flex items-start justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 gap-3">
+                    <span class="text-slate-500 dark:text-slate-400 font-medium shrink-0">Fire Certification</span>
+                    <span class="font-bold text-slate-900 dark:text-white text-right">{{ d.fireRating }}</span>
+                  </div>
+
+                  <div class="flex items-start justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 gap-3">
+                    <span class="text-slate-500 dark:text-slate-400 font-medium shrink-0">Acoustic Attenuation</span>
+                    <span class="font-bold text-slate-900 dark:text-white text-right">{{ d.acousticRating }}</span>
+                  </div>
+
+                  <div class="flex items-start justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 gap-3">
+                    <span class="text-slate-500 dark:text-slate-400 font-medium shrink-0">Supplier & Source</span>
+                    <span class="text-slate-900 dark:text-white text-right">{{ d.supplierOrWorkshop }}</span>
+                  </div>
+
+                  @if (d.sourceUrl) {
+                    <div class="flex items-start justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 gap-3">
+                      <span class="text-slate-500 dark:text-slate-400 font-medium shrink-0">Live Website Product</span>
+                      <a
+                        [href]="d.sourceUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
+                      >
+                        <span>View on doormaster.online</span>
+                        <mat-icon class="!text-xs">open_in_new</mat-icon>
+                      </a>
+                    </div>
+                  }
+                </div>
+
+                <!-- Description -->
+                <div class="bg-slate-50 dark:bg-slate-950/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <span class="text-[9px] font-mono uppercase text-slate-400 block mb-1">Architectural Overview</span>
+                  <p class="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">{{ d.description }}</p>
+                </div>
               </div>
 
-              <!-- Description -->
-              <div class="bg-slate-50 dark:bg-slate-950/60 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                <span class="text-[10px] font-mono uppercase text-slate-400 block mb-1">Architectural Overview</span>
-                <p class="text-slate-700 dark:text-slate-300 leading-relaxed">{{ d.description }}</p>
+              <!-- Footer -->
+              <div class="px-4 py-3 bg-slate-50/70 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+                <span class="text-[10px] text-slate-400 font-mono">ID: {{ d.id }}</span>
+                <button
+                  type="button"
+                  (click)="inspectingDoor.set(null)"
+                  class="px-3.5 py-1.5 bg-slate-950 dark:bg-white text-white dark:text-slate-950 rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
               </div>
-            </div>
-
-            <!-- Footer -->
-            <div class="px-6 py-4 bg-slate-50/70 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <span class="text-[11px] text-slate-400 font-mono">ID: {{ d.id }}</span>
-              <button
-                type="button"
-                (click)="inspectingDoor.set(null)"
-                class="px-4 py-2 bg-slate-950 dark:bg-white text-white dark:text-slate-950 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                Close Specification
-              </button>
             </div>
           </div>
         </div>
@@ -1016,6 +1085,7 @@ export class DoorsCatalog {
 
   // Modal Dialogs
   readonly showAddModal = signal<boolean>(false);
+  readonly editingDoorId = signal<string | null>(null);
   readonly inspectingDoor = signal<DoorCatalogEntry | null>(null);
   readonly isSubmitting = signal<boolean>(false);
   readonly toastMessage = signal<string | null>(null);
@@ -1041,6 +1111,7 @@ export class DoorsCatalog {
     fireRating: new FormControl<string>('None / Residential', { nonNullable: true }),
     acousticRating: new FormControl<string>('Standard', { nonNullable: true }),
     unitPrice: new FormControl<number>(4750, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
+    installationPrice: new FormControl<number>(350, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
     stockQuantity: new FormControl<number>(5, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
     leadTimeDays: new FormControl<number>(3, { nonNullable: true, validators: [Validators.min(1)] }),
     status: new FormControl<DoorStockStatus>('in_stock', { nonNullable: true, validators: [Validators.required] }),
@@ -1186,6 +1257,7 @@ export class DoorsCatalog {
 
   // Modal Handlers
   openAddModal() {
+    this.editingDoorId.set(null);
     this.addDoorForm.reset({
       name: '',
       modelCode: '',
@@ -1197,6 +1269,7 @@ export class DoorsCatalog {
       fireRating: 'None / Residential',
       acousticRating: 'Standard',
       unitPrice: 4750,
+      installationPrice: 350,
       stockQuantity: 5,
       leadTimeDays: 3,
       status: 'in_stock',
@@ -1208,8 +1281,34 @@ export class DoorsCatalog {
     this.showAddModal.set(true);
   }
 
+  openEditModal(door: DoorCatalogEntry) {
+    this.editingDoorId.set(door.id);
+    this.addDoorForm.reset({
+      name: door.name || '',
+      modelCode: door.modelCode || '',
+      category: door.category || 'Premium Villa Series',
+      dimensions: door.dimensions || '2100 × 900 × 50mm',
+      material: door.material || '',
+      finish: door.finish || 'Multi-Layer Thermoset Enamel',
+      hardwareSpecs: door.hardwareSpecs || '',
+      fireRating: door.fireRating || 'None / Residential',
+      acousticRating: door.acousticRating || 'Standard',
+      unitPrice: Number(door.unitPrice) || 0,
+      installationPrice: Number(door.installationPrice ?? 250),
+      stockQuantity: Number(door.stockQuantity) || 0,
+      leadTimeDays: Number(door.leadTimeDays) || 3,
+      status: door.status || 'in_stock',
+      supplierOrWorkshop: door.supplierOrWorkshop || 'Door Master Official (doormaster.online)',
+      imageUrl: door.imageUrl || 'https://doormaster.online/wp-content/uploads/2014/08/l7-500x600.png',
+      warrantyYears: Number(door.warrantyYears) || 10,
+      description: door.description || ''
+    });
+    this.showAddModal.set(true);
+  }
+
   closeAddModal() {
     this.showAddModal.set(false);
+    this.editingDoorId.set(null);
   }
 
   openDetailModal(door: DoorCatalogEntry) {
@@ -1234,34 +1333,42 @@ export class DoorsCatalog {
 
     this.isSubmitting.set(true);
     const formVals = this.addDoorForm.getRawValue();
+    const editingId = this.editingDoorId();
+
+    const payload = {
+      name: formVals.name.trim(),
+      modelCode: formVals.modelCode.trim().toUpperCase(),
+      category: formVals.category,
+      dimensions: formVals.dimensions.trim(),
+      material: formVals.material.trim(),
+      finish: formVals.finish.trim(),
+      hardwareSpecs: formVals.hardwareSpecs.trim(),
+      fireRating: formVals.fireRating,
+      acousticRating: formVals.acousticRating,
+      unitPrice: Number(formVals.unitPrice),
+      installationPrice: Number(formVals.installationPrice),
+      formattedPrice: `₵${Number(formVals.unitPrice).toLocaleString('en-US')}.00`,
+      stockQuantity: Number(formVals.stockQuantity),
+      leadTimeDays: Number(formVals.leadTimeDays) || 3,
+      status: formVals.status,
+      supplierOrWorkshop: formVals.supplierOrWorkshop.trim(),
+      imageUrl: formVals.imageUrl.trim() || undefined,
+      description: formVals.description.trim() || `${formVals.name} DoorMaster architectural door system.`,
+      warrantyYears: Number(formVals.warrantyYears) || 10
+    };
 
     try {
-      const created = this.store.addDoor({
-        name: formVals.name.trim(),
-        modelCode: formVals.modelCode.trim().toUpperCase(),
-        category: formVals.category,
-        dimensions: formVals.dimensions.trim(),
-        material: formVals.material.trim(),
-        finish: formVals.finish.trim(),
-        hardwareSpecs: formVals.hardwareSpecs.trim(),
-        fireRating: formVals.fireRating,
-        acousticRating: formVals.acousticRating,
-        unitPrice: Number(formVals.unitPrice),
-        formattedPrice: `₵${Number(formVals.unitPrice).toLocaleString('en-US')}.00`,
-        stockQuantity: Number(formVals.stockQuantity),
-        leadTimeDays: Number(formVals.leadTimeDays) || 3,
-        status: formVals.status,
-        supplierOrWorkshop: formVals.supplierOrWorkshop.trim(),
-        imageUrl: formVals.imageUrl.trim() || undefined,
-        description: formVals.description.trim() || `${formVals.name} DoorMaster architectural door system.`,
-        warrantyYears: Number(formVals.warrantyYears) || 10
-      });
-
-      await this.store.loadDoorsFromBackend();
-      this.closeAddModal();
-      this.alert.success('Door Added to Catalog', `Architectural door "${created.name}" (${created.modelCode}) registered successfully.`);
+      if (editingId) {
+        this.store.updateDoor(editingId, payload);
+        this.closeAddModal();
+      } else {
+        const created = this.store.addDoor(payload);
+        await this.store.loadDoorsFromBackend();
+        this.closeAddModal();
+        this.alert.success('Door Added to Catalog', `Architectural door "${created.name}" (${created.modelCode}) registered successfully.`);
+      }
     } catch (err: any) {
-      this.alert.error('Failed to Add Door', err.message || 'Could not register door to catalog.');
+      this.alert.error(editingId ? 'Failed to Update Door' : 'Failed to Add Door', err.message || 'Could not save door to catalog.');
     } finally {
       this.isSubmitting.set(false);
     }

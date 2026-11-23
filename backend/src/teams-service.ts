@@ -58,13 +58,13 @@ export interface RoleDefinitionDto {
 
 export const DEFAULT_TEAM_POSITIONS: string[] = [
   'Team Lead',
-  'Lead Master Tech',
-  'Senior Acoustic Tech',
+  'Lead Master Installer',
+  'Senior Acoustic Installer',
   'Smart Lock Specialist',
-  'Pivot & Frameless Glass Tech',
-  'Grand Villa Steel Tech',
-  'Precision Joiner Tech',
-  'Assistant Technician',
+  'Pivot & Frameless Glass Installer',
+  'Grand Villa Steel Installer',
+  'Precision Joiner Installer',
+  'Assistant Installer',
 ];
 
 const DEFAULT_SYSTEM_ROLES: RoleDefinitionDto[] = [
@@ -101,7 +101,7 @@ const DEFAULT_SYSTEM_ROLES: RoleDefinitionDto[] = [
   },
   {
     id: 'manager',
-    name: 'Operations Manager',
+    name: 'Manager',
     label: 'Manager',
     description:
       'Operations oversight: job dispatch, installer assignments, bonus threshold management & approvals.',
@@ -196,10 +196,10 @@ const DEFAULT_SYSTEM_ROLES: RoleDefinitionDto[] = [
   },
   {
     id: 'shop_manager',
-    name: 'DoorMaster Shop Manager',
-    label: 'Shop Manager',
+    name: 'Shop Attendant',
+    label: 'Shop Attendant',
     description:
-      'Workshop branch: book counter door installations, record customer payments, select store dispatchers, and dispatch doors to installation site.',
+      'Workshop branch: book counter door installations, record customer payments, select store drivers, and dispatch doors to installation site.',
     isSystem: true,
     color: 'cyan',
     icon: 'storefront',
@@ -218,10 +218,10 @@ const DEFAULT_SYSTEM_ROLES: RoleDefinitionDto[] = [
   },
   {
     id: 'dispatcher',
-    name: 'Logistics Dispatcher / Driver',
-    label: 'Dispatcher',
+    name: 'Driver',
+    label: 'Driver',
     description:
-      'Fleet logistics: verify cargo at shop, drive transport truck to customer site, deliver doors & locks, and handover to client/technician.',
+      'Fleet logistics: verify cargo at shop, drive transport truck to customer site, deliver doors & locks, and handover to client/installer.',
     isSystem: true,
     color: 'teal',
     icon: 'local_shipping',
@@ -241,6 +241,16 @@ const DEFAULT_SYSTEM_ROLES: RoleDefinitionDto[] = [
 ];
 
 function parseStringArray(val: unknown, fallback: string[] = []): string[] {
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) {
+        val = parsed;
+      }
+    } catch {
+      // ignore JSON parse error
+    }
+  }
   if (Array.isArray(val)) {
     return Array.from(
       new Set(
@@ -259,7 +269,7 @@ function inferPositionFromName(name: string, isLead: boolean): string {
     const cleaned = match[1].split('-')[0].trim();
     if (cleaned) return cleaned;
   }
-  return isLead ? 'Team Lead' : 'Assistant Technician';
+  return isLead ? 'Team Lead' : 'Assistant Installer';
 }
 
 export async function seedTeamsAndRolesIfNeeded(): Promise<void> {
@@ -280,10 +290,10 @@ export async function seedTeamsAndRolesIfNeeded(): Promise<void> {
             'Master Architectural Alignment',
           ],
           positions: [
-            'Lead Master Tech',
-            'Senior Acoustic Tech',
-            'Pivot & Frameless Glass Tech',
-            'Assistant Technician',
+            'Lead Master Installer',
+            'Senior Acoustic Installer',
+            'Pivot & Frameless Glass Installer',
+            'Assistant Installer',
           ],
           color: 'indigo',
           leadId: 'USR-INS-01',
@@ -302,9 +312,9 @@ export async function seedTeamsAndRolesIfNeeded(): Promise<void> {
           ],
           positions: [
             'Smart Lock Specialist',
-            'Grand Villa Steel Tech',
-            'Precision Joiner Tech',
-            'Assistant Technician',
+            'Grand Villa Steel Installer',
+            'Precision Joiner Installer',
+            'Assistant Installer',
           ],
           color: 'cyan',
           leadId: 'USR-INS-04',
@@ -352,7 +362,7 @@ export async function seedTeamsAndRolesIfNeeded(): Promise<void> {
     }
   }
 
-  // 2. Seed default system Role Definitions if missing
+  // 2. Seed default system Role Definitions if missing (and sync renamed Driver label)
   for (const sysRole of DEFAULT_SYSTEM_ROLES) {
     const existing = await prisma.roleConfig.findUnique({ where: { id: sysRole.id } });
     if (!existing) {
@@ -368,6 +378,15 @@ export async function seedTeamsAndRolesIfNeeded(): Promise<void> {
           permissions: sysRole.permissions,
           extraFeatures: sysRole.extraFeatures,
         },
+      });
+    } else if (
+      (sysRole.id === 'dispatcher' && (existing.label === 'Dispatcher' || existing.name.includes('Dispatcher'))) ||
+      (sysRole.id === 'shop_manager' && (existing.label === 'Shop Manager' || existing.name.includes('Shop Manager'))) ||
+      (sysRole.id === 'manager' && (existing.name.includes('Operations Manager') || existing.name.includes('Ops Director')))
+    ) {
+      await prisma.roleConfig.update({
+        where: { id: sysRole.id },
+        data: { name: sysRole.name, label: sysRole.label },
       });
     }
   }
@@ -597,7 +616,7 @@ export async function createTeamInDb(input: {
           teamPosition:
             (m.position && m.position.trim()) ||
             existingUser.teamPosition ||
-            (isLead ? 'Team Lead' : 'Assistant Technician'),
+            (isLead ? 'Team Lead' : 'Assistant Installer'),
         },
       });
     }
@@ -797,7 +816,7 @@ export async function upsertTeamMemberInDb(
     const cleanPosition =
       (payload.position && payload.position.trim()) ||
       user.teamPosition ||
-      (makeLead ? 'Team Lead' : 'Assistant Technician');
+      (makeLead ? 'Team Lead' : 'Assistant Installer');
 
     // Ensure custom position is added to the team's positions catalog
     const currentPositions = parseStringArray(team.positions, DEFAULT_TEAM_POSITIONS);
@@ -937,10 +956,22 @@ export async function getRolesFromDb(): Promise<RoleDefinitionDto[]> {
   for (const row of rows) {
     if (sysMap.has(row.id)) {
       const sys = sysMap.get(row.id)!;
+      const perms = (row.permissions || {}) as Partial<RoleDefinitionDto['permissions']>;
       sysMap.set(row.id, {
         ...sys,
         name: row.name || sys.name,
         description: row.description || sys.description,
+        permissions: {
+          canCreateJobs: perms.canCreateJobs ?? sys.permissions.canCreateJobs,
+          canAssignInstallers: perms.canAssignInstallers ?? sys.permissions.canAssignInstallers,
+          canDispatchDoors: perms.canDispatchDoors ?? sys.permissions.canDispatchDoors,
+          canClockInOut: perms.canClockInOut ?? sys.permissions.canClockInOut,
+          canUploadPhotos: perms.canUploadPhotos ?? sys.permissions.canUploadPhotos,
+          canSignVerification: perms.canSignVerification ?? sys.permissions.canSignVerification,
+          canApproveBonuses: perms.canApproveBonuses ?? sys.permissions.canApproveBonuses,
+          canViewFinancials: perms.canViewFinancials ?? sys.permissions.canViewFinancials,
+          canManageRoles: perms.canManageRoles ?? sys.permissions.canManageRoles,
+        },
         extraFeatures: parseStringArray(row.extraFeatures, sys.extraFeatures),
       });
     } else {
@@ -977,11 +1008,17 @@ export async function upsertRoleInDb(
 ): Promise<{ success: boolean; message: string; roles: RoleDefinitionDto[] }> {
   const sys = DEFAULT_SYSTEM_ROLES.find((r) => r.id === roleDef.id);
   if (sys) {
+    const updatedPerms = roleDef.permissions ? {
+      ...sys.permissions,
+      ...roleDef.permissions
+    } : sys.permissions;
+
     await prisma.roleConfig.upsert({
       where: { id: sys.id },
       update: {
         name: roleDef.name || sys.name,
         description: roleDef.description ?? sys.description,
+        permissions: updatedPerms,
         extraFeatures: parseStringArray(roleDef.extraFeatures, sys.extraFeatures),
       },
       create: {
@@ -992,7 +1029,7 @@ export async function upsertRoleInDb(
         isSystem: true,
         color: sys.color,
         icon: sys.icon,
-        permissions: sys.permissions,
+        permissions: updatedPerms,
         extraFeatures: parseStringArray(roleDef.extraFeatures, sys.extraFeatures),
       },
     });

@@ -1,16 +1,17 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
 import { AlertService } from '../../services/alert.service';
 import { AppUser, RoleType } from '../../models/installation.model';
+import { PhoneInputComponent } from '../phone-input/phone-input';
 
 @Component({
   selector: 'app-edit-user-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, PhoneInputComponent],
   template: `
     <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
       
@@ -103,15 +104,10 @@ import { AppUser, RoleType } from '../../models/installation.model';
                 <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Phone Number <span class="text-rose-500">*</span>
                 </label>
-                <div class="relative">
-                  <mat-icon class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 !text-lg !w-5 !h-5">phone</mat-icon>
-                  <input 
-                    type="tel" 
-                    formControlName="phone"
-                    placeholder="+233 24 555 0199"
-                    class="w-full pl-10 pr-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
+                <app-phone-input 
+                  formControlName="phone"
+                  placeholder="24 555 0199"
+                ></app-phone-input>
                 @if (editForm.get('phone')?.touched && editForm.get('phone')?.invalid) {
                   <p class="text-[11px] text-rose-500 mt-1">Phone number is required.</p>
                 }
@@ -130,10 +126,10 @@ import { AppUser, RoleType } from '../../models/installation.model';
                   class="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer appearance-none"
                 >
                   <option value="admin">System Administrator (Full Security & Governance)</option>
-                  <option value="manager">Operations Manager (Fleet Dispatch & Operations)</option>
+                  <option value="manager">Manager (Fleet Dispatch & Operations)</option>
                   <option value="installer">Installer (Site Clock-in & Checklists)</option>
-                  <option value="shop_manager">Shop Manager (Showroom Counter & Booking)</option>
-                  <option value="dispatcher">Logistics Dispatcher / Driver (Fleet Transport)</option>
+                  <option value="shop_manager">Shop Attendant (Showroom Counter & Booking)</option>
+                  <option value="dispatcher">Driver (Fleet Delivery Transport)</option>
                   <option value="account_officer">Finance & Account Officer (Auditing & Funds)</option>
                   <option value="client">Client / Site Owner (Tracking & Verification)</option>
                   @for (customRole of customRoles(); track customRole.id) {
@@ -383,13 +379,13 @@ export class EditUserModal {
 
   readonly selectedTeamId = signal<string>('');
   readonly selectedTeamRole = signal<'lead' | 'assistant'>('assistant');
-  readonly selectedTeamPosition = signal<string>('Installation Technician');
+  readonly selectedTeamPosition = signal<string>('Installation Installer');
 
   readonly selectedTeamPositions = () => {
     const team = this.installerTeams().find(t => t.id === this.selectedTeamId());
     return team?.positions?.length
       ? team.positions
-      : ['Team Lead', 'Lead Master Tech', 'Senior Acoustic Tech', 'Smart Lock Specialist', 'Precision Joiner Tech', 'Installation Technician'];
+      : ['Team Lead', 'Lead Master Installer', 'Senior Acoustic Installer', 'Smart Lock Specialist', 'Precision Joiner Installer', 'Installation Installer'];
   };
 
   selectInstallerTeam(teamId: string) {
@@ -410,25 +406,35 @@ export class EditUserModal {
     avatarUrl: new FormControl<string>('')
   });
 
+  private currentUserId: string | null = null;
+
   constructor() {
     effect(() => {
       const u = this.user();
-      if (u) {
-        const resolvedShop = this.store.getUserAssignedBranch(u);
-        const teamInfo = this.store.getUserTeamInfo(u);
-        this.selectedTeamId.set(teamInfo.teamId || u.teamId || '');
-        this.selectedTeamRole.set(teamInfo.isLead || u.teamRole === 'lead' ? 'lead' : 'assistant');
-        this.selectedTeamPosition.set(teamInfo.position || u.teamPosition || 'Installation Technician');
-        this.editForm.patchValue({
-          name: u.name || '',
-          email: u.email || '',
-          phone: u.phone || '+233 24 555 0100',
-          role: u.role || 'installer',
-          shopId: u.shopId || (resolvedShop?.id ? String(resolvedShop.id) : ''),
-          status: u.status || 'active',
-          avatarUrl: u.avatarUrl || ''
+      if (u && u.id !== this.currentUserId) {
+        this.currentUserId = u.id;
+        untracked(() => {
+          this.populateFormFromUser(u);
         });
       }
+    });
+  }
+
+  private populateFormFromUser(u: AppUser) {
+    if (!u) return;
+    const resolvedShop = this.store.getUserAssignedBranch(u);
+    const teamInfo = this.store.getUserTeamInfo(u);
+    this.selectedTeamId.set(teamInfo.teamId || u.teamId || '');
+    this.selectedTeamRole.set(teamInfo.isLead || u.teamRole === 'lead' ? 'lead' : 'assistant');
+    this.selectedTeamPosition.set(teamInfo.position || u.teamPosition || 'Installation Installer');
+    this.editForm.reset({
+      name: u.name || '',
+      email: u.email || '',
+      phone: u.phone || '+233 24 555 0100',
+      role: u.role || 'installer',
+      shopId: u.shopId || (resolvedShop?.id ? String(resolvedShop.id) : ''),
+      status: u.status || 'active',
+      avatarUrl: u.avatarUrl || ''
     });
   }
 
@@ -441,8 +447,8 @@ export class EditUserModal {
 
     const val = this.editForm.getRawValue();
     if (val.role === 'shop_manager' && !val.shopId) {
-      this.errorMessage.set('Please select the DoorMaster shop this Shop Manager is assigned to.');
-      this.alert.toastWarning('Shop Assignment Required', 'Shop Managers must be assigned to a DoorMaster shop.');
+      this.errorMessage.set('Please select the DoorMaster shop this Shop Attendant is assigned to.');
+      this.alert.toastWarning('Shop Assignment Required', 'Shop Attendants must be assigned to a DoorMaster shop.');
       return;
     }
 

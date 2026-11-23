@@ -94,7 +94,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
     const seedUsers = [
         {
           id: 'USR-ADM-01',
-          name: 'Alexander Cross (Super Administrator)',
+          name: 'Alexander Cross',
           email: 'admin@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'admin',
@@ -103,7 +103,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-MGR-01',
-          name: 'Sarah Sterling (Ops Director)',
+          name: 'Sarah Sterling',
           email: 'manager@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'manager',
@@ -113,7 +113,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         // Team Alpha (3 Installers - Lead: Marcus Vance)
         {
           id: 'USR-INS-01',
-          name: 'Marcus Vance (Lead Master Tech - Team Alpha Lead)',
+          name: 'Marcus Vance',
           email: 'm.vance@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'installer',
@@ -122,7 +122,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-INS-02',
-          name: 'Benjamin Koranteng (Senior Acoustic Tech - Team Alpha)',
+          name: 'Benjamin Koranteng',
           email: 'b.koranteng@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'installer',
@@ -131,7 +131,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-INS-03',
-          name: 'Joseph Annan (Pivot & Frameless Glass Tech - Team Alpha)',
+          name: 'Joseph Annan',
           email: 'j.annan@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'installer',
@@ -142,7 +142,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         // Team Bravo (3 Installers - Lead: Derrick Bruce)
         {
           id: 'USR-INS-04',
-          name: 'Derrick Bruce (Smart Lock Specialist - Team Bravo Lead)',
+          name: 'Derrick Bruce',
           email: 'd.bruce@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'installer',
@@ -151,7 +151,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-INS-05',
-          name: 'Emmanuel Ofori (Grand Villa Steel Tech - Team Bravo)',
+          name: 'Emmanuel Ofori',
           email: 'e.ofori@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'installer',
@@ -160,7 +160,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-INS-06',
-          name: 'Patrick Gyasi (Precision Joiner Tech - Team Bravo)',
+          name: 'Patrick Gyasi',
           email: 'p.gyasi@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'installer',
@@ -169,7 +169,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-CLI-01',
-          name: 'Kwame Mensah (Cantonments Villa)',
+          name: 'Kwame Mensah',
           email: 'client@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'client',
@@ -178,7 +178,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-FIN-01',
-          name: 'Abena Osei (Chief Financial Officer)',
+          name: 'Abena Osei',
           email: 'finance@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'account_officer',
@@ -187,17 +187,17 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-01',
-          name: 'Elena Rostova (Master Joiner & Central Shop Head)',
+          name: 'Elena Rostova',
           email: 'shop@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
-          shopId: 'dm-branch-central',
+          shopId: 'dm-branch-obeyeyie',
           phone: '+233 24 555 0105',
           avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         },
         {
           id: 'USR-SHP-OBY',
-          name: 'Kofi Boateng (Obeyeyie Shop Manager)',
+          name: 'Kofi Boateng',
           email: 'shop.obeyeyie@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -207,7 +207,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-PBM-TRK',
-          name: 'Yaw Antwi (Pobiman Turkey Shop Manager)',
+          name: 'Yaw Antwi',
           email: 'shop.pobiman-turkey@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -217,7 +217,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-PBM-ECO',
-          name: 'Kwabena Agyeman (Pobiman Economy Shop Manager)',
+          name: 'Kwabena Agyeman',
           email: 'shop.pobiman-economy@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -227,7 +227,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-ACP',
-          name: 'Akua Darko (ACP Shop Manager)',
+          name: 'Akua Darko',
           email: 'shop.acp@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -237,7 +237,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-NSW-OVH',
-          name: 'Kwame Appiah (Nsawam Overhead Shop Manager)',
+          name: 'Kwame Appiah',
           email: 'shop.nsawam-overhead@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -247,7 +247,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-NSW-HSP',
-          name: 'Ama Serwaa (Nsawam Hospital Rd Shop Manager)',
+          name: 'Ama Serwaa',
           email: 'shop.nsawam-hospital@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -257,7 +257,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-TMA',
-          name: 'Ebenezer Quaye (Tema Branch Shop Manager)',
+          name: 'Ebenezer Quaye',
           email: 'shop.tema@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -267,7 +267,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-SHM',
-          name: 'Daniel Asare (Suhum Branch Shop Manager)',
+          name: 'Daniel Asare',
           email: 'shop.suhum@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -277,7 +277,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-ASH',
-          name: 'Francis Mensah (Ashalaja Branch Shop Manager)',
+          name: 'Francis Mensah',
           email: 'shop.ashalaja@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -287,7 +287,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-KSI-AHN',
-          name: 'Osei Tutu (Kumasi Ahinsan Shop Manager)',
+          name: 'Osei Tutu',
           email: 'shop.kumasi-ahinsan@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -297,7 +297,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-KAS-TIP',
-          name: 'Kojo Baidoo (Kasoa Tipa Shop Manager)',
+          name: 'Kojo Baidoo',
           email: 'shop.kasoa-tipa@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -307,7 +307,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-AMR',
-          name: 'Priscilla Kyei (Amrahia Branch Shop Manager)',
+          name: 'Priscilla Kyei',
           email: 'shop.amrahia@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -317,7 +317,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-TSE',
-          name: 'Nathaniel Tagoe (Tseaddo Branch Shop Manager)',
+          name: 'Nathaniel Tagoe',
           email: 'shop.tseaddo@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -327,7 +327,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-SHP-KSI-KRN',
-          name: 'Baffour Gyan (Kronum Kumasi Shop Manager)',
+          name: 'Baffour Gyan',
           email: 'shop.kronum@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'shop_manager',
@@ -338,17 +338,17 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         // Branch Dispatchers (1 Dispatcher for each of the 15 DoorMaster Branches)
         {
           id: 'USR-DSP-01',
-          name: 'Emmanuel Kojo (Central Spintex Dispatch Driver)',
+          name: 'Emmanuel Kojo',
           email: 'dispatch@doormasterops.com',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
-          shopId: 'dm-branch-central',
+          shopId: 'dm-branch-obeyeyie',
           phone: '+233 24 555 0106',
           avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
         },
         {
           id: 'USR-DSP-OBY',
-          name: 'Kwesi Mensah (Obeyeyie Branch Dispatch Driver)',
+          name: 'Kwesi Mensah',
           email: 'dispatch.obeyeyie@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -358,7 +358,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-PBM-TRK',
-          name: 'Isaac Owusu (Pobiman Turkey Branch Dispatch Driver)',
+          name: 'Isaac Owusu',
           email: 'dispatch.pobiman-turkey@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -368,7 +368,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-PBM-ECO',
-          name: 'David Osei (Pobiman Economy Branch Dispatch Driver)',
+          name: 'David Osei',
           email: 'dispatch.pobiman-economy@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -378,7 +378,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-ACP',
-          name: 'Bright Annan (ACP Branch Dispatch Driver)',
+          name: 'Bright Annan',
           email: 'dispatch.acp@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -388,7 +388,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-NSW-OVH',
-          name: 'Samuel Boakye (Nsawam Overhead Dispatch Driver)',
+          name: 'Samuel Boakye',
           email: 'dispatch.nsawam-overhead@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -398,7 +398,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-NSW-HSP',
-          name: 'Peter Tetteh (Nsawam Hospital Rd Dispatch Driver)',
+          name: 'Peter Tetteh',
           email: 'dispatch.nsawam-hospital@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -408,7 +408,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-TMA',
-          name: 'Joseph Adjei (Tema Branch Dispatch Driver)',
+          name: 'Joseph Adjei',
           email: 'dispatch.tema@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -418,7 +418,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-SHM',
-          name: 'Richmond Darko (Suhum Branch Dispatch Driver)',
+          name: 'Richmond Darko',
           email: 'dispatch.suhum@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -428,7 +428,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-ASH',
-          name: 'Collins Frimpong (Ashalaja Branch Dispatch Driver)',
+          name: 'Collins Frimpong',
           email: 'dispatch.ashalaja@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -438,7 +438,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-KSI-AHN',
-          name: 'Evans Opoku (Kumasi Ahinsan Dispatch Driver)',
+          name: 'Evans Opoku',
           email: 'dispatch.kumasi-ahinsan@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -448,7 +448,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-KAS-TIP',
-          name: 'George Arthur (Kasoa Tipa Dispatch Driver)',
+          name: 'George Arthur',
           email: 'dispatch.kasoa-tipa@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -458,7 +458,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-AMR',
-          name: 'Felix Quaye (Amrahia Branch Dispatch Driver)',
+          name: 'Felix Quaye',
           email: 'dispatch.amrahia@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -468,7 +468,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-TSE',
-          name: 'Michael Lamptey (Tseaddo Branch Dispatch Driver)',
+          name: 'Michael Lamptey',
           email: 'dispatch.tseaddo@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',
@@ -478,7 +478,7 @@ export async function initDatabase(): Promise<{ success: boolean; message: strin
         },
         {
           id: 'USR-DSP-KSI-KRN',
-          name: 'Charles Boadu (Kronum Kumasi Dispatch Driver)',
+          name: 'Charles Boadu',
           email: 'dispatch.kronum@doormaster.online',
           passwordHash: defaultPasswordHash,
           role: 'dispatcher',

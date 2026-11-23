@@ -175,7 +175,7 @@ import { PwaService } from '../../services/pwa.service';
               <span>Installer Offline Readiness</span>
             </div>
             <p class="leading-relaxed">
-              DoorMaster catalogs, hardware lock specs, technician clock widget, checklist, and signature captures are cached locally for zero-latency execution in cellular dead zones.
+              DoorMaster catalogs, hardware lock specs, installer clock widget, checklist, and signature captures are cached locally for zero-latency execution in cellular dead zones.
             </p>
           </div>
 

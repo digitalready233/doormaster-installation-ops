@@ -1,0 +1,65 @@
+{
+  "id": "/",
+  "name": "DoorMaster Installation Ops",
+  "short_name": "DoorMaster",
+  "description": "Enterprise door installation management platform featuring role-based portals, on-site technician tools, and offline job site synchronization.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Field Installer Portal",
+      "short_name": "Installer",
+      "description": "Access your assigned door jobs, checklist, site clock, and photo verification offline.",
+      "url": "/?view=installer",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Live Dispatch Map",
+      "short_name": "Dispatch",
+      "description": "Track moving flatbeds and installers along Greater Accra corridors.",
+      "url": "/?view=dispatcher",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
