@@ -28,6 +28,17 @@ import {
 } from './doors-service';
 
 import {
+  getUserThreadsAndMessages,
+  getConversationMessages,
+  createChatMessage,
+  editChatMessage,
+  deleteChatMessage,
+  toggleMessageReaction,
+  markConversationRead,
+  setTypingStatus
+} from './messages-service';
+
+import {
   authenticateUser,
   registerUser,
   getAllUsers,
@@ -1592,6 +1603,133 @@ app.get('/api/geocoding/ghanapost/:code', async (req, res) => {
       message: 'Ghana Post GPS resolver service temporarily unreachable.',
       error: (error as Error).message
     });
+  }
+});
+
+/**
+ * ============================================================================
+ * WHATSAPP-STYLE PORTAL MESSAGING API
+ * ============================================================================
+ */
+app.get('/api/messages/threads', requireActiveUser, async (req, res) => {
+  try {
+    const actorId = String(req.headers['x-actor-user-id'] || req.query['actorId'] || (req as any).user?.id || '');
+    const data = await getUserThreadsAndMessages(actorId);
+    res.json({ success: true, ...data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: (error as Error).message });
+  }
+});
+
+app.get('/api/messages/thread/:peerId', requireActiveUser, async (req, res) => {
+  try {
+    const actorId = String(req.headers['x-actor-user-id'] || req.query['actorId'] || (req as any).user?.id || '');
+    const peerId = String(req.params.peerId);
+    const messages = await getConversationMessages(actorId, peerId);
+    res.json({ success: true, messages });
+  } catch (error) {
+    res.status(500).json({ success: false, message: (error as Error).message });
+  }
+});
+
+app.post('/api/messages', requireActiveUser, async (req, res) => {
+  try {
+    const authUser = (req as any).user;
+    const body = req.body || {};
+    const senderId = String(req.headers['x-actor-user-id'] || body.senderId || authUser?.id || '');
+    const senderName = String(body.senderName || authUser?.name || 'User');
+    const senderRole = String(body.senderRole || authUser?.role || 'staff');
+    const recipientId = String(body.recipientId || '');
+    if (!senderId || !recipientId) {
+      res.status(400).json({ success: false, message: 'senderId and recipientId are required' });
+      return;
+    }
+    const msg = await createChatMessage({
+      senderId,
+      senderName,
+      senderRole,
+      recipientId,
+      recipientName: String(body.recipientName || 'Recipient'),
+      recipientRole: String(body.recipientRole || 'staff'),
+      text: String(body.text || ''),
+      replyToId: body.replyToId || null,
+      jobId: body.jobId || null,
+      attachments: Array.isArray(body.attachments) ? body.attachments : [],
+      location: body.location || null
+    });
+    res.status(201).json({ success: true, message: msg });
+  } catch (error) {
+    res.status(500).json({ success: false, message: (error as Error).message });
+  }
+});
+
+app.patch('/api/messages/:id', requireActiveUser, async (req, res) => {
+  try {
+    const actorId = String(req.headers['x-actor-user-id'] || req.body?.actorId || (req as any).user?.id || '');
+    const updated = await editChatMessage(String(req.params.id), actorId, String(req.body?.text || ''));
+    if (!updated) {
+      res.status(404).json({ success: false, message: 'Message not found or unauthorized' });
+      return;
+    }
+    res.json({ success: true, message: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: (error as Error).message });
+  }
+});
+
+app.delete('/api/messages/:id', requireActiveUser, async (req, res) => {
+  try {
+    const actorId = String(req.headers['x-actor-user-id'] || req.query['actorId'] || (req as any).user?.id || '');
+    const updated = await deleteChatMessage(String(req.params.id), actorId);
+    if (!updated) {
+      res.status(404).json({ success: false, message: 'Message not found or unauthorized' });
+      return;
+    }
+    res.json({ success: true, message: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: (error as Error).message });
+  }
+});
+
+app.post('/api/messages/:id/react', requireActiveUser, async (req, res) => {
+  try {
+    const authUser = (req as any).user;
+    const actorId = String(req.headers['x-actor-user-id'] || req.body?.actorId || authUser?.id || '');
+    const actorName = String(req.body?.actorName || authUser?.name || 'User');
+    const emoji = String(req.body?.emoji || '👍');
+    const updated = await toggleMessageReaction(String(req.params.id), actorId, actorName, emoji);
+    if (!updated) {
+      res.status(404).json({ success: false, message: 'Message not found' });
+      return;
+    }
+    res.json({ success: true, message: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: (error as Error).message });
+  }
+});
+
+app.post('/api/messages/read', requireActiveUser, async (req, res) => {
+  try {
+    const actorId = String(req.headers['x-actor-user-id'] || req.body?.actorId || (req as any).user?.id || '');
+    const peerId = String(req.body?.peerId || '');
+    const count = await markConversationRead(actorId, peerId);
+    res.json({ success: true, count });
+  } catch (error) {
+    res.status(500).json({ success: false, message: (error as Error).message });
+  }
+});
+
+app.post('/api/messages/typing', requireActiveUser, async (req, res) => {
+  try {
+    const actorId = String(req.headers['x-actor-user-id'] || req.body?.actorId || (req as any).user?.id || '');
+    const peerId = String(req.body?.peerId || '');
+    const isTyping = !!req.body?.isTyping;
+    if (actorId && peerId) {
+      setTypingStatus(actorId, peerId, isTyping);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: (error as Error).message });
   }
 });
 

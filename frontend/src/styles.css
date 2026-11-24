@@ -473,3 +473,16 @@ textarea:focus {
             font-weight: 500 !important;
             color: rgba(255, 255, 255, 0.95) !important;
           }
+
+          /* Slightly taller touch-friendly input fields and buttons on mobile & tablet */
+          @media (max-width: 1024px) {
+            input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
+            select {
+              min-height: 2.5rem;
+            }
+
+            button:not(.leaflet-control-zoom-in):not(.leaflet-control-zoom-out),
+            [role="button"] {
+              min-height: 2.25rem;
+            }
+          }

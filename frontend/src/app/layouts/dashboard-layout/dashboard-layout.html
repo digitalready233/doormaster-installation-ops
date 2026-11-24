@@ -102,6 +102,12 @@
             {{ store.shopPortalJobs().length }}
           </span>
           }
+          @else if (item.badgeType === 'count' && item.id === 'messages' && messagesSvc.totalUnreadCount() > 0) {
+          <span
+            class="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-bold">
+            {{ messagesSvc.totalUnreadCount() }}
+          </span>
+          }
           @else if (item.badgeType === 'count' && item.id === 'roles') {
           @if (store.pendingUsers().length > 0) {
           <span
@@ -871,10 +877,11 @@
   <!-- ======================================================================= -->
   <!-- 5. UBER-STYLE LIVE ACTIVE TRACKING TICKER (Always visible if active job)  -->
   <!-- ======================================================================= -->
-  @if (activeLiveJob()) {
-  @let aj = activeLiveJob()!;
-  <div
-    class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 border-b border-emerald-200 dark:border-emerald-500/30 px-4 sm:px-6 py-2.5 text-xs shadow-xs transition-colors">
+  @if (activeLiveJobs().length > 0) {
+  <div class="divide-y divide-emerald-200/70 dark:divide-emerald-500/20">
+    @for (aj of activeLiveJobs(); track aj.id) {
+    <div
+      class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 border-b border-emerald-200 dark:border-emerald-500/30 px-4 sm:px-6 py-2.5 text-xs shadow-xs transition-colors">
     <div class="max-w-screen-2xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
 
       <!-- Live Indicator & Order Meta -->
@@ -899,25 +906,27 @@
           <span class="text-slate-600 dark:text-slate-400 truncate max-w-xs">{{ aj.client.siteAddress }}</span>
           <span class="text-slate-300 dark:text-slate-600 hidden md:inline">·</span>
           <span class="text-slate-600 dark:text-slate-400 hidden md:inline">Installer: <strong
-              class="text-slate-900 dark:text-white">{{ aj.assignedInstallerName || 'Marcus Vance' }}</strong></span>
+              class="text-slate-900 dark:text-white">{{ aj.assignedInstallerName || 'Assigned' }}</strong></span>
         </div>
       </div>
 
       <!-- Quick Actions on Live Ticker -->
-      <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+      <div class="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-auto">
         @if (store.currentRole() !== 'manager') {
-        <button type="button" (click)="setView('map')"
+        <button type="button" (click)="trackLiveJourney(aj.id)"
           class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer">
           <mat-icon class="!text-xs">map</mat-icon>
           <span>Track Live Journey</span>
         </button>
         }
 
-        <button type="button" (click)="openContactInstaller(aj)"
+        @for (person of getLiveJobContacts(aj); track person.key) {
+        <button type="button" (click)="openContactPerson(person, aj)"
           class="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors shadow-2xs cursor-pointer">
           <mat-icon class="!text-xs text-emerald-600 dark:text-emerald-400">phone</mat-icon>
-          <span>Call Installer</span>
+          <span>Call {{ person.firstName }}</span>
         </button>
+        }
 
         <button type="button" (click)="openJobDetails(aj.id)"
           class="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-medium hover:text-slate-900 dark:hover:text-white transition-colors shadow-2xs cursor-pointer">
@@ -925,6 +934,8 @@
         </button>
       </div>
     </div>
+  </div>
+    }
   </div>
   }
 
@@ -1287,4 +1298,57 @@
     (rejected)="handleDriverRejectSubmit($event)"
     (canceled)="rejectingDriverJobId.set(null)"
   ></app-rejection-modal>
+}
+
+@if (store.needsLocationPrompt()) {
+  <div class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
+    <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+      <div class="p-5 sm:p-6 space-y-4">
+        <div class="flex items-start gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <mat-icon class="!text-2xl">location_off</mat-icon>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-base font-black text-slate-900 dark:text-white leading-tight">
+              Turn On Location to Continue
+            </h3>
+            <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">
+              {{ store.currentRole() === 'dispatcher' ? 'Drivers' : 'Installers' }} must have live GPS location turned on in the app for dispatch routing, ETA tracking, and site check-ins.
+            </p>
+          </div>
+        </div>
+
+        @if (store.gpsPermissionState() === 'denied') {
+          <div class="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/70 text-xs text-rose-800 dark:text-rose-200 space-y-1">
+            <p class="font-bold">Location access is currently blocked.</p>
+            <p>Click the lock or location icon in your browser's address bar, set <strong>Location</strong> to <strong>Allow</strong>, and then click Retry below.</p>
+          </div>
+        } @else if (store.gpsError()) {
+          <div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/70 text-xs text-amber-800 dark:text-amber-200">
+            {{ store.gpsError() }}
+          </div>
+        }
+
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button
+            type="button"
+            [disabled]="isRequestingLocation()"
+            (click)="enableLocationToContinue()"
+            class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer"
+          >
+            <mat-icon class="!text-base">{{ isRequestingLocation() ? 'sync' : 'my_location' }}</mat-icon>
+            <span>
+              @if (isRequestingLocation()) {
+                Enabling Location...
+              } @else if (store.gpsPermissionState() === 'denied') {
+                Retry Location Access
+              } @else {
+                Turn On Location & Continue
+              }
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 }

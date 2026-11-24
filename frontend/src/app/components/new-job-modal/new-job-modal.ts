@@ -289,7 +289,7 @@ export interface EditableDoorItem extends JobDoorItem {
             </div>
 
             <!-- Selected Doors List with Expandable Door Information Dropdown -->
-            <div class="space-y-3">
+            <div class="space-y-2">
               @for (door of selectedDoors(); track door.id; let i = $index) {
                 <div class="rounded-xl border transition-all duration-200 overflow-hidden"
                   [class]="door.isExpanded 
@@ -299,7 +299,7 @@ export interface EditableDoorItem extends JobDoorItem {
                   <!-- Door Summary Bar / Dropdown Trigger Header -->
                   <div 
                     (click)="toggleDoorDropdown(i)"
-                    class="px-3 sm:px-4 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 cursor-pointer select-none bg-slate-100/50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors"
+                    class="px-2.5 sm:px-3 py-1.5 sm:py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 cursor-pointer select-none bg-slate-100/50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors"
                   >
                     <!-- Left: Door Title & Badge (with mobile actions) -->
                     <div class="flex items-center justify-between sm:justify-start gap-2.5 min-w-0 w-full sm:w-auto">
@@ -403,10 +403,10 @@ export interface EditableDoorItem extends JobDoorItem {
                   <!-- Contains all door specifications inside the dropdown          -->
                   <!-- ============================================================= -->
                   @if (door.isExpanded) {
-                    <div class="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800/80 space-y-3.5 animate-in slide-in-from-top-2 duration-150">
+                    <div class="p-2.5 sm:p-3 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800/80 space-y-2.5 animate-in slide-in-from-top-2 duration-150">
                       
                       <!-- Merged Door Selection & Installation Rate Card -->
-                      <div class="p-3 bg-teal-50/40 dark:bg-teal-950/20 rounded-xl border border-teal-200/70 dark:border-teal-800/60 space-y-2.5">
+                      <div class="p-2 sm:p-2.5 bg-teal-50/40 dark:bg-teal-950/20 rounded-xl border border-teal-200/70 dark:border-teal-800/60 space-y-2">
                         <div class="flex items-center justify-between gap-2">
                           <label class="text-[10px] font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider flex items-center gap-1">
                             <mat-icon class="!text-xs">tune</mat-icon>
@@ -414,7 +414,7 @@ export interface EditableDoorItem extends JobDoorItem {
                           </label>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
                             <label class="block text-[10px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
                               Door Series (Optional)
@@ -508,7 +508,7 @@ export interface EditableDoorItem extends JobDoorItem {
                         </div>
 
                         <!-- Extra Lock Add-on -->
-                        <label class="flex items-center justify-between gap-2 pt-2 mt-1 border-t border-teal-200/60 dark:border-teal-800/50 cursor-pointer select-none">
+                        <label class="flex items-center justify-between gap-2 pt-1.5 mt-0.5 border-t border-teal-200/60 dark:border-teal-800/50 cursor-pointer select-none">
                           <span class="flex items-center gap-2 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
                             <input
                               type="checkbox"
@@ -525,7 +525,7 @@ export interface EditableDoorItem extends JobDoorItem {
                       </div>
 
                       <!-- Read-Only Door Information (Flat Summary) -->
-                      <div class="pt-1 space-y-2">
+                      <div class="pt-0.5 space-y-1.5">
                         <div class="flex items-center justify-between gap-2">
                           <span class="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                             Door Specifications

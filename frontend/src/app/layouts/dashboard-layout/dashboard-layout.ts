@@ -15,6 +15,7 @@ import { NotificationDrawer } from '../../components/notification-drawer/notific
 import { RejectionModal } from '../../components/rejection-modal/rejection-modal';
 import { PwaInstallButton } from '../../components/pwa-install-button/pwa-install-button';
 import { AlertService } from '../../services/alert.service';
+import { MessagesService } from '../../services/messages.service';
 import { InstallationJob, InstallerTeam, NotificationItem, RoleDefinition, RoleType } from '../../models/installation.model';
 
 export type ActiveView =
@@ -23,6 +24,7 @@ export type ActiveView =
   | 'work'
   | 'shop'
   | 'map'
+  | 'messages'
   | 'performance'
   | 'finance'
   | 'roles'
@@ -68,6 +70,7 @@ export class DashboardLayout implements OnDestroy {
   readonly store = inject(InstallationStore);
   readonly themeStore = inject(ThemeStore);
   readonly pwa = inject(PwaService);
+  readonly messagesSvc = inject(MessagesService);
   readonly router = inject(Router);
 
   readonly inspectedJobId = signal<string | null>(null);
@@ -430,7 +433,7 @@ export class DashboardLayout implements OnDestroy {
   readonly currentView = computed<ActiveView>(() => {
     const url = this.currentUrl();
     const segment = url.split('?')[0].split('#')[0].replace(/^\//, '');
-    const valid: ActiveView[] = ['overview', 'doors', 'work', 'shop', 'map', 'performance', 'finance', 'roles', 'settings', 'profile'];
+    const valid: ActiveView[] = ['overview', 'doors', 'work', 'shop', 'map', 'messages', 'performance', 'finance', 'roles', 'settings', 'profile'];
     return (valid.includes(segment as ActiveView) ? segment : 'overview') as ActiveView;
   });
 
@@ -504,6 +507,16 @@ export class DashboardLayout implements OnDestroy {
       description: 'Unified field telematics, live radar, routes & site operations'
     },
     {
+      id: 'messages',
+      label: 'Message',
+      icon: 'chat',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      activeColor: 'text-emerald-600 dark:text-emerald-400',
+      category: 'field',
+      badgeType: 'count',
+      description: 'WhatsApp-style team & branch chat'
+    },
+    {
       id: 'performance',
       label: 'Incentive Bonuses',
       icon: 'military_tech',
@@ -574,6 +587,9 @@ export class DashboardLayout implements OnDestroy {
 
   isViewAllowedForRole(viewId: ActiveView, roleId: string, roleDef: RoleDefinition): boolean {
     if (viewId === 'settings' || viewId === 'profile' || viewId === 'map') return true;
+    if (viewId === 'messages') {
+      return ['admin', 'manager', 'shop_manager', 'account_officer', 'installer', 'dispatcher'].includes(roleId);
+    }
     // When impersonating another user, the user is mainly logged in with primary permissions
     if (this.store.isImpersonating()) {
       if (viewId === 'roles' && (this.store.originalRole() === 'admin' || this.store.originalUser()?.role === 'admin')) {
@@ -642,14 +658,93 @@ export class DashboardLayout implements OnDestroy {
     return sections.filter(s => s.items.length > 0);
   });
 
-  readonly activeLiveJob = computed(() => {
-    const all = this.store.branchJobs();
-    return all.find(j => j.status === 'on_site' || j.status === 'dispatched' || j.status === 'accepted') || null;
+  readonly activeLiveJobs = computed<InstallationJob[]>(() => {
+    const role = this.store.currentRole();
+    let pool: InstallationJob[] = [];
+
+    if (role === 'admin' || role === 'manager') {
+      pool = this.store.jobs();
+    } else if (role === 'shop_manager') {
+      pool = this.store.branchJobs();
+    } else if (role === 'installer') {
+      pool = this.store.jobs().filter(j => this.store.isJobAssignedToCurrentInstaller(j));
+    } else if (role === 'dispatcher') {
+      pool = this.store.dispatcherJobs();
+    } else {
+      return [];
+    }
+
+    return pool.filter(j =>
+      (j.status === 'dispatched' ||
+        j.status === 'delivered_on_site' ||
+        j.status === 'on_site' ||
+        j.status === 'in_progress') &&
+      this.isJobToday(j)
+    );
   });
+
+  private isJobToday(job: InstallationJob): boolean {
+    const rawSched = `${job.scheduledDate || ''} ${(job as any).scheduledTime || ''}`.trim().toLowerCase();
+    if (rawSched.includes('today')) {
+      return true;
+    }
+
+    const now = new Date();
+    const todayYear = now.getFullYear();
+    const todayMonth = now.getMonth();
+    const todayDate = now.getDate();
+
+    const dateMatch = rawSched.match(/\d{4}-\d{2}-\d{2}/);
+    if (dateMatch) {
+      const parts = dateMatch[0].split('-').map(Number);
+      if (parts[0] === todayYear && parts[1] - 1 === todayMonth && parts[2] === todayDate) {
+        return true;
+      }
+    }
+
+    const candidates = [
+      job.scheduledDate,
+      (job as any).scheduledTime,
+      job.createdAt,
+      job.shopBooking?.bookingTimestamp
+    ];
+
+    for (const cand of candidates) {
+      if (!cand) continue;
+      const parsed = new Date(cand);
+      if (!isNaN(parsed.getTime())) {
+        if (
+          parsed.getFullYear() === todayYear &&
+          parsed.getMonth() === todayMonth &&
+          parsed.getDate() === todayDate
+        ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
 
   setView(view: ActiveView) {
     this.mobileSidebarOpen.set(false);
     this.router.navigate(['/' + view]);
+  }
+
+  readonly isRequestingLocation = signal(false);
+
+  async enableLocationToContinue() {
+    this.isRequestingLocation.set(true);
+    try {
+      await this.store.requestLocationAccess();
+    } finally {
+      this.isRequestingLocation.set(false);
+    }
+  }
+
+  trackLiveJourney(jobId: string) {
+    this.mobileSidebarOpen.set(false);
+    this.router.navigate(['/map'], { queryParams: { jobId } });
   }
 
   toggleSidebarCollapse() {
@@ -725,14 +820,117 @@ export class DashboardLayout implements OnDestroy {
     this.inspectedJobId.set(null);
   }
 
+  getLiveJobContacts(job: InstallationJob): {
+    key: string;
+    name: string;
+    firstName: string;
+    phone: string;
+    roleLabel: 'Installer' | 'Driver';
+  }[] {
+    const contacts: {
+      key: string;
+      name: string;
+      firstName: string;
+      phone: string;
+      roleLabel: 'Installer' | 'Driver';
+    }[] = [];
+    const seen = new Set<string>();
+    const installers = this.store.installers();
+    const dispatchers = this.store.dispatchers();
+    const users = this.store.users();
+    const role = this.store.currentRole();
+    const curUser = this.store.currentUser();
+    const omitSelf = role === 'installer' || role === 'dispatcher';
+    const selfIds = new Set<string>(
+      [
+        curUser?.id,
+        this.store.currentInstallerId(),
+        this.store.currentDispatcherId()
+      ].filter((v): v is string => !!v)
+    );
+    const selfName = (curUser?.name || '').trim().toLowerCase();
+
+    const addContact = (
+      id: string | null | undefined,
+      fallbackName: string | null | undefined,
+      fallbackPhone: string | null | undefined,
+      roleLabel: 'Installer' | 'Driver'
+    ) => {
+      const userMatch = id ? users.find(u => u.id === id) : undefined;
+      const installerMatch = id ? installers.find(i => i.id === id) : undefined;
+      const dispatcherMatch = id ? dispatchers.find(d => d.id === id) : undefined;
+      const resolvedId = userMatch?.id || installerMatch?.id || dispatcherMatch?.id || id || '';
+      const name = (userMatch?.name || installerMatch?.name || dispatcherMatch?.name || fallbackName || '').trim();
+      const phone = (userMatch?.phone || installerMatch?.phone || dispatcherMatch?.phone || fallbackPhone || '').trim();
+      if (!name) return;
+      if (omitSelf && ((resolvedId && selfIds.has(resolvedId)) || (selfName && name.toLowerCase() === selfName))) {
+        return;
+      }
+      const dedupeKey = `${roleLabel}:${resolvedId || name.toLowerCase()}`;
+      if (seen.has(dedupeKey)) return;
+      seen.add(dedupeKey);
+      const firstName = name.split(/\s+/)[0] || name;
+      contacts.push({
+        key: dedupeKey,
+        name,
+        firstName,
+        phone: phone || 'No phone on file',
+        roleLabel
+      });
+    };
+
+    const installerIds = new Set<string>();
+    if (job.assignedInstallerId) installerIds.add(job.assignedInstallerId);
+    if (Array.isArray(job.assignedInstallerIds)) {
+      for (const id of job.assignedInstallerIds) {
+        if (id) installerIds.add(id);
+      }
+    }
+
+    if (installerIds.size > 0) {
+      let idx = 0;
+      for (const id of installerIds) {
+        const fallbackName = idx === 0 ? job.assignedInstallerName : undefined;
+        addContact(id, fallbackName, undefined, 'Installer');
+        idx++;
+      }
+    } else if (job.assignedInstallerName) {
+      const byName = installers.find(i => i.name.toLowerCase() === job.assignedInstallerName?.toLowerCase())
+        || users.find(u => u.name.toLowerCase() === job.assignedInstallerName?.toLowerCase());
+      addContact(byName?.id, job.assignedInstallerName, byName?.phone, 'Installer');
+    }
+
+    if (job.dispatcherId || job.dispatcherName) {
+      const byName = !job.dispatcherId && job.dispatcherName
+        ? (dispatchers.find(d => d.name.toLowerCase() === job.dispatcherName?.toLowerCase())
+          || users.find(u => u.name.toLowerCase() === job.dispatcherName?.toLowerCase()))
+        : undefined;
+      addContact(job.dispatcherId || byName?.id, job.dispatcherName, byName?.phone, 'Driver');
+    }
+
+    return contacts;
+  }
+
+  openContactPerson(person: { name: string; phone: string }, job: InstallationJob) {
+    this.activeContactInfo.set({
+      name: person.name,
+      phone: person.phone,
+      jobTitle: job.doorModel,
+      address: job.client.siteAddress
+    });
+    this.contactModalOpen.set(true);
+  }
+
   openContactInstaller(job: InstallationJob) {
     this.openContactTechnician(job);
   }
 
   openContactTechnician(job: InstallationJob) {
+    const contacts = this.getLiveJobContacts(job);
+    const primary = contacts[0];
     this.activeContactInfo.set({
-      name: job.assignedInstallerName || 'Marcus Vance',
-      phone: '+1 (555) 234-8891',
+      name: primary?.name || job.assignedInstallerName || 'Assigned Crew',
+      phone: primary?.phone || 'No phone on file',
       jobTitle: job.doorModel,
       address: job.client.siteAddress
     });
