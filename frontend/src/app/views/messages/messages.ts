@@ -29,15 +29,15 @@ import { AlertService } from '../../services/alert.service';
   imports: [CommonModule, FormsModule, MatIconModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-7.5rem)] min-h-[460px] flex rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg">
+    <div class="h-[calc(100dvh-10.5rem)] md:h-[calc(100dvh-6.5rem)] min-h-[480px] flex rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
 
       <!-- =============================================================== -->
       <!-- LEFT PANE: CONTACTS & CHATS LIST (WhatsApp Sidebar)             -->
       <!-- =============================================================== -->
       <aside
-        class="w-full md:w-80 lg:w-96 shrink-0 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+        class="w-full md:w-[320px] lg:w-[360px] shrink-0 h-full md:flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
         [class.hidden]="mobileShowChat() && !!selectedPeer()"
-        class="md:flex"
+        [class.flex]="!(mobileShowChat() && !!selectedPeer())"
       >
         <!-- Left Header -->
         <div class="px-4 py-3 bg-slate-50 dark:bg-slate-950/70 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
@@ -197,9 +197,9 @@ import { AlertService } from '../../services/alert.service';
       <!-- RIGHT PANE: ACTIVE CONVERSATION (WhatsApp Chat Area)            -->
       <!-- =============================================================== -->
       <section
-        class="flex-1 flex flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b141a] relative"
+        class="flex-1 h-full md:flex flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b141a] relative"
         [class.hidden]="!mobileShowChat() || !selectedPeer()"
-        class="md:flex"
+        [class.flex]="mobileShowChat() && !!selectedPeer()"
       >
         @if (!selectedPeer()) {
           <!-- Empty State -->
@@ -303,7 +303,7 @@ import { AlertService } from '../../services/alert.service';
           <!-- Messages Feed -->
           <div
             #messagesFeed
-            class="flex-1 overflow-y-auto px-3 sm:px-5 py-4 space-y-2.5"
+            class="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-2.5 bg-[radial-gradient(rgba(15,23,42,0.06)_1px,transparent_1px)] dark:bg-[radial-gradient(rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:18px_18px]"
           >
             @if (visibleThreadMessages().length === 0) {
               <div class="flex flex-col items-center justify-center h-full text-center py-8">
@@ -623,13 +623,13 @@ import { AlertService } from '../../services/alert.service';
           }
 
           <!-- Bottom Composer Bar -->
-          <footer class="px-2.5 sm:px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-end gap-1.5 sm:gap-2 shrink-0">
+          <footer class="px-2.5 sm:px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center gap-1 sm:gap-1.5 shrink-0">
             <input #fileInput type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" class="hidden" (change)="onFilesSelected($event)" />
 
             <button
               type="button"
               (click)="showEmojiPicker.update(v => !v); showJobPicker.set(false)"
-              class="p-2 rounded-xl text-slate-500 hover:text-emerald-600 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+              class="w-9 h-9 rounded-xl text-slate-500 hover:text-emerald-600 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0 flex items-center justify-center"
               title="Emoji"
             >
               <mat-icon class="!text-lg">sentiment_satisfied_alt</mat-icon>
@@ -638,7 +638,7 @@ import { AlertService } from '../../services/alert.service';
             <button
               type="button"
               (click)="fileInput.click()"
-              class="p-2 rounded-xl text-slate-500 hover:text-emerald-600 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+              class="w-9 h-9 rounded-xl text-slate-500 hover:text-emerald-600 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0 flex items-center justify-center"
               title="Attach photo or document"
             >
               <mat-icon class="!text-lg">attach_file</mat-icon>
@@ -647,7 +647,7 @@ import { AlertService } from '../../services/alert.service';
             <button
               type="button"
               (click)="shareCurrentLocation()"
-              class="p-2 rounded-xl text-slate-500 hover:text-rose-500 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+              class="w-9 h-9 rounded-xl text-slate-500 hover:text-rose-500 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0 flex items-center justify-center"
               title="Share live GPS location"
             >
               <mat-icon class="!text-lg">location_on</mat-icon>
@@ -656,7 +656,7 @@ import { AlertService } from '../../services/alert.service';
             <button
               type="button"
               (click)="showJobPicker.update(v => !v); showEmojiPicker.set(false)"
-              class="p-2 rounded-xl text-slate-500 hover:text-teal-600 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+              class="w-9 h-9 rounded-xl text-slate-500 hover:text-teal-600 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0 flex items-center justify-center"
               title="Tag a work task"
             >
               <mat-icon class="!text-lg">work_outline</mat-icon>
@@ -668,14 +668,14 @@ import { AlertService } from '../../services/alert.service';
               (ngModelChange)="onDraftChange($event)"
               (keydown)="onComposerKeydown($event)"
               placeholder="Type a message..."
-              class="flex-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white resize-none max-h-28 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              class="flex-1 min-h-[40px] px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white resize-none max-h-28 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             ></textarea>
 
             @if (draftText().trim() || pendingAttachments().length > 0 || editingMessage()) {
               <button
                 type="button"
                 (click)="submitComposer()"
-                class="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors cursor-pointer shrink-0 flex items-center justify-center"
+                class="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors cursor-pointer shrink-0 flex items-center justify-center"
                 title="Send message"
               >
                 <mat-icon class="!text-lg">send</mat-icon>
@@ -684,7 +684,7 @@ import { AlertService } from '../../services/alert.service';
               <button
                 type="button"
                 (click)="toggleVoiceRecording()"
-                class="p-2.5 rounded-xl text-white shadow-sm transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1"
+                class="h-10 px-2.5 min-w-[40px] rounded-full text-white shadow-sm transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1"
                 [class]="isRecordingVoice() ? 'bg-rose-600 hover:bg-rose-500 animate-pulse' : 'bg-emerald-600 hover:bg-emerald-500'"
                 [title]="isRecordingVoice() ? 'Stop & attach voice note' : 'Record voice note'"
               >
