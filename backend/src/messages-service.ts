@@ -240,8 +240,14 @@ export async function markConversationRead(userId: string, peerId: string): Prom
 
 export function setTypingStatus(senderId: string, recipientId: string, isTyping: boolean): void {
   const key = `${senderId}::${recipientId}`;
+  const now = Date.now();
+  if (typingMap.size > 500) {
+    for (const [k, exp] of typingMap.entries()) {
+      if (exp <= now) typingMap.delete(k);
+    }
+  }
   if (isTyping) {
-    typingMap.set(key, Date.now() + 6000);
+    typingMap.set(key, now + 6000);
   } else {
     typingMap.delete(key);
   }

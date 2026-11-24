@@ -41,6 +41,9 @@ const JWT_TTL_SECONDS = Number(process.env['JWT_TTL_SECONDS']) || 7 * 24 * 60 * 
 const DEFAULT_JWT_SECRET = 'doormaster_enterprise_precision_ops_jwt_key_2026';
 
 if (JWT_SECRET === DEFAULT_JWT_SECRET) {
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error('[AuthService] FATAL: JWT_SECRET must be set to a strong secret in production.');
+  }
   console.warn(
     '[AuthService] WARNING: using the built-in default JWT_SECRET. Set JWT_SECRET in backend/.env before deploying to production.'
   );
@@ -257,8 +260,16 @@ export async function getUserById(userId: string): Promise<UserRecord | null> {
   }
 }
 
+const ALLOWED_SELF_REGISTRATION_ROLES = new Set([
+  'client',
+  'installer',
+  'dispatcher',
+  'shop_manager',
+  'account_officer',
+]);
+
 /**
- * Register new user into MySQL using Prisma (self-registration defaults to 'pending' for manager approval)
+ * Register new user into MySQL using Prisma (self-registration always starts as 'pending' for manager approval)
  */
 export async function registerUser(data: {
   name: string;
@@ -272,6 +283,18 @@ export async function registerUser(data: {
 }): Promise<{ success: boolean; user?: UserRecord; token?: string; message: string }> {
   try {
     const cleanEmail = data.email.trim().toLowerCase();
+    const requestedRole = typeof data.role === 'string' ? data.role.trim().toLowerCase() : '';
+
+    if (!ALLOWED_SELF_REGISTRATION_ROLES.has(requestedRole)) {
+      return {
+        success: false,
+        message: 'Self-registration is not permitted for the requested role.',
+      };
+    }
+
+    if (!data.password || typeof data.password !== 'string') {
+      return { success: false, message: 'Password is required.' };
+    }
 
     const policyError = passwordPolicyError(data.password);
     if (policyError) {
@@ -286,21 +309,21 @@ export async function registerUser(data: {
       return { success: false, message: `Account with email "${cleanEmail}" already exists.` };
     }
 
-    const id = `USR-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
-    const pass = data.password || 'DoorMaster2026!*';
-    const passwordHash = hashPassword(pass);
+    const id = `USR-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+    const passwordHash = hashPassword(data.password);
     const phone = data.phone || '+233 24 555 0199';
     const avatar = data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
-    const status = data.status || 'pending';
+    // Self-registered accounts must always await manager approval.
+    const status = 'pending';
     const cleanShopId = data.shopId && data.shopId.trim() ? data.shopId.trim() : null;
 
     const created = await prisma.user.create({
       data: {
         id,
-        name: data.name,
+        name: data.name.trim(),
         email: cleanEmail,
         passwordHash,
-        role: data.role,
+        role: requestedRole,
         phone,
         status,
         shopId: cleanShopId,
@@ -320,16 +343,11 @@ export async function registerUser(data: {
       createdAt: created.createdAt.toISOString(),
     };
 
-    const token = generateToken(user);
-
-    const message = status === 'pending'
-      ? `Registration submitted successfully for ${data.name}. Your account is pending Operations Manager approval.`
-      : `User ${data.name} created successfully with role ${data.role}.`;
+    const message = `Registration submitted successfully for ${data.name}. Your account is pending Operations Manager approval.`;
 
     return {
       success: true,
       user,
-      token,
       message,
     };
   } catch (err) {

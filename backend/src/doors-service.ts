@@ -323,10 +323,20 @@ export async function getDoorCategories(): Promise<{ category: string; count: nu
   return Array.from(catMap.entries()).map(([category, count]) => ({ category, count }));
 }
 
+function nonNegNumber(val: unknown, fallback: number): number {
+  const n = Number(val);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
 /**
  * Add a door using Prisma
  */
 export async function addDoorEntry(door: Partial<ScrapedDoor>): Promise<ScrapedDoor> {
+  const unitPrice = nonNegNumber(door.unitPrice, 2500);
+  const installationPrice = door.installationPrice !== undefined && door.installationPrice !== null
+    ? nonNegNumber(door.installationPrice, computeDefaultInstallationPrice(door.name || '', door.category || ''))
+    : computeDefaultInstallationPrice(door.name || '', door.category || '');
+
   const newDoor: ScrapedDoor = {
     id: door.id || `DMO-${Date.now().toString(36).toUpperCase()}`,
     name: door.name || 'Custom Architectural Door',
@@ -338,20 +348,18 @@ export async function addDoorEntry(door: Partial<ScrapedDoor>): Promise<ScrapedD
     hardwareSpecs: door.hardwareSpecs || '3-Point Mortise Security Lock',
     fireRating: door.fireRating || 'Standard / FD30',
     acousticRating: door.acousticRating || '35 dB',
-    unitPrice: Number(door.unitPrice) || 2500,
-    installationPrice: door.installationPrice !== undefined && door.installationPrice !== null
-      ? Number(door.installationPrice)
-      : computeDefaultInstallationPrice(door.name || '', door.category || ''),
-    formattedPrice: door.formattedPrice || `₵${Number(door.unitPrice || 2500).toLocaleString()}`,
-    stockQuantity: Number(door.stockQuantity) || 4,
-    leadTimeDays: Number(door.leadTimeDays) || 3,
+    unitPrice,
+    installationPrice,
+    formattedPrice: door.formattedPrice || `₵${unitPrice.toLocaleString()}`,
+    stockQuantity: Math.floor(nonNegNumber(door.stockQuantity, 4)),
+    leadTimeDays: Math.floor(nonNegNumber(door.leadTimeDays, 3)),
     status: door.status || 'in_stock',
     supplierOrWorkshop: door.supplierOrWorkshop || 'DoorMaster Official',
     imageUrl: door.imageUrl || 'https://doormaster.online/wp-content/uploads/2026/07/P.V-1-500x600.png',
     sourceUrl: door.sourceUrl || 'https://doormaster.online/shop/',
     scrapedAt: new Date().toISOString(),
     description: door.description || 'Custom configured DoorMaster architectural door.',
-    warrantyYears: Number(door.warrantyYears) || 10,
+    warrantyYears: Math.floor(nonNegNumber(door.warrantyYears, 10)),
     createdAt: new Date().toISOString(),
   };
 
@@ -512,20 +520,45 @@ export async function updateDoorEntry(
   if (data.acousticRating !== undefined) patchData['acousticRating'] = data.acousticRating;
   if (data.unitPrice !== undefined) {
     const priceNum = Number(data.unitPrice);
+    if (!Number.isFinite(priceNum) || priceNum < 0) {
+      throw new Error('unitPrice must be a valid non-negative number.');
+    }
     patchData['unitPrice'] = new Prisma.Decimal(priceNum);
     patchData['formattedPrice'] = data.formattedPrice || `₵${priceNum.toLocaleString()}`;
   }
   if (data.installationPrice !== undefined) {
-    patchData['installationPrice'] = new Prisma.Decimal(Number(data.installationPrice));
+    const instNum = Number(data.installationPrice);
+    if (!Number.isFinite(instNum) || instNum < 0) {
+      throw new Error('installationPrice must be a valid non-negative number.');
+    }
+    patchData['installationPrice'] = new Prisma.Decimal(instNum);
   }
-  if (data.stockQuantity !== undefined) patchData['stockQuantity'] = Number(data.stockQuantity);
-  if (data.leadTimeDays !== undefined) patchData['leadTimeDays'] = Number(data.leadTimeDays);
+  if (data.stockQuantity !== undefined) {
+    const stockNum = Number(data.stockQuantity);
+    if (!Number.isFinite(stockNum) || stockNum < 0) {
+      throw new Error('stockQuantity must be a valid non-negative number.');
+    }
+    patchData['stockQuantity'] = Math.floor(stockNum);
+  }
+  if (data.leadTimeDays !== undefined) {
+    const leadNum = Number(data.leadTimeDays);
+    if (!Number.isFinite(leadNum) || leadNum < 0) {
+      throw new Error('leadTimeDays must be a valid non-negative number.');
+    }
+    patchData['leadTimeDays'] = Math.floor(leadNum);
+  }
   if (data.status !== undefined) patchData['status'] = data.status;
   if (data.supplierOrWorkshop !== undefined) patchData['supplierOrWorkshop'] = data.supplierOrWorkshop;
   if (data.imageUrl !== undefined) patchData['imageUrl'] = data.imageUrl;
   if (data.sourceUrl !== undefined) patchData['sourceUrl'] = data.sourceUrl;
   if (data.description !== undefined) patchData['description'] = data.description;
-  if (data.warrantyYears !== undefined) patchData['warrantyYears'] = Number(data.warrantyYears);
+  if (data.warrantyYears !== undefined) {
+    const warrantyNum = Number(data.warrantyYears);
+    if (!Number.isFinite(warrantyNum) || warrantyNum < 0) {
+      throw new Error('warrantyYears must be a valid non-negative number.');
+    }
+    patchData['warrantyYears'] = Math.floor(warrantyNum);
+  }
 
   try {
     const updated = await prisma.door.update({
@@ -588,19 +621,21 @@ export async function updateDoorEntry(
  * Delete a door using Prisma
  */
 export async function deleteDoor(id: string): Promise<boolean> {
+  let dbDeleted = false;
   try {
     await prisma.door.delete({
       where: { id },
     });
+    dbDeleted = true;
   } catch (err) {
     console.warn('[DoorsService] Prisma delete notice:', (err as Error).message);
   }
 
   const initialLen = cachedDoors.length;
   cachedDoors = cachedDoors.filter((d) => d.id !== id);
-  if (cachedDoors.length !== initialLen) {
+  const cacheDeleted = cachedDoors.length !== initialLen;
+  if (cacheDeleted) {
     saveDoorsToFile(cachedDoors);
-    return true;
   }
-  return false;
+  return dbDeleted || cacheDeleted;
 }
