@@ -3,18 +3,13 @@ import {
   Attribute,
   ChangeDetectorRef,
   DEFAULT_CURRENCY_CODE,
-  DOCUMENT,
-  DestroyRef,
   Directive,
   ElementRef,
   Host,
   IMAGE_CONFIG,
   IMAGE_CONFIG_DEFAULTS,
-  INTERNAL_APPLICATION_ERROR_HANDLER,
   Inject,
   Injectable,
-  InjectionToken,
-  Injector,
   Input,
   IterableDiffers,
   KeyValueDiffers,
@@ -22,22 +17,17 @@ import {
   LocaleDataIndex,
   NgModule,
   NgModuleRef$1,
-  NgZone,
   Optional,
   Pipe,
   Renderer2,
   RendererStyleFlags2,
-  RuntimeError,
   TemplateRef,
-  Version,
   ViewContainerRef,
   booleanAttribute,
   createNgModule,
   findLocaleData,
-  formatRuntimeError,
   getLocaleCurrencyCode,
   getLocalePluralCase,
-  inject,
   isPromise,
   isSignal,
   isSubscribable,
@@ -45,24 +35,36 @@ import {
   performanceMarkFeature,
   registerLocaleData,
   setClassMetadata,
-  stringify,
-  untracked,
   unwrapSafeValue,
   ɵɵNgOnChangesFeature,
   ɵɵdefineDirective,
-  ɵɵdefineInjectable,
-  ɵɵdefineInjector,
   ɵɵdefineNgModule,
   ɵɵdefinePipe,
   ɵɵdirectiveInject,
   ɵɵgetInheritedFactory,
-  ɵɵinject,
   ɵɵinjectAttribute,
   ɵɵstyleProp
-} from "./chunk-NMGGTMDU.js";
+} from "./chunk-YD63J4DM.js";
+import {
+  DOCUMENT,
+  DestroyRef,
+  INTERNAL_APPLICATION_ERROR_HANDLER,
+  InjectionToken,
+  Injector,
+  NgZone,
+  RuntimeError,
+  Version,
+  formatRuntimeError,
+  inject,
+  stringify,
+  untracked,
+  ɵɵdefineInjectable,
+  ɵɵdefineInjector,
+  ɵɵinject
+} from "./chunk-YJP4AJM7.js";
 import {
   Subject
-} from "./chunk-WYF26C5D.js";
+} from "./chunk-RSS3ODKE.js";
 import {
   __spreadProps,
   __spreadValues
@@ -4718,6 +4720,8 @@ function booleanOrUrlAttribute(value) {
 }
 
 export {
+  parseCookieValue,
+  XhrFactory,
   getDOM,
   setRootDomAdapter,
   DomAdapter,
@@ -4797,8 +4801,6 @@ export {
   CommonModule,
   PRECOMMIT_HANDLER_SUPPORTED,
   PlatformNavigation,
-  parseCookieValue,
-  XhrFactory,
   NavigationAdapterForLocation,
   registerLocaleData2 as registerLocaleData,
   PLATFORM_BROWSER_ID,
@@ -4817,4 +4819,4 @@ export {
   PRECONNECT_CHECK_BLOCKLIST,
   NgOptimizedImage
 };
-//# sourceMappingURL=chunk-QXDAIBUL.js.map
+//# sourceMappingURL=chunk-66PHHYVP.js.map

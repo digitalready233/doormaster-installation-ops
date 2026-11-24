@@ -13,6 +13,7 @@ import { RolesManager } from './views/roles-manager/roles-manager';
 import { Settings } from './views/settings/settings';
 import { Profile } from './views/profile/profile';
 import { Work } from './views/work/work';
+import { MessagesView } from './views/messages/messages';
 import { authGuard, guestGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -72,6 +73,11 @@ export const routes: Routes = [
         path: 'map',
         component: DeliveryMap,
         title: 'Map - DoorMaster'
+      },
+      {
+        path: 'messages',
+        component: MessagesView,
+        title: 'Message - DoorMaster'
       },
       {
         path: 'performance',

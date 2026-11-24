@@ -13,7 +13,8 @@ import {
   viewChild
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
@@ -97,6 +98,7 @@ interface CrewRoute {
       <!-- ================================================================= -->
       <!-- TOP OVERSIGHT HEADER & TELEMETRY KPI BANNER                       -->
       <!-- ================================================================= -->
+      @if (!isFieldCrewPortal()) {
       <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div>
           <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1 flex-wrap">
@@ -126,6 +128,26 @@ interface CrewRoute {
 
         <!-- KPI Telemetry Badges (Merged from Installer, Client & Fleet) -->
         <div class="flex flex-wrap items-center gap-2">
+          <!-- Always-visible Online / Offline Status Pill -->
+          @if (store.myOnlineStatus() === 'online') {
+            <div
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold font-mono shadow-2xs"
+              [title]="store.gpsAccuracyM() !== null ? 'GPS Accuracy: ±' + store.gpsAccuracyM() + 'm' : 'Live GPS Connected'">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Online</span>
+              @if (store.gpsAccuracyM() !== null) {
+                <span class="text-[10px] opacity-75">±{{ store.gpsAccuracyM() }}m</span>
+              }
+            </div>
+          } @else {
+            <div
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-xs font-bold font-mono shadow-2xs"
+              [title]="store.gpsError() || 'Device is offline or GPS signal unavailable'">
+              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span>Offline</span>
+            </div>
+          }
+
           <!-- Active Live Units (GPS Transmitting) -->
           <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold font-mono shadow-2xs">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -151,12 +173,156 @@ interface CrewRoute {
           </div>
         </div>
       </div>
+      }
 
       <!-- ================================================================= -->
       <!-- MULTI-ROLE COMPREHENSIVE FILTER & SURVEILLANCE CONTROL BAR        -->
       <!-- ================================================================= -->
-      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-3.5">
-        
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 shadow-sm space-y-3.5">
+
+        <ng-template #lifecycleFilterTpl>
+          <div class="space-y-1">
+            <label class="block font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider flex items-center gap-1">
+              <mat-icon class="!text-xs text-cyan-600">traffic</mat-icon>
+              <span>Lifecycle Status:</span>
+            </label>
+            <div class="inline-flex items-center w-full p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-[11px] font-bold">
+              <button
+                type="button"
+                (click)="setStatusFilter('live')"
+                [class]="statusFilter() === 'live' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="flex-1 py-2 lg:py-1 text-center rounded-lg transition-all cursor-pointer flex items-center justify-center gap-0.5"
+              >
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+                <span>Live</span>
+              </button>
+              <button
+                type="button"
+                (click)="setStatusFilter('pending')"
+                [class]="statusFilter() === 'pending' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="flex-1 py-2 lg:py-1 text-center rounded-lg transition-all cursor-pointer"
+              >
+                Pending
+              </button>
+              <button
+                type="button"
+                (click)="setStatusFilter('completed')"
+                [class]="statusFilter() === 'completed' ? 'bg-purple-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="flex-1 py-2 lg:py-1 text-center rounded-lg transition-all cursor-pointer"
+              >
+                Completed
+              </button>
+              <button
+                type="button"
+                (click)="setStatusFilter('all')"
+                [class]="statusFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="flex-1 py-2 lg:py-1 text-center rounded-lg transition-all cursor-pointer"
+              >
+                All
+              </button>
+            </div>
+          </div>
+        </ng-template>
+
+        <ng-template #timeframeFilterTpl>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <mat-icon class="!text-xs text-teal-600">calendar_today</mat-icon>
+              <span>Timeframe:</span>
+            </span>
+
+            <div class="inline-flex flex-wrap items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                (click)="setTimeFilter('today')"
+                [class]="timeFilter() === 'today' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-2 lg:py-1 rounded-lg transition-all cursor-pointer"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                (click)="setTimeFilter('week')"
+                [class]="timeFilter() === 'week' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-2 lg:py-1 rounded-lg transition-all cursor-pointer"
+              >
+                Week
+              </button>
+              <button
+                type="button"
+                (click)="setTimeFilter('month')"
+                [class]="timeFilter() === 'month' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-2 lg:py-1 rounded-lg transition-all cursor-pointer"
+              >
+                Month
+              </button>
+              <button
+                type="button"
+                (click)="setTimeFilter('year')"
+                [class]="timeFilter() === 'year' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-2 lg:py-1 rounded-lg transition-all cursor-pointer"
+              >
+                Year
+              </button>
+              <button
+                type="button"
+                (click)="setTimeFilter('custom')"
+                [class]="timeFilter() === 'custom' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-2 lg:py-1 rounded-lg transition-all cursor-pointer"
+              >
+                Date Range
+              </button>
+              <button
+                type="button"
+                (click)="setTimeFilter('all')"
+                [class]="timeFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                class="px-2.5 py-2 lg:py-1 rounded-lg transition-all cursor-pointer"
+              >
+                All
+              </button>
+            </div>
+
+            <!-- Datepicker Range Inputs (Visible when Custom Range selected) -->
+            @if (timeFilter() === 'custom') {
+              <div class="inline-flex items-center gap-1.5 p-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs">
+                <span class="text-[10px] text-slate-400 font-mono pl-1">From:</span>
+                <input
+                  type="date"
+                  [ngModel]="customStartDate()"
+                  (ngModelChange)="customStartDate.set($event)"
+                  class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-mono"
+                />
+                <span class="text-[10px] text-slate-400 font-mono">To:</span>
+                <input
+                  type="date"
+                  [ngModel]="customEndDate()"
+                  (ngModelChange)="customEndDate.set($event)"
+                  class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-mono"
+                />
+                @if (customStartDate() || customEndDate()) {
+                  <button
+                    type="button"
+                    (click)="clearCustomDateRange()"
+                    class="p-0.5 text-slate-400 hover:text-red-500 rounded cursor-pointer"
+                    title="Reset date range"
+                  >
+                    <mat-icon class="!text-xs">close</mat-icon>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </ng-template>
+
+        @if (isFieldCrewPortal()) {
+          <!-- Installer & Driver Portal: Lifecycle Status & Timeframe on the same row -->
+          <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-3 text-xs">
+            <div class="w-full lg:w-72 shrink-0">
+              <ng-container *ngTemplateOutlet="lifecycleFilterTpl" />
+            </div>
+            <ng-container *ngTemplateOutlet="timeframeFilterTpl" />
+          </div>
+        } @else {
         <!-- Primary Filter Controls: Roles, Staff Users, Lifecycle Status & Search -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
           
@@ -218,47 +384,7 @@ interface CrewRoute {
           </div>
 
           <!-- 3. Lifecycle Status Filter -->
-          <div class="space-y-1">
-            <label class="block font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider flex items-center gap-1">
-              <mat-icon class="!text-xs text-cyan-600">traffic</mat-icon>
-              <span>Lifecycle Status:</span>
-            </label>
-            <div class="inline-flex items-center w-full p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-[11px] font-bold">
-              <button
-                type="button"
-                (click)="setStatusFilter('live')"
-                [class]="statusFilter() === 'live' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="flex-1 py-1 text-center rounded-lg transition-all cursor-pointer flex items-center justify-center gap-0.5"
-              >
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
-                <span>Live</span>
-              </button>
-              <button
-                type="button"
-                (click)="setStatusFilter('pending')"
-                [class]="statusFilter() === 'pending' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="flex-1 py-1 text-center rounded-lg transition-all cursor-pointer"
-              >
-                Pending
-              </button>
-              <button
-                type="button"
-                (click)="setStatusFilter('completed')"
-                [class]="statusFilter() === 'completed' ? 'bg-purple-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="flex-1 py-1 text-center rounded-lg transition-all cursor-pointer"
-              >
-                Completed
-              </button>
-              <button
-                type="button"
-                (click)="setStatusFilter('all')"
-                [class]="statusFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="flex-1 py-1 text-center rounded-lg transition-all cursor-pointer"
-              >
-                All
-              </button>
-            </div>
-          </div>
+          <ng-container *ngTemplateOutlet="lifecycleFilterTpl" />
 
           <!-- 4. Text Search Query -->
           <div class="space-y-1">
@@ -310,93 +436,7 @@ interface CrewRoute {
         <div class="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
           
           <!-- Timeframe Pills + Datepicker Range -->
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
-              <mat-icon class="!text-xs text-teal-600">calendar_today</mat-icon>
-              <span>Timeframe:</span>
-            </span>
-
-            <div class="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
-              <button
-                type="button"
-                (click)="setTimeFilter('today')"
-                [class]="timeFilter() === 'today' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-              >
-                Today
-              </button>
-              <button
-                type="button"
-                (click)="setTimeFilter('week')"
-                [class]="timeFilter() === 'week' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-              >
-                Week
-              </button>
-              <button
-                type="button"
-                (click)="setTimeFilter('month')"
-                [class]="timeFilter() === 'month' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-              >
-                Month
-              </button>
-              <button
-                type="button"
-                (click)="setTimeFilter('year')"
-                [class]="timeFilter() === 'year' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-              >
-                Year
-              </button>
-              <button
-                type="button"
-                (click)="setTimeFilter('custom')"
-                [class]="timeFilter() === 'custom' ? 'bg-cyan-700 text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-              >
-                Date Range
-              </button>
-              <button
-                type="button"
-                (click)="setTimeFilter('all')"
-                [class]="timeFilter() === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-              >
-                All
-              </button>
-            </div>
-
-            <!-- Datepicker Range Inputs (Visible when Custom Range selected) -->
-            @if (timeFilter() === 'custom') {
-              <div class="inline-flex items-center gap-1.5 p-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs">
-                <span class="text-[10px] text-slate-400 font-mono pl-1">From:</span>
-                <input
-                  type="date"
-                  [ngModel]="customStartDate()"
-                  (ngModelChange)="customStartDate.set($event)"
-                  class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-mono"
-                />
-                <span class="text-[10px] text-slate-400 font-mono">To:</span>
-                <input
-                  type="date"
-                  [ngModel]="customEndDate()"
-                  (ngModelChange)="customEndDate.set($event)"
-                  class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-mono"
-                />
-                @if (customStartDate() || customEndDate()) {
-                  <button
-                    type="button"
-                    (click)="clearCustomDateRange()"
-                    class="p-0.5 text-slate-400 hover:text-red-500 rounded cursor-pointer"
-                    title="Reset date range"
-                  >
-                    <mat-icon class="!text-xs">close</mat-icon>
-                  </button>
-                }
-              </div>
-            }
-          </div>
+          <ng-container *ngTemplateOutlet="timeframeFilterTpl" />
 
           <!-- Interactive Map Layer Toggles -->
           <div class="flex items-center gap-2 flex-wrap">
@@ -448,8 +488,10 @@ interface CrewRoute {
             </button>
           </div>
         </div>
+        }
       </div>
 
+      @if (!isFieldCrewPortal()) {
       <!-- ================================================================= -->
       <!-- LIVE CREW TRACKING (accepted / auto-accepted installers & drivers) -->
       <!-- ================================================================= -->
@@ -460,6 +502,14 @@ interface CrewRoute {
             <span>Live Crew Tracking ({{ crewTrackSummary().total }})</span>
           </span>
           <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-mono font-bold">
+            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+              <span class="w-3 h-1 rounded-full bg-sky-600"></span>
+              <span>Driver Route</span>
+            </span>
+            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+              <span class="w-3 h-1 rounded-full bg-emerald-500"></span>
+              <span>Installer Route</span>
+            </span>
             <span class="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">{{ crewTrackSummary().moving }} moving</span>
             <span class="px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300">{{ crewTrackSummary().stationary }} stationary</span>
             <span class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{{ crewTrackSummary().offline }} not signed in</span>
@@ -575,14 +625,19 @@ interface CrewRoute {
                           <span class="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping"></span>
                           <span>In Transit</span>
                         </span>
-                      } @else if (job.status === 'delivered_on_site' || job.status === 'on_site') {
+                      } @else if (job.status === 'delivered_on_site' || job.status === 'on_site' || job.status === 'in_progress') {
                         <span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center gap-0.5">
                           <mat-icon class="!text-[10px] !w-2.5 !h-2.5">engineering</mat-icon>
                           <span>On Site</span>
                         </span>
-                      } @else if (job.status === 'completed' || job.status === 'bonus_awarded') {
+                      } @else if (getJobLifecycleBucket(job) === 'completed') {
                         <span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300">
                           Completed
+                        </span>
+                      } @else if (getJobLifecycleBucket(job) === 'live') {
+                        <span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-0.5">
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          <span>Live</span>
                         </span>
                       } @else {
                         <span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
@@ -614,6 +669,7 @@ interface CrewRoute {
           </div>
         }
       </div>
+      }
 
       <!-- ================================================================= -->
       <!-- MAIN LEAFLET MAP CANVAS CONTAINER & TELEMETRY HUD                 -->
@@ -1028,6 +1084,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   readonly store = inject(InstallationStore);
   readonly themeStore = inject(ThemeStore);
   readonly alert = inject(AlertService);
+  private readonly route = inject(ActivatedRoute);
 
   jobSelected = output<string>();
 
@@ -1112,6 +1169,10 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   });
 
   // Live Crew Tracking (accepted installers & dispatch drivers en route to client sites)
+  readonly isFieldCrewPortal = computed<boolean>(() => {
+    const role = this.store.currentRole();
+    return role === 'installer' || role === 'dispatcher';
+  });
   readonly workFilter = signal<string>('all');
   readonly showCrewRoutes = signal<boolean>(true);
   readonly crewStates = signal<Record<string, CrewTrackState>>({});
@@ -1280,14 +1341,8 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       }
 
       // 3. Status Filter
-      if (sFilter !== 'all') {
-        const isLive = job.status === 'dispatched' || job.status === 'delivered_on_site' || job.status === 'on_site';
-        const isCompleted = job.status === 'installed_pending_signoff' || job.status === 'completed' || job.status === 'bonus_awarded';
-        const isPending = !isLive && !isCompleted;
-
-        if (sFilter === 'live' && !isLive) return false;
-        if (sFilter === 'pending' && !isPending) return false;
-        if (sFilter === 'completed' && !isCompleted) return false;
+      if (sFilter !== 'all' && this.getJobLifecycleBucket(job) !== sFilter) {
+        return false;
       }
 
       // 4. Timeframe Filter (today, week, month, year, custom range)
@@ -1380,14 +1435,8 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       }
 
       // 3. Status Filter
-      if (sFilter !== 'all') {
-        const isLive = job.status === 'dispatched' || job.status === 'delivered_on_site' || job.status === 'on_site';
-        const isCompleted = job.status === 'installed_pending_signoff' || job.status === 'completed' || job.status === 'bonus_awarded';
-        const isPending = !isLive && !isCompleted;
-
-        if (sFilter === 'live' && !isLive) return false;
-        if (sFilter === 'pending' && !isPending) return false;
-        if (sFilter === 'completed' && !isCompleted) return false;
+      if (sFilter !== 'all' && this.getJobLifecycleBucket(job) !== sFilter) {
+        return false;
       }
 
       // 4. Text Search Query
@@ -1438,16 +1487,37 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
    * Live GPS Telematics Units from store
    */
   readonly liveTelemetryUnits = computed<LiveLocation[]>(() => {
-    return this.store.liveLocations();
+    const list = this.store.liveLocations();
+    const myLoc = this.store.myLiveLocation();
+    if (!myLoc) return list;
+    const idx = list.findIndex(u => u.userId === myLoc.userId);
+    if (idx === -1) return [myLoc, ...list];
+    const next = [...list];
+    next[idx] = myLoc;
+    return next;
   });
 
   /**
    * Visible Showrooms & Warehouses
    */
   readonly visibleBranches = computed<ShopLocationSettings[]>(() => {
-    if (this.store.currentRole() === 'shop_manager') {
+    const role = this.store.currentRole();
+    if (role === 'shop_manager') {
       const own = this.store.managerBranch();
       return own ? [own] : this.store.branches();
+    }
+    if (role === 'installer' || role === 'dispatcher') {
+      const branchMap = new Map<string, ShopLocationSettings>();
+      for (const job of this.filteredJobs()) {
+        const branch = this.store.getJobBranch(job);
+        if (branch) {
+          const key = String(branch.id ?? `${branch.latitude},${branch.longitude}`);
+          if (!branchMap.has(key)) {
+            branchMap.set(key, branch);
+          }
+        }
+      }
+      return Array.from(branchMap.values());
     }
     return this.store.branches();
   });
@@ -1501,6 +1571,10 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       if (rFilter === 'all' || rFilter === 'installer' || rFilter === 'client' || rFilter === 'shop_manager') {
         for (const inst of this.acceptedInstallersFor(job)) {
           if (personFilter && personFilter !== inst.id) continue;
+          const isSelf = this.isCurrentSelfUnit(inst.id, inst.name, 'installer');
+          const live = isSelf
+            ? (this.store.myLiveLocation() || this.findLive(lives, inst.id, inst.name))
+            : this.findLive(lives, inst.id, inst.name);
           tracks.push({
             key: `${job.id}:inst:${inst.id}`,
             jobId: job.id,
@@ -1513,7 +1587,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
             acceptedAt: inst.at,
             origin: this.offsetOrigin(base, inst.id),
             destination,
-            live: this.findLive(lives, inst.id),
+            live,
             arrived: job.status === 'on_site' || job.status === 'in_progress'
           });
         }
@@ -1522,6 +1596,10 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       if ((rFilter === 'all' || rFilter === 'dispatcher' || rFilter === 'client' || rFilter === 'shop_manager') && this.isDriverAccepted(job)) {
         const driverId = job.dispatcherId!;
         if (!personFilter || personFilter === driverId) {
+          const isSelf = this.isCurrentSelfUnit(driverId, job.dispatcherName || undefined, 'dispatcher');
+          const live = isSelf
+            ? (this.store.myLiveLocation() || this.findLive(lives, driverId, job.dispatcherName))
+            : this.findLive(lives, driverId, job.dispatcherName);
           tracks.push({
             key: `${job.id}:drv:${driverId}`,
             jobId: job.id,
@@ -1534,7 +1612,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
             acceptedAt: job.driverRespondedAt || job.driverAssignedAt,
             origin: base,
             destination,
-            live: this.findLive(lives, driverId),
+            live,
             arrived: job.status === 'delivered_on_site' || job.status === 'on_site' || job.status === 'in_progress'
           });
         }
@@ -1573,6 +1651,14 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   });
 
   constructor() {
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe(params => {
+      const jobId = params.get('jobId');
+      if (jobId) {
+        this.workFilter.set(jobId);
+        this.selectJob(jobId);
+      }
+    });
+
     // Synchronize initial selection & handle filter changes cleanly
     effect(() => {
       const jobs = this.filteredJobs();
@@ -1639,6 +1725,11 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       this.setupResizeObserver();
       this.syncCrewLayers();
     }, 60);
+
+    // Ensure high-accuracy GPS tracking is active when viewing the map
+    if (!this.store.isGpsTracking()) {
+      void this.store.startGpsTracking();
+    }
 
     // Real-time: advance crew markers every second, and poll live GPS fixes every 5s
     this.crewTicker = setInterval(() => this.syncCrewLayers(), 1000);
@@ -1952,30 +2043,32 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       const isSelf = this.isCurrentSelfUnit(u.userId, u.userName, u.role);
       const shortName = isSelf ? 'Me' : (u.userName ? u.userName.split(' ')[0] : roleLabel);
       const popupName = isSelf ? 'Me' : (u.userName || 'Field Staff');
+      const netLabel = (isSelf ? this.store.myOnlineStatus() === 'online' : u.status !== 'offline') ? 'Online' : 'Offline';
+      const unitStatusText = netLabel === 'Offline' ? 'Offline' : `${netLabel} · ${motionLabel}`;
 
       const icon = isSelf
         ? leaflet.divIcon({
-            className: 'custom-live-unit-pin',
-            html: this.selfPinIconHtml(`Me · ${motionLabel}`, pulse),
-            iconSize: [22, 28],
-            iconAnchor: [11, 27]
-          })
+          className: 'custom-live-unit-pin',
+          html: this.selfPinIconHtml(`Me · ${unitStatusText}`, netLabel === 'Online' ? pulse : ''),
+          iconSize: [22, 28],
+          iconAnchor: [11, 27]
+        })
         : leaflet.divIcon({
-            className: 'custom-live-unit-pin',
-            html: `
+          className: 'custom-live-unit-pin',
+          html: `
               <div style="position:relative; cursor:pointer;" title="${popupName} (${roleLabel})">
-                ${pulse}
-                <div style="background:${bgColor}; color:#fff; width:26px; height:26px; border-radius:50%; border:2px solid #fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 12px rgba(0,0,0,0.5); font-size:12px;">
+                ${netLabel === 'Online' ? pulse : ''}
+                <div style="background:${netLabel === 'Offline' ? '#64748b' : bgColor}; color:#fff; width:26px; height:26px; border-radius:50%; border:2px solid #fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 12px rgba(0,0,0,0.5); font-size:12px;">
                   ${symbol}
                 </div>
                 <div style="background:rgba(15,23,42,0.92); color:#fff; font-size:8.5px; font-family:monospace; font-weight:bold; padding:2px 6px; border-radius:5px; border:1px solid rgba(255,255,255,0.25); white-space:nowrap; position:absolute; left:30px; top:2px;">
-                  ${shortName} · ${motionLabel}
+                  ${shortName} · ${unitStatusText}
                 </div>
               </div>
             `,
-            iconSize: [26, 26],
-            iconAnchor: [13, 13]
-          });
+          iconSize: [26, 26],
+          iconAnchor: [13, 13]
+        });
 
       const marker = leaflet.marker([u.latitude, u.longitude], { icon })
         .addTo(this.map!)
@@ -2004,30 +2097,49 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   private acceptedInstallersFor(job: InstallationJob): { id: string; name: string; auto: boolean; at?: string }[] {
     const post = DeliveryMap.POST_ACCEPT_STATUSES.includes(job.status);
     const out: { id: string; name: string; auto: boolean; at?: string }[] = [];
+    const seenIds = new Set<string>();
+    const allInstallers = this.store.installers();
+    const allUsers = this.store.users();
 
     if (job.assignedInstallers && job.assignedInstallers.length > 0) {
       job.assignedInstallers.forEach(m => {
         const st = (m.status || '').toLowerCase();
         if (st === 'rejected' || st === 'declined') return;
-        const accepted =
-          st === 'accepted' || st === 'auto_accepted' || !!m.autoAccepted || post ||
-          (!st && job.installerAssignmentStatus === 'accepted');
-        if (accepted) {
+        if (!m.id || seenIds.has(m.id)) return;
+        seenIds.add(m.id);
+        out.push({
+          id: m.id,
+          name: m.name,
+          auto: !!m.autoAccepted || (!!job.installerAutoAccepted && !m.respondedAt),
+          at: m.respondedAt || job.installerRespondedAt || job.acceptedAt
+        });
+      });
+    }
+
+    const extraIds = new Set<string>();
+    if (job.assignedInstallerId) extraIds.add(job.assignedInstallerId);
+    if (Array.isArray(job.assignedInstallerIds)) {
+      job.assignedInstallerIds.forEach(id => {
+        if (id) extraIds.add(id);
+      });
+    }
+
+    if (extraIds.size > 0 && job.installerAssignmentStatus !== 'rejected') {
+      let idx = 0;
+      for (const id of extraIds) {
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          const instMatch = allInstallers.find(i => i.id === id) || allUsers.find(u => u.id === id);
+          const fallbackName = idx === 0 && job.assignedInstallerName ? job.assignedInstallerName : 'Installer';
           out.push({
-            id: m.id,
-            name: m.name,
-            auto: !!m.autoAccepted || (!!job.installerAutoAccepted && !m.respondedAt),
-            at: m.respondedAt || job.installerRespondedAt || job.acceptedAt
+            id,
+            name: instMatch?.name || fallbackName,
+            auto: !!job.installerAutoAccepted || post,
+            at: job.installerRespondedAt || job.acceptedAt
           });
         }
-      });
-    } else if (job.assignedInstallerId && (job.installerAssignmentStatus === 'accepted' || post)) {
-      out.push({
-        id: job.assignedInstallerId,
-        name: job.assignedInstallerName || 'Installer',
-        auto: !!job.installerAutoAccepted,
-        at: job.installerRespondedAt || job.acceptedAt
-      });
+        idx++;
+      }
     }
     return out;
   }
@@ -2035,13 +2147,21 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   private isDriverAccepted(job: InstallationJob): boolean {
     if (!job.dispatcherId) return false;
     if (job.driverAssignmentStatus === 'rejected') return false;
-    return job.driverAssignmentStatus === 'accepted' || !!job.driverAutoAccepted ||
-      DeliveryMap.POST_ACCEPT_STATUSES.includes(job.status);
+    return true;
   }
 
-  private findLive(lives: LiveLocation[], userId: string): LiveLocation | null {
-    const l = lives.find(x => x.userId === userId);
-    if (!l || l.status === 'offline') return null;
+  private findLive(lives: LiveLocation[], userId?: string | null, userName?: string | null): LiveLocation | null {
+    let l = userId ? lives.find(x => x.userId === userId) : undefined;
+    if (!l && userName) {
+      const targetName = userName.trim().toLowerCase();
+      if (targetName) {
+        l = lives.find(x => (x.userName || '').trim().toLowerCase() === targetName);
+      }
+    }
+    if (!l) return null;
+    if (l.status === 'offline') {
+      return Number.isFinite(l.latitude) && Number.isFinite(l.longitude) ? l : null;
+    }
     const age = Date.now() - new Date(l.updatedAt).getTime();
     return isNaN(age) || age <= 15 * 60 * 1000 ? l : null;
   }
@@ -2214,6 +2334,16 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       const pos = { lat: t.live.latitude, lng: t.live.longitude };
       const { idx } = this.nearestOnRoute(route, pos);
       const remainingKm = Math.max(0, route.totalKm - route.cum[idx]);
+      if (t.live.status === 'offline') {
+        return {
+          mode: 'offline',
+          lat: pos.lat,
+          lng: pos.lng,
+          progress: Math.min(1, route.cum[idx] / route.totalKm),
+          remainingKm,
+          etaMin: 0
+        };
+      }
       const atSite = this.haversineKm(pos.lat, pos.lng, t.destination.lat, t.destination.lng) < 0.1;
       const moving = !atSite && this.isUnitMoving(t.userId, pos.lat, pos.lng, t.live.speedKmh);
       const liveSpeed = t.live.speedKmh && t.live.speedKmh > 5 ? t.live.speedKmh : speed;
@@ -2306,9 +2436,12 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       ? `<div style="position:absolute; width:40px; height:40px; background:${bg}33; border-radius:50%; top:-8px; left:-8px; animation:ping 1.8s cubic-bezier(0,0,0.2,1) infinite;"></div>`
       : '';
     if (isSelf) {
+      const selfOnline = this.store.myOnlineStatus() === 'online';
+      const selfNetLabel = selfOnline ? 'ONLINE' : 'OFFLINE';
+      const selfNetBg = selfOnline ? '#16a34a' : '#e11d48';
       return this.selfPinIconHtml(
-        `<span>Me → ${t.jobId}</span><span style="background:${badgeBg}; padding:0 4px; border-radius:3px; font-size:7.5px;">${badge}</span>`,
-        pulse
+        `<span>Me · ${selfNetLabel}</span><span style="background:${selfNetBg}; padding:0 4px; border-radius:3px; font-size:7.5px;">${badge}</span>`,
+        selfOnline ? pulse : ''
       );
     }
     return `
@@ -2360,15 +2493,19 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       if (showRoutes && roleVisible) {
         if (!existingLine || existingLine.version !== route.version || existingLine.dashed !== dashed) {
           if (existingLine) this.map.removeLayer(existingLine.line);
+          const routeColor = t.role === 'dispatcher' ? '#0284c7' : '#10b981';
+          const roleLabel = t.role === 'dispatcher' ? 'Driver' : 'Installer';
           const line = leaflet.polyline(route.points, {
-            color: t.role === 'dispatcher' ? '#0284c7' : '#10b981',
-            weight: 4,
-            opacity: (st.mode === 'arrived' || st.mode === 'offline') ? 0.35 : 0.75,
+            color: routeColor,
+            weight: 4.5,
+            opacity: (st.mode === 'arrived' || st.mode === 'offline') ? 0.45 : 0.85,
             lineCap: 'round',
             lineJoin: 'round',
             dashArray: dashed ? '6, 8' : undefined,
-            interactive: false
-          }).addTo(this.map);
+            interactive: true
+          })
+            .bindTooltip(`${t.userName} (${roleLabel}) → ${t.jobId}`, { sticky: true })
+            .addTo(this.map);
           this.crewLines.set(t.key, { line, version: route.version, dashed });
         }
       } else if (existingLine) {
@@ -2518,6 +2655,15 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
     const live = this.store.myLiveLocation();
     if (live && (live.role === 'dispatcher' || live.role === 'installer')) {
       return { lat: live.latitude, lng: live.longitude };
+    }
+    const allLive = this.store.liveLocations();
+    const driverLive = this.findLive(allLive, job.dispatcherId, job.dispatcherName);
+    if (driverLive) {
+      return { lat: driverLive.latitude, lng: driverLive.longitude };
+    }
+    const installerLive = this.findLive(allLive, job.assignedInstallerId, job.assignedInstallerName);
+    if (installerLive) {
+      return { lat: installerLive.latitude, lng: installerLive.longitude };
     }
     const branch = this.store.getJobBranch(job) || (this.store.currentRole() === 'shop_manager' ? this.store.managerBranch() : null);
     if (branch) {
@@ -3001,6 +3147,31 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
 
   setStatusFilter(status: MapStatusFilter) {
     this.statusFilter.set(status);
+  }
+
+  getJobLifecycleBucket(job: InstallationJob): 'live' | 'pending' | 'completed' {
+    if (
+      job.status === 'installed_pending_signoff' ||
+      job.status === 'completed' ||
+      job.status === 'bonus_awarded'
+    ) {
+      return 'completed';
+    }
+    if (
+      job.status === 'dispatched' ||
+      job.status === 'delivered_on_site' ||
+      job.status === 'on_site' ||
+      job.status === 'in_progress' ||
+      !!job.shopBooking?.accountantVerified ||
+      job.status === 'site_funds_dispatched' ||
+      job.status === 'truck_assigned' ||
+      job.status === 'assigned' ||
+      job.status === 'accepted' ||
+      job.status === 'approved'
+    ) {
+      return 'live';
+    }
+    return 'pending';
   }
 
   clearCustomDateRange() {

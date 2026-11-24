@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { 
   ApiAuthUser,
   AppUser,
@@ -1021,6 +1021,31 @@ export class InstallationStore {
   readonly isGpsTracking = signal<boolean>(false);
   readonly gpsWatchId = signal<number | null>(null);
   readonly myLiveLocation = signal<LiveLocation | null>(null);
+  readonly isNetworkOnline = signal<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  readonly gpsAccuracyM = signal<number | null>(null);
+  readonly gpsError = signal<string | null>(null);
+  readonly gpsPermissionState = signal<'prompt' | 'granted' | 'denied' | 'unsupported' | 'unknown'>('unknown');
+  readonly gpsCheckSettled = signal<boolean>(false);
+  readonly needsLocationPrompt = computed<boolean>(() => {
+    const role = this.currentRole();
+    if (role !== 'installer' && role !== 'dispatcher') return false;
+    const perm = this.gpsPermissionState();
+    if (perm === 'denied' || perm === 'unsupported') return true;
+    if (this.myLiveLocation()) return false;
+    if (perm === 'prompt') return true;
+    return this.gpsCheckSettled() && (!!this.gpsError() || !this.isGpsTracking());
+  });
+  readonly myOnlineStatus = computed<'online' | 'offline'>(() => {
+    if (!this.isNetworkOnline()) return 'offline';
+    const role = this.currentRole();
+    if (role !== 'installer' && role !== 'dispatcher') {
+      return 'online';
+    }
+    const live = this.myLiveLocation();
+    if (live?.status === 'offline') return 'offline';
+    return this.isGpsTracking() || !!live ? 'online' : 'offline';
+  });
+  private gpsPollTimer: ReturnType<typeof setInterval> | null = null;
   readonly isAdmin = computed(() => this.currentRole() === 'admin' || this.apiUser()?.role === 'admin');
   readonly isManager = computed(() => this.currentRole() === 'manager' || this.apiUser()?.role === 'manager' || this.isAdmin());
 
@@ -2041,6 +2066,42 @@ export class InstallationStore {
     if (session) {
       void this.validateSession();
     }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        this.isNetworkOnline.set(true);
+        const last = this.myLiveLocation();
+        if (last) {
+          this.myLiveLocation.set({ ...last, status: 'online' });
+          void this.pushLocation({
+            latitude: last.latitude,
+            longitude: last.longitude,
+            accuracyM: last.accuracyM ?? null,
+            heading: last.heading ?? null,
+            speedKmh: last.speedKmh ?? null
+          });
+        }
+        void this.loadLiveLocations();
+      });
+      window.addEventListener('offline', () => {
+        this.isNetworkOnline.set(false);
+        const last = this.myLiveLocation();
+        if (last) {
+          const offlineLoc: LiveLocation = { ...last, status: 'offline' };
+          this.myLiveLocation.set(offlineLoc);
+          this.liveLocations.update(list =>
+            list.map(l => l.userId === offlineLoc.userId ? offlineLoc : l)
+          );
+        }
+      });
+    }
+
+    effect(() => {
+      const role = this.currentRole();
+      if (role === 'installer' || role === 'dispatcher') {
+        void this.initGpsPermissionWatcher();
+      }
+    });
 
     // Synchronized 1-second real-time tick for all 10m countdowns across portals
     setInterval(() => {
@@ -6079,44 +6140,162 @@ export class InstallationStore {
    * backend so dispatchers/managers can see the user in real time on the map.
    * Only roles that need to be tracked (installer, dispatcher, manager) publish.
    */
+  private gpsPermissionWatcherInitialized = false;
+
+  async initGpsPermissionWatcher(): Promise<void> {
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+      this.gpsPermissionState.set('unsupported');
+      this.gpsCheckSettled.set(true);
+      return;
+    }
+
+    if (!this.gpsPermissionWatcherInitialized && navigator.permissions?.query) {
+      this.gpsPermissionWatcherInitialized = true;
+      try {
+        const status = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+        const syncState = (s: PermissionState) => {
+          this.gpsPermissionState.set(s);
+          if (s === 'granted') {
+            this.gpsError.set(null);
+            if (!this.isGpsTracking()) {
+              void this.startGpsTracking();
+            }
+          } else if (s === 'denied') {
+            this.gpsCheckSettled.set(true);
+            this.gpsError.set('Location access is blocked in your browser settings.');
+          } else {
+            this.gpsCheckSettled.set(true);
+          }
+        };
+        syncState(status.state);
+        status.onchange = () => syncState(status.state);
+        return;
+      } catch {
+        // Fallback below if permissions.query is unavailable
+      }
+    }
+
+    if (!this.isGpsTracking()) {
+      void this.startGpsTracking();
+    }
+  }
+
+  async requestLocationAccess(): Promise<boolean> {
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+      this.gpsPermissionState.set('unsupported');
+      this.gpsError.set('Geolocation is not supported on this device/browser.');
+      this.gpsCheckSettled.set(true);
+      return false;
+    }
+
+    const options: PositionOptions = {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0
+    };
+
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation!.getCurrentPosition(resolve, reject, options);
+      });
+      this.gpsPermissionState.set('granted');
+      this.gpsCheckSettled.set(true);
+      this.gpsError.set(null);
+      const { latitude, longitude, accuracy, heading, speed } = pos.coords;
+      const accuracyM = accuracy != null ? Math.round(accuracy) : null;
+      this.gpsAccuracyM.set(accuracyM);
+      await this.pushLocation({
+        latitude,
+        longitude,
+        accuracyM,
+        heading: heading ?? null,
+        speedKmh: speed ? +(speed * 3.6).toFixed(1) : null
+      });
+      if (!this.isGpsTracking()) {
+        void this.startGpsTracking();
+      }
+      return true;
+    } catch (err: any) {
+      if (err?.code === 1) {
+        this.gpsPermissionState.set('denied');
+        this.gpsError.set('Location permission was denied. Please allow location access in your browser site settings and retry.');
+      } else {
+        this.gpsError.set(err?.message || 'Unable to get your current GPS position. Ensure device location/GPS is turned on and retry.');
+      }
+      this.gpsCheckSettled.set(true);
+      return false;
+    }
+  }
+
   async startGpsTracking(): Promise<void> {
     if (this.isGpsTracking()) return;
     if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+      this.gpsPermissionState.set('unsupported');
+      this.gpsCheckSettled.set(true);
+      this.gpsError.set('Geolocation is not supported on this device');
       console.warn('[GPS] Geolocation not available');
       return;
     }
 
-    const user = this.apiUser();
-    if (!user) return;
+    const apiU = this.apiUser();
+    const curU = this.currentUser();
+    const effectiveRole = apiU?.role || curU?.role || this.currentRole();
+    const userId = apiU?.id || curU?.id;
+    if (!userId) return;
 
     const trackableRoles = ['installer', 'dispatcher', 'manager', 'account_officer', 'shop_manager'];
-    if (!trackableRoles.includes(user.role)) {
-      console.log(`[GPS] Role ${user.role} is not tracked`);
+    if (!trackableRoles.includes(effectiveRole)) {
+      console.log(`[GPS] Role ${effectiveRole} is not tracked`);
       return;
     }
 
     this.isGpsTracking.set(true);
+    this.gpsError.set(null);
 
     const options: PositionOptions = {
       enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 30000
+      timeout: 15000,
+      maximumAge: 0
+    };
+
+    const handleCoords = async (pos: GeolocationPosition) => {
+      const { latitude, longitude, accuracy, heading, speed } = pos.coords;
+      const accuracyM = accuracy != null ? Math.round(accuracy) : null;
+      const prev = this.myLiveLocation();
+      // Ignore very coarse IP/cell fixes (>1500m) if we already have a recent accurate fix (<=500m within 2 min)
+      if (
+        accuracyM !== null &&
+        accuracyM > 1500 &&
+        prev?.accuracyM != null &&
+        prev.accuracyM <= 500 &&
+        Date.now() - new Date(prev.updatedAt).getTime() < 2 * 60 * 1000
+      ) {
+        return;
+      }
+
+      this.gpsPermissionState.set('granted');
+      this.gpsCheckSettled.set(true);
+      this.gpsAccuracyM.set(accuracyM);
+      this.gpsError.set(null);
+      const speedKmh = speed ? +(speed * 3.6).toFixed(1) : null;
+
+      await this.pushLocation({
+        latitude,
+        longitude,
+        accuracyM,
+        heading: heading ?? null,
+        speedKmh
+      });
     };
 
     const watchId = navigator.geolocation.watchPosition(
-      async (pos) => {
-        const { latitude, longitude, accuracy, heading, speed } = pos.coords;
-        const speedKmh = speed ? +(speed * 3.6).toFixed(1) : null;
-
-        await this.pushLocation({
-          latitude,
-          longitude,
-          accuracyM: accuracy ?? null,
-          heading: heading ?? null,
-          speedKmh
-        });
-      },
+      (pos) => { void handleCoords(pos); },
       (err) => {
+        if (err.code === 1) {
+          this.gpsPermissionState.set('denied');
+        }
+        this.gpsCheckSettled.set(true);
+        this.gpsError.set(err.message || 'Location permission or GPS signal unavailable');
         console.warn('[GPS] watchPosition error:', err);
       },
       options
@@ -6124,31 +6303,35 @@ export class InstallationStore {
 
     this.gpsWatchId.set(watchId);
 
-    // Push initial position immediately
+    // Push initial high-accuracy position immediately
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation!.getCurrentPosition(resolve, reject, { timeout: 8000, enableHighAccuracy: true });
+        navigator.geolocation!.getCurrentPosition(resolve, reject, options);
       });
-      await this.pushLocation({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        accuracyM: pos.coords.accuracy ?? null,
-        heading: pos.coords.heading ?? null,
-        speedKmh: pos.coords.speed ? +(pos.coords.speed * 3.6).toFixed(1) : null
-      });
-    } catch {
+      await handleCoords(pos);
+    } catch (err: any) {
+      if (err?.code === 1) {
+        this.gpsPermissionState.set('denied');
+      }
+      this.gpsCheckSettled.set(true);
+      this.gpsError.set(err?.message || 'Waiting for GPS fix...');
       // Initial fix failed; watchPosition will retry.
     }
 
     // Poll for other users' live locations every 15 seconds
-    setInterval(() => {
-      if (this.isGpsTracking()) {
+    if (this.gpsPollTimer) {
+      clearInterval(this.gpsPollTimer);
+    }
+    this.gpsPollTimer = setInterval(() => {
+      if (this.isGpsTracking() && this.isNetworkOnline()) {
         void this.loadLiveLocations();
       }
     }, 15000);
 
     // Initial load of all live locations
-    void this.loadLiveLocations();
+    if (this.isNetworkOnline()) {
+      void this.loadLiveLocations();
+    }
   }
 
   /**
@@ -6160,12 +6343,16 @@ export class InstallationStore {
       navigator.geolocation.clearWatch(watchId);
       this.gpsWatchId.set(null);
     }
+    if (this.gpsPollTimer) {
+      clearInterval(this.gpsPollTimer);
+      this.gpsPollTimer = null;
+    }
     this.isGpsTracking.set(false);
     void this.markOffline();
   }
 
   /**
-   * Sends a single GPS position update to the backend.
+   * Sends a single GPS position update to the backend and updates local live state immediately.
    */
   async pushLocation(coords: {
     latitude: number;
@@ -6174,8 +6361,41 @@ export class InstallationStore {
     heading?: number | null;
     speedKmh?: number | null;
   }): Promise<void> {
-    const user = this.apiUser();
-    if (!user) return;
+    const apiU = this.apiUser();
+    const curU = this.currentUser();
+    const userId = apiU?.id || curU?.id;
+    if (!userId) return;
+
+    const status: 'online' | 'offline' = this.isNetworkOnline() ? 'online' : 'offline';
+    const nowIso = new Date().toISOString();
+    const localLoc: LiveLocation = {
+      id: `local-${userId}`,
+      userId,
+      userName: apiU?.name || curU?.name || 'Me',
+      role: (apiU?.role || curU?.role || this.currentRole()) as RoleType,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracyM: coords.accuracyM ?? null,
+      heading: coords.heading ?? null,
+      speedKmh: coords.speedKmh ?? null,
+      status,
+      updatedAt: nowIso,
+      createdAt: this.myLiveLocation()?.createdAt || nowIso
+    };
+
+    // Update local state immediately so the map reflects accurate device coordinates right away
+    this.myLiveLocation.set(localLoc);
+    this.liveLocations.update(list => {
+      const existing = list.findIndex(l => l.userId === localLoc.userId);
+      if (existing >= 0) {
+        const next = [...list];
+        next[existing] = localLoc;
+        return next;
+      }
+      return [localLoc, ...list];
+    });
+
+    if (!this.isNetworkOnline() || !this.apiToken()) return;
 
     try {
       const res = await this.apiFetch('/api/location/update', {
@@ -6187,15 +6407,14 @@ export class InstallationStore {
           accuracyM: coords.accuracyM ?? null,
           heading: coords.heading ?? null,
           speedKmh: coords.speedKmh ?? null,
-          status: 'online'
+          status
         })
       });
 
       if (res.ok) {
-        const responseData = await res.json()
+        const responseData = await res.json();
         if (responseData.success && responseData.location) {
           this.myLiveLocation.set(responseData.location);
-          // Upsert into the live locations list
           this.liveLocations.update(list => {
             const existing = list.findIndex(l => l.userId === responseData.location.userId);
             if (existing >= 0) {
@@ -6222,7 +6441,21 @@ export class InstallationStore {
       if (res.ok) {
         const responseData = await res.json()
         if (responseData.success && Array.isArray(responseData.locations)) {
-          this.liveLocations.set(responseData.locations);
+          const incoming: LiveLocation[] = responseData.locations;
+          const myLoc = this.myLiveLocation();
+          if (myLoc) {
+            const idx = incoming.findIndex(l => l.userId === myLoc.userId);
+            if (idx === -1) {
+              incoming.unshift(myLoc);
+            } else {
+              const serverTs = new Date(incoming[idx].updatedAt).getTime();
+              const localTs = new Date(myLoc.updatedAt).getTime();
+              if (!isNaN(localTs) && (isNaN(serverTs) || localTs > serverTs)) {
+                incoming[idx] = myLoc;
+              }
+            }
+          }
+          this.liveLocations.set(incoming);
         }
       }
     } catch (err) {
