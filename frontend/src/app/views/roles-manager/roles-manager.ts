@@ -567,27 +567,20 @@ import { CustomRoleModal } from '../../components/custom-role-modal/custom-role-
                             </button>
                           }
 
-                          <!-- Login As / Temporary Session Icon Button with Tooltip -->
+                          <!-- Login As / Temporary Session Round Icon Button -->
                           <button
                             type="button"
                             (click)="onLoginAs(u)"
-                            matTooltip="Login As"
-                            title="Login As"
+                            [title]="store.impersonationSession()?.targetUser?.id === u.id ? 'Exit Login As' : 'Login As ' + u.name"
                             aria-label="Login As"
-                            class="p-1.5 rounded-lg transition-all flex items-center justify-center cursor-pointer active:scale-95 border"
-                            [class.bg-teal-50]="store.impersonationSession()?.targetUser?.id !== u.id"
-                            [class.text-teal-700]="store.impersonationSession()?.targetUser?.id !== u.id"
-                            [class.hover:bg-teal-100]="store.impersonationSession()?.targetUser?.id !== u.id"
-                            [class.dark:bg-teal-950/40]="store.impersonationSession()?.targetUser?.id !== u.id"
-                            [class.dark:text-teal-300]="store.impersonationSession()?.targetUser?.id !== u.id"
-                            [class.border-teal-200]="store.impersonationSession()?.targetUser?.id !== u.id"
-                            [class.dark:border-teal-800/60]="store.impersonationSession()?.targetUser?.id !== u.id"
-                            [class.bg-teal-600]="store.impersonationSession()?.targetUser?.id === u.id"
-                            [class.text-white]="store.impersonationSession()?.targetUser?.id === u.id"
-                            [class.border-teal-700]="store.impersonationSession()?.targetUser?.id === u.id"
-                            [class.shadow-xs]="store.impersonationSession()?.targetUser?.id === u.id"
+                            class="w-9 h-9 rounded-full transition-all flex items-center justify-center cursor-pointer active:scale-90 text-white shadow-sm"
+                            [class]="store.impersonationSession()?.targetUser?.id === u.id
+                              ? 'bg-gradient-to-br from-amber-500 to-orange-600 ring-2 ring-amber-400 animate-pulse'
+                              : 'bg-gradient-to-br from-teal-500 to-emerald-600 hover:from-teal-400 hover:to-emerald-500 ring-2 ring-teal-500/20 hover:ring-teal-500/45 hover:scale-105'"
                           >
-                            <mat-icon class="!text-sm !w-4 !h-4">switch_account</mat-icon>
+                            <mat-icon class="!text-base !w-4 !h-4">
+                              {{ store.impersonationSession()?.targetUser?.id === u.id ? 'logout' : 'switch_account' }}
+                            </mat-icon>
                           </button>
 
                           <!-- Edit User Details & Role -->
@@ -2334,13 +2327,13 @@ export class RolesManager {
     return featId.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   }
 
-  onLoginAs(u: AppUser): void {
+  async onLoginAs(u: AppUser): Promise<void> {
     if (this.store.impersonationSession()?.targetUser?.id === u.id) {
-      this.store.revertLoginAs();
+      await this.store.revertLoginAs();
     } else {
-      this.store.loginAsUser(u);
+      await this.store.loginAsUser(u);
       const targetPortal = this.getPortalRouteForRole(u.role);
-      this.router.navigate([targetPortal]);
+      void this.router.navigate([targetPortal]);
     }
   }
 }

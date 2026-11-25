@@ -3,9 +3,17 @@
 <!-- ========================================================================= -->
 <aside
   class="hidden lg:flex fixed inset-y-0 left-0 z-40 flex-col bg-white dark:bg-[#111215] border-r border-slate-200 dark:border-white/10 transition-all duration-300 ease-in-out select-none"
-  [class.w-72]="!sidebarCollapsed()" [class.w-20]="sidebarCollapsed()">
-  <!-- Sidebar Header: Brand & Collapse Toggle -->
-  <div class="h-16 px-4 flex items-center justify-between border-b border-slate-200 dark:border-white/10">
+  [class.w-72]="!sidebarCollapsed()" [class.w-16]="sidebarCollapsed()">
+  <!-- Collapse Toggle positioned on the right border line of the aside -->
+  <button type="button" (click)="toggleSidebarCollapse()"
+    class="absolute -right-3.5 top-[18px] z-50 w-7 h-7 rounded-full bg-white dark:bg-[#111215] border border-slate-200 dark:border-white/15 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm flex items-center justify-center transition-colors cursor-pointer"
+    [title]="sidebarCollapsed() ? 'Expand Sidebar' : 'Collapse Sidebar'" aria-label="Toggle sidebar">
+    <mat-icon class="!text-base !w-4 !h-4 leading-none">{{ sidebarCollapsed() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+  </button>
+
+  <!-- Sidebar Header: Brand -->
+  <div class="h-16 flex items-center border-b border-slate-200 dark:border-white/10"
+    [class.px-4]="!sidebarCollapsed()" [class.justify-center]="sidebarCollapsed()" [class.justify-between]="!sidebarCollapsed()">
     <div class="flex items-center gap-3 overflow-hidden">
       <a routerLink="/overview"
         class="w-9 h-9 rounded-xl bg-[#59000A] text-white flex items-center justify-center font-mono font-black text-sm shadow-md shrink-0 cursor-pointer ring-1 ring-[#59000A]/30">
@@ -27,12 +35,6 @@
       </div>
       }
     </div>
-
-    <button type="button" (click)="toggleSidebarCollapse()"
-      class="p-1.5 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-lg transition-colors cursor-pointer"
-      [title]="sidebarCollapsed() ? 'Expand Sidebar' : 'Collapse Sidebar'" aria-label="Toggle sidebar">
-      <mat-icon class="!text-lg">{{ sidebarCollapsed() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
-    </button>
   </div>
 
 
@@ -75,7 +77,7 @@
 
           @if (item.badgeType === 'live' && store.branchStats().inProgress > 0) {
           <span
-            class="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400 text-[10px] font-mono rounded font-bold">
+            class="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-500/20 px-1.5 py-0.5 rounded">
             {{ store.branchStats().inProgress }} live
           </span>
           }
@@ -103,8 +105,7 @@
           </span>
           }
           @else if (item.badgeType === 'count' && item.id === 'messages' && messagesSvc.totalUnreadCount() > 0) {
-          <span
-            class="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-bold">
+          <span class="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-bold">
             {{ messagesSvc.totalUnreadCount() }}
           </span>
           }
@@ -122,7 +123,7 @@
           }
           @else if (item.badgeType === 'currency') {
           <span class="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 font-bold tabular-nums">
-            ${{ store.stats().totalBonusesAllocated }}
+            GH₵{{ store.stats().totalBonusesAllocated }}
           </span>
           }
           @else if (item.badgeType === 'ledger') {
@@ -187,31 +188,26 @@
   <!-- Login As Top Center Indicator on Mobile Navbar -->
   @if (store.impersonationSession(); as imp) {
   <div
-    class="absolute top-0 left-1/2 -translate-x-1/2 z-50 h-[50px] w-[calc(100vw-24px)] sm:w-[400px] max-w-[calc(100vw-24px)] px-2.5 sm:px-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 dark:from-amber-600 dark:via-amber-500 dark:to-amber-600 text-slate-950 dark:text-white rounded-b-2xl shadow-lg border-b border-x border-amber-300/80 dark:border-amber-400/50 flex items-center justify-between gap-2.5 select-none">
-    <div class="flex items-center gap-2 min-w-0">
-      <div class="w-7 h-7 rounded-lg bg-slate-950/15 dark:bg-white/20 flex items-center justify-center shrink-0">
-        <mat-icon class="!text-base">switch_account</mat-icon>
+    class="absolute top-0 left-1/2 -translate-x-1/2 z-50 h-8 w-[calc(100vw-24px)] sm:w-[400px] max-w-[calc(100vw-24px)] px-2.5 sm:px-3 rounded-b-xl shadow-md border-b border-x flex items-center justify-between gap-2 select-none"
+    [ngClass]="getImpersonationBannerClass(imp.targetRole)">
+    <div class="flex items-center gap-1.5 min-w-0">
+      <div class="w-5 h-5 rounded-md bg-white/20 flex items-center justify-center shrink-0">
+        <mat-icon class="!text-xs !w-3.5 !h-3.5 leading-none">switch_account</mat-icon>
       </div>
-      <div class="flex flex-col min-w-0 leading-tight">
-        <div class="flex items-center gap-1.5 truncate">
-          <span class="text-[10px] font-black uppercase tracking-wider opacity-90">Login As:</span>
-          <span class="text-xs font-black truncate">{{ imp.targetUser.name }}</span>
-        </div>
-        <div class="flex items-center gap-1.5 text-[10px] font-mono truncate opacity-90">
-          <span
-            class="px-1.5 py-0.2 rounded bg-slate-950/20 dark:bg-white/20 font-bold uppercase tracking-wider text-[9px]">
-            {{ imp.targetRole }}
-          </span>
-          <span class="truncate">{{ imp.targetUser.email || imp.targetUser.phone || 'Active' }}</span>
-        </div>
+      <div class="flex items-center gap-1.5 min-w-0 truncate">
+        <span class="text-[10px] font-black uppercase tracking-wider opacity-90 shrink-0">Login As:</span>
+        <span class="text-[11px] font-black truncate">{{ imp.targetUser.name }}</span>
+        <span class="px-1.5 py-0.2 rounded bg-white/20 font-mono font-bold uppercase tracking-wider text-[9px] shrink-0">
+          {{ imp.targetRole }}
+        </span>
       </div>
     </div>
 
     <!-- Exit Button: Just an Icon on the Right -->
     <button type="button" (click)="store.revertLoginAs()"
-      class="w-7 h-7 rounded-lg bg-slate-950/15 hover:bg-slate-950/30 dark:bg-white/20 dark:hover:bg-white/30 text-slate-950 dark:text-white transition-all flex items-center justify-center shrink-0 cursor-pointer active:scale-90"
+      class="w-5 h-5 rounded-md bg-white/20 hover:bg-white/30 transition-all flex items-center justify-center shrink-0 cursor-pointer active:scale-90"
       title="Exit Login As" aria-label="Exit Login As">
-      <mat-icon class="!text-base">close</mat-icon>
+      <mat-icon class="!text-xs !w-3.5 !h-3.5 leading-none">close</mat-icon>
     </button>
   </div>
   }
@@ -349,7 +345,7 @@
           <span class="flex-1 text-left">{{ item.label }}</span>
           @if (item.badgeType === 'live' && store.branchStats().inProgress > 0) {
           <span
-            class="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400 text-[10px] font-mono rounded font-bold">
+            class="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-500/20 px-1.5 py-0.5 rounded">
             {{ store.branchStats().inProgress }} live
           </span>
           }
@@ -435,38 +431,33 @@
 <!-- ========================================================================= -->
 <div
   class="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100"
-  [class.lg:pl-72]="!sidebarCollapsed()" [class.lg:pl-20]="sidebarCollapsed()">
+  [class.lg:pl-72]="!sidebarCollapsed()" [class.lg:pl-16]="sidebarCollapsed()">
   <!-- Desktop Top Context Bar -->
   <header
     class="hidden lg:flex sticky top-0 z-30 h-16 bg-white/90 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 px-6 items-center justify-between gap-4 relative">
     <!-- Login As Top Center Indicator on Desktop Navbar (height: 50px, width: 400px, rounded bottom corners, exit icon button on right) -->
     @if (store.impersonationSession(); as imp) {
     <div
-      class="absolute top-0 left-1/2 -translate-x-1/2 z-50 h-[50px] w-[400px] max-w-[calc(100vw-32px)] px-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 dark:from-amber-600 dark:via-amber-500 dark:to-amber-600 text-slate-950 dark:text-white rounded-b-2xl shadow-lg border-b border-x border-amber-300/80 dark:border-amber-400/50 flex items-center justify-between gap-2.5 animate-in fade-in slide-in-from-top-2 duration-200 select-none">
-      <div class="flex items-center gap-2.5 min-w-0">
-        <div class="w-7 h-7 rounded-lg bg-slate-950/15 dark:bg-white/20 flex items-center justify-center shrink-0">
-          <mat-icon class="!text-base">switch_account</mat-icon>
+      class="absolute top-0 left-1/2 -translate-x-1/2 z-50 h-8 w-[400px] max-w-[calc(100vw-32px)] px-3 rounded-b-xl shadow-md border-b border-x flex items-center justify-between gap-2 animate-in fade-in slide-in-from-top-2 duration-200 select-none"
+      [ngClass]="getImpersonationBannerClass(imp.targetRole)">
+      <div class="flex items-center gap-1.5 min-w-0">
+        <div class="w-5 h-5 rounded-md bg-white/20 flex items-center justify-center shrink-0">
+          <mat-icon class="!text-xs !w-3.5 !h-3.5 leading-none">switch_account</mat-icon>
         </div>
-        <div class="flex flex-col min-w-0 leading-tight">
-          <div class="flex items-center gap-1.5 truncate">
-            <span class="text-[10px] font-black uppercase tracking-wider opacity-90">Login As:</span>
-            <span class="text-xs font-black truncate">{{ imp.targetUser.name }}</span>
-          </div>
-          <div class="flex items-center gap-1.5 text-[10px] font-mono truncate opacity-90">
-            <span
-              class="px-1.5 py-0.2 rounded bg-slate-950/20 dark:bg-white/20 font-bold uppercase tracking-wider text-[9px]">
-              {{ imp.targetRole }}
-            </span>
-            <span class="truncate">{{ imp.targetUser.email || imp.targetUser.phone || 'Active Session' }}</span>
-          </div>
+        <div class="flex items-center gap-1.5 min-w-0 truncate">
+          <span class="text-[10px] font-black uppercase tracking-wider opacity-90 shrink-0">Login As:</span>
+          <span class="text-[11px] font-black truncate">{{ imp.targetUser.name }}</span>
+          <span class="px-1.5 py-0.2 rounded bg-white/20 font-mono font-bold uppercase tracking-wider text-[9px] shrink-0">
+            {{ imp.targetRole }}
+          </span>
         </div>
       </div>
 
       <!-- Exit Button: Just an Icon on the Right -->
       <button type="button" (click)="store.revertLoginAs()"
-        class="w-7 h-7 rounded-lg bg-slate-950/15 hover:bg-slate-950/30 dark:bg-white/20 dark:hover:bg-white/30 text-slate-950 dark:text-white transition-all flex items-center justify-center shrink-0 cursor-pointer active:scale-90"
+        class="w-5 h-5 rounded-md bg-white/20 hover:bg-white/30 transition-all flex items-center justify-center shrink-0 cursor-pointer active:scale-90"
         title="Exit Login As" aria-label="Exit Login As">
-        <mat-icon class="!text-base">close</mat-icon>
+        <mat-icon class="!text-xs !w-3.5 !h-3.5 leading-none">close</mat-icon>
       </button>
     </div>
     }
@@ -585,7 +576,8 @@
 
                     <div class="flex items-center gap-2">
                       @if (canInstallerRespondToNotification(notif)) {
-                      <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[9px] font-mono font-bold flex items-center gap-1">
+                      <span
+                        class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[9px] font-mono font-bold flex items-center gap-1">
                         <mat-icon class="!text-[10px] !w-2.5 !h-2.5 animate-pulse">timer</mat-icon>
                         <span>{{ store.formatInstallerRemaining(getJobForNotification(notif)) }}</span>
                       </span>
@@ -598,7 +590,8 @@
                         Reject
                       </button>
                       } @else if (canDriverRespondToNotification(notif)) {
-                      <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[9px] font-mono font-bold flex items-center gap-1">
+                      <span
+                        class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[9px] font-mono font-bold flex items-center gap-1">
                         <mat-icon class="!text-[10px] !w-2.5 !h-2.5 animate-pulse">timer</mat-icon>
                         <span>{{ store.formatDriverRemaining(getJobForNotification(notif)) }}</span>
                       </span>
@@ -827,51 +820,49 @@
   <!-- TOP AMBER BANNER: PENDING DELIVERY RUNS FOR DISPATCH DRIVER              -->
   <!-- ======================================================================= -->
   @if (store.currentRole() === 'dispatcher' && store.driverPendingAcceptanceJobs().length > 0) {
-    @let pendingRuns = store.driverPendingAcceptanceJobs();
-    <div class="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 border-b-2 border-amber-400 px-4 sm:px-6 py-3 text-white shadow-xl animate-in fade-in">
-      <div class="max-w-screen-2xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-        <div class="flex items-center gap-2.5 min-w-0">
-          <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0"></span>
-          <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-[10px] font-black font-mono uppercase shrink-0">
-            {{ pendingRuns[0].id }}
+  @let pendingRuns = store.driverPendingAcceptanceJobs();
+  <div
+    class="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 border-b-2 border-amber-400 px-4 sm:px-6 py-3 text-white shadow-xl animate-in fade-in">
+    <div class="max-w-screen-2xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0"></span>
+        <span
+          class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-[10px] font-black font-mono uppercase shrink-0">
+          {{ pendingRuns[0].id }}
+        </span>
+        <div class="truncate">
+          <strong class="text-amber-300 font-extrabold uppercase tracking-wide">
+            Assigned Delivery Run Alert ({{ pendingRuns.length }}) · Respond Within 10 Minutes:
+          </strong>
+          <span class="text-slate-200 ml-1 truncate">
+            {{ pendingRuns[0].doorModel }} ➔ {{ pendingRuns[0].client.name }} ({{ pendingRuns[0].client.siteAddress }})
           </span>
-          <div class="truncate">
-            <strong class="text-amber-300 font-extrabold uppercase tracking-wide">
-              Assigned Delivery Run Alert ({{ pendingRuns.length }}) · Respond Within 10 Minutes:
-            </strong>
-            <span class="text-slate-200 ml-1 truncate">
-              {{ pendingRuns[0].doorModel }} ➔ {{ pendingRuns[0].client.name }} ({{ pendingRuns[0].client.siteAddress }})
-            </span>
-            @if (pendingRuns[0].logisticsTruck?.truckPlate) {
-              <span class="text-amber-200 font-mono font-bold ml-1">· Truck {{ pendingRuns[0].logisticsTruck?.truckPlate }}</span>
-            }
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 shrink-0 self-end md:self-auto">
-          <span class="px-2.5 py-1 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-200 text-xs font-mono font-extrabold flex items-center gap-1">
-            <mat-icon class="!text-xs !w-3.5 !h-3.5 animate-pulse">timer</mat-icon>
-            <span>{{ formatDriverRemaining(pendingRuns[0]) }} left</span>
-          </span>
-          <button
-            type="button"
-            (click)="quickAcceptDriver(pendingRuns[0].id)"
-            class="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-          >
-            <mat-icon class="!text-xs">check_circle</mat-icon>
-            <span>Accept Immediately</span>
-          </button>
-          <button
-            type="button"
-            (click)="openDriverRejectModal(pendingRuns[0].id)"
-            class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-          >
-            <mat-icon class="!text-xs">cancel</mat-icon>
-            <span>Reject Run</span>
-          </button>
+          @if (pendingRuns[0].logisticsTruck?.truckPlate) {
+          <span class="text-amber-200 font-mono font-bold ml-1">· Truck {{ pendingRuns[0].logisticsTruck?.truckPlate
+            }}</span>
+          }
         </div>
       </div>
+
+      <div class="flex items-center gap-2 shrink-0 self-end md:self-auto">
+        <span
+          class="px-2.5 py-1 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-200 text-xs font-mono font-extrabold flex items-center gap-1">
+          <mat-icon class="!text-xs !w-3.5 !h-3.5 animate-pulse">timer</mat-icon>
+          <span>{{ formatDriverRemaining(pendingRuns[0]) }} left</span>
+        </span>
+        <button type="button" (click)="quickAcceptDriver(pendingRuns[0].id)"
+          class="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1 active:scale-95">
+          <mat-icon class="!text-xs">check_circle</mat-icon>
+          <span>Accept Immediately</span>
+        </button>
+        <button type="button" (click)="openDriverRejectModal(pendingRuns[0].id)"
+          class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1 active:scale-95">
+          <mat-icon class="!text-xs">cancel</mat-icon>
+          <span>Reject Run</span>
+        </button>
+      </div>
     </div>
+  </div>
   }
 
   <!-- ======================================================================= -->
@@ -882,59 +873,59 @@
     @for (aj of activeLiveJobs(); track aj.id) {
     <div
       class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 border-b border-emerald-200 dark:border-emerald-500/30 px-4 sm:px-6 py-2.5 text-xs shadow-xs transition-colors">
-    <div class="max-w-screen-2xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+      <div class="max-w-screen-2xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
 
-      <!-- Live Indicator & Order Meta -->
-      <div class="flex items-center gap-3 min-w-0">
-        <div class="relative flex h-2.5 w-2.5 shrink-0">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+        <!-- Live Indicator & Order Meta -->
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="relative flex h-2.5 w-2.5 shrink-0">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 truncate">
+            <span
+              class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-mono text-[10px] font-bold">
+              @if (aj.status === 'on_site') { CLOCKED IN ON SITE }
+              @else if (aj.status === 'dispatched') { DOOR EN ROUTE }
+              @else if (aj.status === 'accepted') { INSTALLER ASSIGNED }
+              @else { LIVE OPERATION }
+            </span>
+            <span class="font-mono font-bold text-slate-900 dark:text-white">{{ aj.id }}</span>
+            <span class="text-slate-300 dark:text-slate-600 hidden sm:inline">·</span>
+            <span class="font-bold text-slate-900 dark:text-white truncate">{{ aj.doorModel }}</span>
+            <span class="text-slate-300 dark:text-slate-600 hidden sm:inline">·</span>
+            <span class="text-slate-600 dark:text-slate-400 truncate max-w-xs">{{ aj.client.siteAddress }}</span>
+            <span class="text-slate-300 dark:text-slate-600 hidden md:inline">·</span>
+            <span class="text-slate-600 dark:text-slate-400 hidden md:inline">Installer: <strong
+                class="text-slate-900 dark:text-white">{{ aj.assignedInstallerName || 'Assigned' }}</strong></span>
+          </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2 truncate">
-          <span
-            class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-mono text-[10px] font-bold">
-            @if (aj.status === 'on_site') { CLOCKED IN ON SITE }
-            @else if (aj.status === 'dispatched') { DOOR EN ROUTE }
-            @else if (aj.status === 'accepted') { INSTALLER ASSIGNED }
-            @else { LIVE OPERATION }
-          </span>
-          <span class="font-mono font-bold text-slate-900 dark:text-white">{{ aj.id }}</span>
-          <span class="text-slate-300 dark:text-slate-600 hidden sm:inline">·</span>
-          <span class="font-bold text-slate-900 dark:text-white truncate">{{ aj.doorModel }}</span>
-          <span class="text-slate-300 dark:text-slate-600 hidden sm:inline">·</span>
-          <span class="text-slate-600 dark:text-slate-400 truncate max-w-xs">{{ aj.client.siteAddress }}</span>
-          <span class="text-slate-300 dark:text-slate-600 hidden md:inline">·</span>
-          <span class="text-slate-600 dark:text-slate-400 hidden md:inline">Installer: <strong
-              class="text-slate-900 dark:text-white">{{ aj.assignedInstallerName || 'Assigned' }}</strong></span>
+        <!-- Quick Actions on Live Ticker -->
+        <div class="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-auto">
+          @if (store.currentRole() !== 'manager') {
+          <button type="button" (click)="trackLiveJourney(aj.id)"
+            class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer">
+            <mat-icon class="!text-xs">map</mat-icon>
+            <span>Track Live Journey</span>
+          </button>
+          }
+
+          @for (person of getLiveJobContacts(aj); track person.key) {
+          <button type="button" (click)="openContactPerson(person, aj)"
+            class="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors shadow-2xs cursor-pointer">
+            <mat-icon class="!text-xs text-emerald-600 dark:text-emerald-400">phone</mat-icon>
+            <span>Call {{ person.firstName }}</span>
+          </button>
+          }
+
+          <button type="button" (click)="openJobDetails(aj.id)"
+            class="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-medium hover:text-slate-900 dark:hover:text-white transition-colors shadow-2xs cursor-pointer">
+            Details →
+          </button>
         </div>
-      </div>
-
-      <!-- Quick Actions on Live Ticker -->
-      <div class="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-auto">
-        @if (store.currentRole() !== 'manager') {
-        <button type="button" (click)="trackLiveJourney(aj.id)"
-          class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer">
-          <mat-icon class="!text-xs">map</mat-icon>
-          <span>Track Live Journey</span>
-        </button>
-        }
-
-        @for (person of getLiveJobContacts(aj); track person.key) {
-        <button type="button" (click)="openContactPerson(person, aj)"
-          class="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors shadow-2xs cursor-pointer">
-          <mat-icon class="!text-xs text-emerald-600 dark:text-emerald-400">phone</mat-icon>
-          <span>Call {{ person.firstName }}</span>
-        </button>
-        }
-
-        <button type="button" (click)="openJobDetails(aj.id)"
-          class="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-medium hover:text-slate-900 dark:hover:text-white transition-colors shadow-2xs cursor-pointer">
-          Details →
-        </button>
       </div>
     </div>
-  </div>
     }
   </div>
   }
@@ -954,7 +945,7 @@
   <!-- ======================================================================= -->
   <footer
     class="hidden lg:block fixed bottom-0 right-0 left-0 z-30 border-t border-slate-200 dark:border-white/10 bg-white/95 dark:bg-[#111215]/95 backdrop-blur-md py-3 text-slate-500 dark:text-slate-400 transition-all duration-300"
-    [class.lg:left-72]="!sidebarCollapsed()" [class.lg:left-20]="sidebarCollapsed()">
+    [class.lg:left-72]="!sidebarCollapsed()" [class.lg:left-16]="sidebarCollapsed()">
     <div
       class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
       <div class="flex items-center gap-2">
@@ -968,7 +959,8 @@
           <span>GPS Verified</span>
         </span>
         <span class="text-slate-300 dark:text-slate-700">·</span>
-        <span class="text-slate-300 dark:text-slate-700">powered by <a href="https://digitalreadyghana.com" class="text-slate-900 dark:text-white">digitalready</a></span>
+        <span class="text-slate-300 dark:text-slate-700">powered by <a href="https://digitalreadyghana.com"
+            class="text-slate-900 dark:text-white">digitalready</a></span>
       </div>
     </div>
   </footer>
@@ -1090,12 +1082,16 @@
 <!-- 11. EXISTING CORE MODALS (Job Details, New Job, Bonus, Roles, Alerts)      -->
 <!-- ========================================================================= -->
 @if (store.pendingManagerReassignmentJob(); as reJob) {
-<div class="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-  <div class="bg-white dark:bg-slate-900 border-2 border-rose-500/70 dark:border-rose-500/60 text-slate-900 dark:text-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95">
+<div
+  class="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+  <div
+    class="bg-white dark:bg-slate-900 border-2 border-rose-500/70 dark:border-rose-500/60 text-slate-900 dark:text-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95">
     <!-- Urgent Header -->
-    <div class="px-5 py-4 bg-gradient-to-r from-rose-950 via-red-900 to-slate-900 text-white flex items-center justify-between gap-3 border-b border-rose-500/40">
+    <div
+      class="px-5 py-4 bg-gradient-to-r from-rose-950 via-red-900 to-slate-900 text-white flex items-center justify-between gap-3 border-b border-rose-500/40">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-400/50 flex items-center justify-center text-rose-300 shrink-0">
+        <div
+          class="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-400/50 flex items-center justify-center text-rose-300 shrink-0">
           <mat-icon>warning_amber</mat-icon>
         </div>
         <div>
@@ -1110,12 +1106,9 @@
           </h3>
         </div>
       </div>
-      <button
-        type="button"
-        (click)="dismissManagerReassignment(reJob.id)"
+      <button type="button" (click)="dismissManagerReassignment(reJob.id)"
         class="p-1.5 rounded-lg text-rose-200 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-        title="Dismiss popup"
-      >
+        title="Dismiss popup">
         <mat-icon class="!text-lg">close</mat-icon>
       </button>
     </div>
@@ -1123,71 +1116,74 @@
     <!-- Body -->
     <div class="p-5 overflow-y-auto space-y-4 text-xs">
       <!-- Declined Job & Reason Summary -->
-      <div class="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80 space-y-2">
+      <div
+        class="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80 space-y-2">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <span class="text-[10px] uppercase font-mono font-bold text-rose-700 dark:text-rose-300 block">Client & Door Installation</span>
-            <p class="text-sm font-bold text-slate-900 dark:text-white">{{ reJob.client.name }} — {{ reJob.doorModel }}</p>
-            <p class="text-[11px] text-slate-600 dark:text-slate-300 font-mono">{{ reJob.client.siteAddress }} · Scheduled {{ reJob.scheduledDate }}</p>
+            <span class="text-[10px] uppercase font-mono font-bold text-rose-700 dark:text-rose-300 block">Client & Door
+              Installation</span>
+            <p class="text-sm font-bold text-slate-900 dark:text-white">{{ reJob.client.name }} — {{ reJob.doorModel }}
+            </p>
+            <p class="text-[11px] text-slate-600 dark:text-slate-300 font-mono">{{ reJob.client.siteAddress }} ·
+              Scheduled {{ reJob.scheduledDate }}</p>
           </div>
           <span class="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-mono font-bold text-[11px]">
             Declined by: {{ reJob.rejectedByInstallerName || 'Assigned Installer' }}
           </span>
         </div>
         @if (reJob.installerRejectReason) {
-          <div class="pt-2 border-t border-rose-200/80 dark:border-rose-800/60 text-[11px] text-rose-900 dark:text-rose-200">
-            <strong>Decline Reason:</strong> "{{ reJob.installerRejectReason }}"
-            @if (reJob.installerProposedSlot) {
-              <span class="ml-2 font-mono font-bold text-amber-700 dark:text-amber-300">
-                (Proposed Slot: {{ reJob.installerProposedSlot }})
-              </span>
-            }
-          </div>
+        <div
+          class="pt-2 border-t border-rose-200/80 dark:border-rose-800/60 text-[11px] text-rose-900 dark:text-rose-200">
+          <strong>Decline Reason:</strong> "{{ reJob.installerRejectReason }}"
+          @if (reJob.installerProposedSlot) {
+          <span class="ml-2 font-mono font-bold text-amber-700 dark:text-amber-300">
+            (Proposed Slot: {{ reJob.installerProposedSlot }})
+          </span>
+          }
+        </div>
         }
       </div>
 
       <!-- Available Installation Teams Grid Select -->
       @if (store.installerTeams().length > 0) {
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <mat-icon class="!text-sm text-indigo-600 dark:text-indigo-400">groups</mat-icon>
-              <span>Select Replacement Installation Team ({{ store.installerTeams().length }} Teams Available)</span>
-            </span>
-            <span class="text-[10px] font-mono text-emerald-700 dark:text-emerald-400">Starts new 10-min auto-accept timer</span>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            @for (team of store.installerTeams(); track team.id) {
-              <button
-                type="button"
-                (click)="selectTeamForReassignment(team)"
-                class="p-3 rounded-xl border text-left transition-all cursor-pointer flex items-start justify-between gap-2"
-                [class]="isTeamSelectedForReassignment(team)
-                  ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 ring-2 ring-emerald-500/20'
-                  : 'bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 hover:border-indigo-400'"
-              >
-                <div class="min-w-0">
-                  <div class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <mat-icon class="!text-sm text-indigo-600 dark:text-indigo-400">groups</mat-icon>
-                    <span class="truncate">{{ team.name }}</span>
-                  </div>
-                  <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    Lead: <strong class="text-slate-700 dark:text-slate-200">{{ getInstallerName(team.leadId) }}</strong> · {{ team.specialties[0] || 'Door Installation' }}
-                  </p>
-                  <p class="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">
-                    {{ team.memberIds.length }} Member(s) · {{ team.code }}
-                  </p>
-                </div>
-                <span
-                  class="px-2 py-0.5 rounded text-[10px] font-bold shrink-0"
-                  [class]="isTeamSelectedForReassignment(team) ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'"
-                >
-                  {{ isTeamSelectedForReassignment(team) ? 'Selected' : 'Select Team' }}
-                </span>
-              </button>
-            }
-          </div>
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <span
+            class="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <mat-icon class="!text-sm text-indigo-600 dark:text-indigo-400">groups</mat-icon>
+            <span>Select Replacement Installation Team ({{ store.installerTeams().length }} Teams Available)</span>
+          </span>
+          <span class="text-[10px] font-mono text-emerald-700 dark:text-emerald-400">Starts new 10-min auto-accept
+            timer</span>
         </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          @for (team of store.installerTeams(); track team.id) {
+          <button type="button" (click)="selectTeamForReassignment(team)"
+            class="p-3 rounded-xl border text-left transition-all cursor-pointer flex items-start justify-between gap-2"
+            [class]="isTeamSelectedForReassignment(team)
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 ring-2 ring-emerald-500/20'
+                  : 'bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 hover:border-indigo-400'">
+            <div class="min-w-0">
+              <div class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <mat-icon class="!text-sm text-indigo-600 dark:text-indigo-400">groups</mat-icon>
+                <span class="truncate">{{ team.name }}</span>
+              </div>
+              <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Lead: <strong class="text-slate-700 dark:text-slate-200">{{ getInstallerName(team.leadId) }}</strong> ·
+                {{ team.specialties[0] || 'Door Installation' }}
+              </p>
+              <p class="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">
+                {{ team.memberIds.length }} Member(s) · {{ team.code }}
+              </p>
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold shrink-0"
+              [class]="isTeamSelectedForReassignment(team) ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'">
+              {{ isTeamSelectedForReassignment(team) ? 'Selected' : 'Select Team' }}
+            </span>
+          </button>
+          }
+        </div>
+      </div>
       }
 
       <!-- Individual Field Installers Grid Select -->
@@ -1197,66 +1193,59 @@
         </span>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
           @for (inst of store.installers(); track inst.id) {
-            <label
-              class="flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-colors"
-              [class]="reassignSelectedInstallerIds().includes(inst.id)
+          <label class="flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-colors"
+            [class]="reassignSelectedInstallerIds().includes(inst.id)
                 ? 'bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-500 text-slate-900 dark:text-white'
-                : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50'"
-            >
-              <div class="flex items-center gap-2.5 min-w-0">
-                <input
-                  type="checkbox"
-                  [checked]="reassignSelectedInstallerIds().includes(inst.id)"
-                  (change)="toggleInstallerForReassignment(inst.id)"
-                  class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                />
-                <div class="min-w-0">
-                  <p class="font-bold text-xs truncate">{{ inst.name }}</p>
-                  <p class="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                    {{ inst.specialties[0] || 'Certified Tech' }} · ★{{ inst.metrics.avgRating }}
-                  </p>
-                </div>
+                : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50'">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <input type="checkbox" [checked]="reassignSelectedInstallerIds().includes(inst.id)"
+                (change)="toggleInstallerForReassignment(inst.id)"
+                class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+              <div class="min-w-0">
+                <p class="font-bold text-xs truncate">{{ inst.name }}</p>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                  {{ inst.specialties[0] || 'Certified Tech' }} · ★{{ inst.metrics.avgRating }}
+                </p>
               </div>
-              @if (reassignSelectedInstallerIds()[0] === inst.id) {
-                <span class="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[9px] font-mono font-bold uppercase shrink-0">
-                  Team Lead
-                </span>
-              } @else if (reassignSelectedInstallerIds().includes(inst.id)) {
-                <span class="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-mono font-bold uppercase shrink-0">
-                  Assistant
-                </span>
-              }
-            </label>
+            </div>
+            @if (reassignSelectedInstallerIds()[0] === inst.id) {
+            <span
+              class="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[9px] font-mono font-bold uppercase shrink-0">
+              Team Lead
+            </span>
+            } @else if (reassignSelectedInstallerIds().includes(inst.id)) {
+            <span
+              class="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-mono font-bold uppercase shrink-0">
+              Assistant
+            </span>
+            }
+          </label>
           }
         </div>
       </div>
     </div>
 
     <!-- Footer Actions -->
-    <div class="px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+    <div
+      class="px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
       <div class="text-xs text-slate-600 dark:text-slate-400">
         @if (reassignSelectedInstallerIds().length > 0) {
-          <span class="font-bold text-emerald-700 dark:text-emerald-400">
-            {{ reassignSelectedInstallerIds().length }} installer(s) selected · Lead: {{ getInstallerName(reassignSelectedInstallerIds()[0]) }}
-          </span>
+        <span class="font-bold text-emerald-700 dark:text-emerald-400">
+          {{ reassignSelectedInstallerIds().length }} installer(s) selected · Lead: {{
+          getInstallerName(reassignSelectedInstallerIds()[0]) }}
+        </span>
         } @else {
-          <span>Select a team or installer above to re-assign immediately</span>
+        <span>Select a team or installer above to re-assign immediately</span>
         }
       </div>
       <div class="flex items-center gap-2">
-        <button
-          type="button"
-          (click)="dismissManagerReassignment(reJob.id)"
-          class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-        >
+        <button type="button" (click)="dismissManagerReassignment(reJob.id)"
+          class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
           Later
         </button>
-        <button
-          type="button"
-          [disabled]="reassignSelectedInstallerIds().length === 0"
+        <button type="button" [disabled]="reassignSelectedInstallerIds().length === 0"
           (click)="confirmManagerReassignment(reJob)"
-          class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
-        >
+          class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-md transition-all cursor-pointer">
           <mat-icon class="!text-sm">assignment_ind</mat-icon>
           <span>Confirm Re-Assignment (Start 10m Timer)</span>
         </button>
@@ -1283,7 +1272,8 @@
 }
 
 @if (showAddUserModal()) {
-<app-add-user-modal (closed)="showAddUserModal.set(false)" (userCreated)="store.loadUsers(); store.loadTeamsFromBackend()" />
+<app-add-user-modal (closed)="showAddUserModal.set(false)"
+  (userCreated)="store.loadUsers(); store.loadTeamsFromBackend()" />
 }
 
 @if (showNotificationDrawer()) {
@@ -1291,64 +1281,62 @@
 }
 
 @if (rejectingDriverJobId()) {
-  <app-rejection-modal
-    [jobId]="rejectingDriverJobId()!"
-    [roleTitle]="'Logistics Dispatch Driver'"
-    [isDriver]="true"
-    (rejected)="handleDriverRejectSubmit($event)"
-    (canceled)="rejectingDriverJobId.set(null)"
-  ></app-rejection-modal>
+<app-rejection-modal [jobId]="rejectingDriverJobId()!" [roleTitle]="'Logistics Dispatch Driver'" [isDriver]="true"
+  (rejected)="handleDriverRejectSubmit($event)" (canceled)="rejectingDriverJobId.set(null)"></app-rejection-modal>
 }
 
 @if (store.needsLocationPrompt()) {
-  <div class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
-    <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
-      <div class="p-5 sm:p-6 space-y-4">
-        <div class="flex items-start gap-3">
-          <div class="w-11 h-11 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-            <mat-icon class="!text-2xl">location_off</mat-icon>
-          </div>
-          <div class="min-w-0">
-            <h3 class="text-base font-black text-slate-900 dark:text-white leading-tight">
-              Turn On Location to Continue
-            </h3>
-            <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">
-              {{ store.currentRole() === 'dispatcher' ? 'Drivers' : 'Installers' }} must have live GPS location turned on in the app for dispatch routing, ETA tracking, and site check-ins.
-            </p>
-          </div>
+<div class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
+  <div
+    class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+    <div class="p-5 sm:p-6 space-y-4">
+      <div class="flex items-start gap-3">
+        <div
+          class="w-11 h-11 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+          <mat-icon class="!text-2xl">location_off</mat-icon>
         </div>
-
-        @if (store.gpsPermissionState() === 'denied') {
-          <div class="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/70 text-xs text-rose-800 dark:text-rose-200 space-y-1">
-            <p class="font-bold">Location access is currently blocked.</p>
-            <p>Click the lock or location icon in your browser's address bar, set <strong>Location</strong> to <strong>Allow</strong>, and then click Retry below.</p>
-          </div>
-        } @else if (store.gpsError()) {
-          <div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/70 text-xs text-amber-800 dark:text-amber-200">
-            {{ store.gpsError() }}
-          </div>
-        }
-
-        <div class="flex items-center justify-end gap-2 pt-1">
-          <button
-            type="button"
-            [disabled]="isRequestingLocation()"
-            (click)="enableLocationToContinue()"
-            class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer"
-          >
-            <mat-icon class="!text-base">{{ isRequestingLocation() ? 'sync' : 'my_location' }}</mat-icon>
-            <span>
-              @if (isRequestingLocation()) {
-                Enabling Location...
-              } @else if (store.gpsPermissionState() === 'denied') {
-                Retry Location Access
-              } @else {
-                Turn On Location & Continue
-              }
-            </span>
-          </button>
+        <div class="min-w-0">
+          <h3 class="text-base font-black text-slate-900 dark:text-white leading-tight">
+            Turn On Location to Continue
+          </h3>
+          <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">
+            {{ store.currentRole() === 'dispatcher' ? 'Drivers' : 'Installers' }} must have live GPS location turned on
+            in the app for dispatch routing, ETA tracking, and site check-ins.
+          </p>
         </div>
+      </div>
+
+      @if (store.gpsPermissionState() === 'denied') {
+      <div
+        class="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/70 text-xs text-rose-800 dark:text-rose-200 space-y-1">
+        <p class="font-bold">Location access is currently blocked.</p>
+        <p>Click the lock or location icon in your browser's address bar, set <strong>Location</strong> to
+          <strong>Allow</strong>, and then click Retry below.
+        </p>
+      </div>
+      } @else if (store.gpsError()) {
+      <div
+        class="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/70 text-xs text-amber-800 dark:text-amber-200">
+        {{ store.gpsError() }}
+      </div>
+      }
+
+      <div class="flex items-center justify-end gap-2 pt-1">
+        <button type="button" [disabled]="isRequestingLocation()" (click)="enableLocationToContinue()"
+          class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer">
+          <mat-icon class="!text-base">{{ isRequestingLocation() ? 'sync' : 'my_location' }}</mat-icon>
+          <span>
+            @if (isRequestingLocation()) {
+            Enabling Location...
+            } @else if (store.gpsPermissionState() === 'denied') {
+            Retry Location Access
+            } @else {
+            Turn On Location & Continue
+            }
+          </span>
+        </button>
       </div>
     </div>
   </div>
+</div>
 }

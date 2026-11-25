@@ -942,6 +942,27 @@ export class DashboardLayout implements OnDestroy {
     this.activeContactInfo.set(null);
   }
 
+  getImpersonationBannerClass(roleId: string): string {
+    switch (roleId) {
+      case 'admin':
+        return 'bg-gradient-to-r from-purple-600 via-purple-500 to-purple-600 dark:from-purple-700 dark:via-purple-600 dark:to-purple-700 text-white border-purple-400/70 dark:border-purple-400/50';
+      case 'manager':
+        return 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-600 dark:from-emerald-700 dark:via-emerald-600 dark:to-emerald-700 text-white border-emerald-400/70 dark:border-emerald-400/50';
+      case 'installer':
+        return 'bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 dark:from-blue-700 dark:via-blue-600 dark:to-blue-700 text-white border-blue-400/70 dark:border-blue-400/50';
+      case 'shop_manager':
+        return 'bg-gradient-to-r from-cyan-600 via-cyan-500 to-cyan-600 dark:from-cyan-700 dark:via-cyan-600 dark:to-cyan-700 text-white border-cyan-400/70 dark:border-cyan-400/50';
+      case 'dispatcher':
+        return 'bg-gradient-to-r from-teal-600 via-teal-500 to-teal-600 dark:from-teal-700 dark:via-teal-600 dark:to-teal-700 text-white border-teal-400/70 dark:border-teal-400/50';
+      case 'account_officer':
+        return 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 dark:from-amber-600 dark:via-amber-500 dark:to-amber-600 text-slate-950 dark:text-white border-amber-300/80 dark:border-amber-400/50';
+      case 'client':
+        return 'bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 dark:from-indigo-700 dark:via-indigo-600 dark:to-indigo-700 text-white border-indigo-400/70 dark:border-indigo-400/50';
+      default:
+        return 'bg-gradient-to-r from-purple-600 via-purple-500 to-purple-600 dark:from-purple-700 dark:via-purple-600 dark:to-purple-700 text-white border-purple-400/70 dark:border-purple-400/50';
+    }
+  }
+
   showToast(msg: string) {
     this.toastMessage.set(msg);
     setTimeout(() => {

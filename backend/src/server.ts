@@ -105,20 +105,24 @@ const allowedOrigins = (process.env['CORS_ORIGINS'] || process.env['APP_URL'] ||
   .map((o) => o.trim())
   .filter(Boolean);
 
+const isDevLocalOrigin = (origin: string): boolean =>
+  process.env['NODE_ENV'] !== 'production' &&
+  /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/i.test(origin);
+
 // Enable Cross-Origin Resource Sharing for separated frontend
 app.use(cors({
   origin: allowedOrigins.length > 0
     ? (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes(origin) || isDevLocalOrigin(origin)) {
           callback(null, true);
         } else {
-          callback(new Error('Origin not allowed by CORS'));
+          callback(null, false);
         }
       }
     : (process.env['NODE_ENV'] === 'production' ? false : true),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-actor-user-id']
 }));
 
 app.use(express.json());

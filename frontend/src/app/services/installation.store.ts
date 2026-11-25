@@ -3934,13 +3934,20 @@ export class InstallationStore {
     }
   }
 
-  loginAsUser(targetUser: AppUser): void {
+  async loginAsUser(targetUser: AppUser): Promise<void> {
     if (!targetUser || !targetUser.id) return;
 
     if (this.impersonationSession()?.targetUser.id === targetUser.id) {
       this.alert.info('Already Active', `You are already logged in as ${targetUser.name}.`);
       return;
     }
+
+    const targetRole = (targetUser.role as RoleType) || 'installer';
+    await this.alert.showSessionTransition({
+      mode: 'login',
+      name: targetUser.name,
+      role: String(targetUser.role || targetRole)
+    });
 
     const currentImp = this.impersonationSession();
     const origUser = currentImp ? currentImp.originalUser : {
@@ -3956,8 +3963,6 @@ export class InstallationStore {
     const origInstallerId = currentImp ? currentImp.originalInstallerId : this.currentInstallerId();
     const origDispatcherId = currentImp ? currentImp.originalDispatcherId : this.currentDispatcherId();
     const origClientId = currentImp ? currentImp.originalClientId : this.currentClientId();
-
-    const targetRole = (targetUser.role as RoleType) || 'installer';
 
     const session: ImpersonationSession = {
       isImpersonating: true,
@@ -3975,15 +3980,21 @@ export class InstallationStore {
     this.impersonationSession.set(session);
     this.applyImpersonatedState(session);
 
-    this.alert.success(
+    this.alert.toastSuccess(
       'Temporary Login Active',
-      `Logged in as ${targetUser.name} (${targetUser.role || targetRole}). Session storage managing store data.`
+      `Logged in as ${targetUser.name} (${targetUser.role || targetRole}).`
     );
   }
 
-  revertLoginAs(): void {
+  async revertLoginAs(): Promise<void> {
     const session = this.impersonationSession();
     if (!session) return;
+
+    await this.alert.showSessionTransition({
+      mode: 'logout',
+      name: session.targetUser.name,
+      originalName: session.originalUser.name
+    });
 
     clearPersistedImpersonation();
     this.impersonationSession.set(null);
@@ -4001,9 +4012,9 @@ export class InstallationStore {
       }
     }
 
-    this.alert.info(
+    this.alert.toastSuccess(
       'Primary Session Restored',
-      `Exited temporary session. Restored primary login as ${session.originalUser.name} (${session.originalRole}).`
+      `Exited temporary session. Restored login as ${session.originalUser.name}.`
     );
   }
 

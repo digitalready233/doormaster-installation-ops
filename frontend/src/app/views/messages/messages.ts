@@ -29,7 +29,7 @@ import { AlertService } from '../../services/alert.service';
   imports: [CommonModule, FormsModule, MatIconModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="h-[calc(100dvh-10.5rem)] md:h-[calc(100dvh-6.5rem)] min-h-[480px] flex rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
+    <div class="h-[calc(100dvh-11.5rem)] sm:h-[calc(100dvh-12rem)] lg:h-[calc(100dvh-10rem)] min-h-[360px] flex rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
 
       <!-- =============================================================== -->
       <!-- LEFT PANE: CONTACTS & CHATS LIST (WhatsApp Sidebar)             -->

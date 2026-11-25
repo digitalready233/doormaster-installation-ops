@@ -594,7 +594,7 @@ import { DispatcherPortal } from '../dispatcher-portal/dispatcher-portal';
             class="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-950 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 self-start sm:self-auto cursor-pointer"
           >
             <mat-icon class="!text-sm !w-4 !h-4">manage_accounts</mat-icon>
-            <span>Authorize Users (/roles)</span>
+            <span>Authorize Users</span>
           </button>
         </div>
       }
@@ -898,7 +898,7 @@ import { DispatcherPortal } from '../dispatcher-portal/dispatcher-portal';
             class="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors flex items-center gap-1.5 shadow-2xs self-start sm:self-auto cursor-pointer"
           >
             <mat-icon class="!text-xs">assignment</mat-icon>
-            <span>View All Work Orders (/work)</span>
+            <span>View All Work Orders</span>
           </button>
         </div>
 
@@ -1339,7 +1339,7 @@ export class Overview implements OnDestroy {
           title: 'System Administrator & Governance',
           focusDescription: 'Super-user oversight: user access authorizations, security governance, all operations resources, and platform administration.',
           primaryRoute: '/roles',
-          primaryRouteLabel: 'User & Role Governance (/roles)'
+          primaryRouteLabel: 'User & Role Governance'
         };
       case 'installer':
         return {
@@ -1347,7 +1347,7 @@ export class Overview implements OnDestroy {
           title: 'Field Lead Installer',
           focusDescription: 'Direct focus on assigned jobs, site GPS geofence clock-in, 6-point checklist audit, and installation completion.',
           primaryRoute: '/map',
-          primaryRouteLabel: 'Map (/map)'
+          primaryRouteLabel: 'Map'
         };
       case 'shop_manager': {
         const ownBranch = this.store.managerBranch();
@@ -1359,7 +1359,7 @@ export class Overview implements OnDestroy {
             ? `Exclusive workspace for ${ownBranch.shopName} (${ownBranch.branchCode}): track orders, deposits, deliveries, and notifications created by and for your shop.`
             : 'Direct focus on branch walk-in customer orders, counter MoMo/cash deposits, local slab inventory, and hauler requests.',
           primaryRoute: '/shop',
-          primaryRouteLabel: 'Shop Counter POS (/shop)'
+          primaryRouteLabel: 'Shop Counter POS'
         };
       }
       case 'dispatcher':
@@ -1368,7 +1368,7 @@ export class Overview implements OnDestroy {
           title: 'Driver Deliveries',
           focusDescription: 'Direct focus on flatbed truck telematics, loading manifests, driver assignments, transit routes, and on-time site arrival.',
           primaryRoute: '/overview',
-          primaryRouteLabel: 'Driver Portal (/overview)'
+          primaryRouteLabel: 'Driver Portal'
         };
       case 'account_officer':
         return {
@@ -1376,7 +1376,7 @@ export class Overview implements OnDestroy {
           title: 'Accounts & Finance Comptroller',
           focusDescription: 'Direct focus on order ledger balances, shop deposit reconciliations, installer site funds dispatch, and bonus approvals.',
           primaryRoute: '/finance',
-          primaryRouteLabel: 'Finance & Ledger (/finance)'
+          primaryRouteLabel: 'Finance & Ledger'
         };
       case 'client':
         return {
@@ -1384,7 +1384,7 @@ export class Overview implements OnDestroy {
           title: 'Project Site Client',
           focusDescription: 'Direct focus on ordered door fabrication, live delivery truck location, installer arrival ETA, and digital certificate handover.',
           primaryRoute: '/map',
-          primaryRouteLabel: 'Live Delivery Map (/map)'
+          primaryRouteLabel: 'Live Delivery Map'
         };
       default:
         return {
@@ -1392,7 +1392,7 @@ export class Overview implements OnDestroy {
           title: 'Manager',
           focusDescription: 'Complete operations oversight: installer job allocation, fleet mobilization, bonus approvals, and installation completion.',
           primaryRoute: '/work',
-          primaryRouteLabel: 'Manage All Work Orders (/work)'
+          primaryRouteLabel: 'Manage All Work Orders'
         };
     }
   });

@@ -434,4 +434,52 @@ export class AlertService {
 
     return result.isConfirmed;
   }
+
+  /**
+   * Animated SweetAlert2 transition modal for Login As / Exit Login As
+   */
+  async showSessionTransition(opts: {
+    mode: 'login' | 'logout';
+    name: string;
+    role?: string;
+    originalName?: string;
+    timerMs?: number;
+  }): Promise<void> {
+    const isLogin = opts.mode === 'login';
+    const title = isLogin ? `Logging in as ${opts.name}...` : `Closing ${opts.name}'s session...`;
+    const subtitle = isLogin
+      ? `Switching portal${opts.role ? ` (${opts.role})` : ''}`
+      : `Restoring${opts.originalName ? ` ${opts.originalName}` : ' primary session'}`;
+    const accent = isLogin ? '#34d399' : '#fbbf24';
+    const accentBg = isLogin ? 'rgba(16,185,129,0.18)' : 'rgba(245,158,11,0.18)';
+
+    await Swal.fire({
+      html: `
+        <div style="display:flex; align-items:center; gap:10px; text-align:left; padding:2px 0;">
+          <div style="width:30px; height:30px; flex-shrink:0; border-radius:9999px; display:flex; align-items:center; justify-content:center; background:${accentBg}; color:${accent}; font-weight:800; font-size:13px;">
+            ${(opts.name || 'U').trim().charAt(0).toUpperCase()}
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:13px; font-weight:700; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25;">${title}</div>
+            <div style="font-size:11px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25; margin-top:1px;">${subtitle}</div>
+          </div>
+          <div style="width:16px; height:16px; flex-shrink:0; border-radius:9999px; border:2px solid rgba(148,163,184,0.25); border-top-color:${accent}; animation:dm-spin 0.7s linear infinite;"></div>
+        </div>
+        <style>@keyframes dm-spin{to{transform:rotate(360deg)}}</style>
+      `,
+      width: '340px',
+      padding: '0.6rem 0.9rem',
+      timer: opts.timerMs ?? 1100,
+      timerProgressBar: true,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      background: '#0f172a',
+      color: '#f8fafc',
+      customClass: {
+        popup: 'rounded-xl border border-slate-800 shadow-2xl font-sans',
+        htmlContainer: '!m-0 !p-0'
+      }
+    });
+  }
 }
