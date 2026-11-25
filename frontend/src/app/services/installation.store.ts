@@ -4612,17 +4612,18 @@ export class InstallationStore {
   /**
    * Field Installer Clocks In on site.
    */
-  clockIn(jobId: string, latitude: number, longitude: number, accuracyMeters = 12) {
+  clockIn(jobId: string, latitude: number, longitude: number, accuracyMeters = 12, installerIdOverride?: string) {
     if (!this.ensureAccountVerified(jobId, 'clock in on site')) return;
     const now = new Date().toISOString();
     let updatedJob: InstallationJob | undefined;
 
     this.jobs.update(list => list.map(job => {
       if (job.id === jobId) {
+        const targetInstallerId = installerIdOverride || job.assignedInstallerId || this.currentInstallerId() || 'unknown';
         const newSession: ClockSession = {
           id: `clk_${Date.now()}`,
           jobId,
-          installerId: job.assignedInstallerId || this.currentInstallerId() || 'unknown',
+          installerId: targetInstallerId,
           clockInTime: now,
           latitude,
           longitude,
@@ -7651,6 +7652,105 @@ export class InstallationStore {
       'Site Funds Disbursed',
       `₵${data.amount} mobilization stipend released for job ${jobId} (${data.transactionRef || 'Verified'}).`
     );
+  }
+
+  /**
+   * Dispatcher confirms doors/hardware picked up at showroom & departs to site.
+   */
+  pickupDoorsByDriver(jobId: string) {
+    if (!this.ensureAccountVerified(jobId, 'pick up doors for delivery')) return;
+    const nowIso = new Date().toISOString();
+    this.jobs.update(list => list.map(job => {
+      if (job.id === jobId) {
+        return {
+          ...job,
+          status: 'dispatched',
+          motionLiveStarted: true,
+          motionLiveStartedAt: job.motionLiveStartedAt || nowIso
+        };
+      }
+      return job;
+    }));
+    this.saveJobsLocally();
+    const updated = this.jobs().find(j => j.id === jobId);
+    if (updated) this.persistJobToBackend(updated);
+
+    if (updated) {
+      this.createNotification({
+        recipientRole: 'client',
+        recipientUserId: updated.client.id || undefined,
+        title: 'Doors Picked Up & En Route',
+        message: `${updated.dispatcherName || 'Your driver'} has picked up ${updated.doorModel} from ${updated.shopBranch} and is heading to ${updated.client.siteAddress}.`,
+        type: 'door_dispatched',
+        jobId
+      });
+      if (updated.assignedInstallerId) {
+        this.createNotification({
+          recipientRole: 'installer',
+          recipientUserId: updated.assignedInstallerId,
+          title: 'Doors Picked Up by Driver',
+          message: `${updated.dispatcherName || 'Driver'} picked up ${updated.doorModel} for job ${jobId}.`,
+          type: 'door_dispatched',
+          jobId
+        });
+      }
+      this.alert.toastSuccess('Doors Picked Up', `Step 1 complete for ${jobId}. Proceed to deliver to destination.`);
+    }
+  }
+
+  /**
+   * Installer marks the entire task as finished & completed at the final Done step.
+   */
+  completeTaskAsDone(jobId: string) {
+    if (!this.ensureAccountVerified(jobId, 'complete this task')) return;
+    const now = new Date().toISOString();
+    let completedJob: InstallationJob | undefined;
+
+    this.jobs.update(list => list.map(job => {
+      if (job.id !== jobId) return job;
+      const sessions = [...(job.clockSessions || [])];
+      const activeIdx = sessions.findIndex(s => !s.clockOutTime);
+      if (activeIdx >= 0) {
+        const inTime = new Date(sessions[activeIdx].clockInTime).getTime();
+        const durMins = Math.max(1, Math.round((Date.now() - inTime) / 60000));
+        sessions[activeIdx] = {
+          ...sessions[activeIdx],
+          clockOutTime: now,
+          durationMinutes: durMins,
+          notes: 'Completed & finished at Done step'
+        };
+      }
+      completedJob = {
+        ...job,
+        clockSessions: sessions,
+        status: 'completed'
+      };
+      return completedJob;
+    }));
+    this.saveJobsLocally();
+    if (completedJob) {
+      this.persistJobToBackend(completedJob);
+      this.recalculateBonus(jobId);
+
+      this.createNotification({
+        recipientRole: 'manager',
+        title: 'Installation Task Completed',
+        message: `${completedJob.assignedInstallerName || 'Installer'} marked job ${jobId} (${completedJob.doorModel}) as finished.`,
+        type: 'installation_verified',
+        jobId
+      });
+
+      this.createNotification({
+        recipientRole: 'client',
+        recipientUserId: completedJob.client.id || undefined,
+        title: 'Installation Completed',
+        message: `Your installation for ${completedJob.doorModel} has been marked as completed.`,
+        type: 'installation_verified',
+        jobId
+      });
+
+      this.alert.toastSuccess('Task Completed', `Job ${jobId} has been marked as finished.`);
+    }
   }
 
   /**
