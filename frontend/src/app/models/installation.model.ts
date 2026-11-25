@@ -91,7 +91,7 @@ export const SYSTEM_EXTRA_FEATURES: ExtraFeatureItem[] = [
   {
     id: 'multi_branch',
     name: 'Global Multi-Branch Access',
-    description: 'Access jobs, bookings, and installer queues across all 15 regional ateliers without branch locking.',
+    description: 'Access jobs, bookings, and installer queues across all 15 regional branches without branch locking.',
     icon: 'share_location',
     category: 'operations'
   }

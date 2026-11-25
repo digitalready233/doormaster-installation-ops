@@ -458,7 +458,7 @@ export class Profile {
 
   readonly gpsLocationSummary = computed(() => {
     const loc = this.store.myLiveLocation();
-    if (!loc) return 'Accra Atelier Corridor (Standby)';
+    if (!loc) return 'Accra Operations Corridor (Standby)';
     if (loc.status !== 'online') return 'Offline Standby';
     return `${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)} · ${loc.speedKmh !== null ? loc.speedKmh + ' km/h' : 'Stationary'}`;
   });

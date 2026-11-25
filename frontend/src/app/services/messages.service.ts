@@ -310,10 +310,17 @@ export class MessagesService {
   }
 
   private apiBase(): string {
-    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-      return 'http://localhost:3000';
-    }
     return '';
+  }
+
+  private async safeJson(res: Response): Promise<any | null> {
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) return null;
+    try {
+      return await res.json();
+    } catch {
+      return null;
+    }
   }
 
   private async apiRequest(path: string, init: RequestInit = {}): Promise<Response> {
@@ -332,8 +339,8 @@ export class MessagesService {
     try {
       const res = await this.apiRequest(`/api/messages/threads?actorId=${encodeURIComponent(actorId)}`);
       if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.messages)) {
+        const data = await this.safeJson(res);
+        if (data?.success && Array.isArray(data.messages)) {
           this.mergeMessages(data.messages);
           this.typingFromIds.set(Array.isArray(data.typingFromIds) ? data.typingFromIds : []);
         }
@@ -435,8 +442,8 @@ export class MessagesService {
         })
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.message) {
+        const data = await this.safeJson(res);
+        if (data?.success && data.message) {
           this.messages.update(list => list.map(m => (m.id === tempId ? data.message : m)));
           this.saveLocal(this.messages());
         }

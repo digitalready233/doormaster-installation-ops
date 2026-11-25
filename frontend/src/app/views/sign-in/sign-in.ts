@@ -8,21 +8,12 @@ import {
   signal 
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators, FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
 import { ThemeStore } from '../../services/theme';
 import { AlertService } from '../../services/alert.service';
-
-export interface DemoPersona {
-  role: string;
-  name: string;
-  title: string;
-  email: string;
-  avatar: string;
-  badge: string;
-}
 
 @Component({
   selector: 'app-sign-in',
@@ -170,57 +161,6 @@ export interface DemoPersona {
               </p>
             </div>
 
-            <!-- ONE-TAP PERSONA FAST-PASS (DEMO VERIFIED) -->
-            <div class="mb-6 p-3.5 rounded-2xl bg-slate-50 dark:bg-[#111215] border border-slate-200 dark:border-white/10">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <mat-icon class="!text-xs text-[#59000A] dark:text-rose-300">bolt</mat-icon>
-                  <span>Quick Persona Switcher</span>
-                </span>
-                <span class="text-[10px] text-slate-400 font-mono">1-Click Auto-Fill</span>
-              </div>
-
-              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                @for (p of demoPersonas; track p.email) {
-                  <button
-                    type="button"
-                    (click)="selectPersona(p)"
-                    class="p-2 rounded-xl border text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center gap-2"
-                    [class]="loginForm.get('email')?.value === p.email ? 'bg-[#59000A]/10 dark:bg-[#59000A]/30 border-[#59000A] shadow-xs ring-1 ring-[#59000A]/40' : 'bg-white dark:bg-[#181A1F] border-slate-200 dark:border-white/10 hover:border-[#59000A]/50'"
-                    [title]="'Sign in as ' + p.name + ' (' + p.title + ')'"
-                  >
-                    <img [src]="p.avatar" [alt]="p.name" class="w-7 h-7 rounded-full object-cover shrink-0 border border-slate-200 dark:border-white/15" />
-                    <div class="min-w-0">
-                      <p class="text-[11px] font-bold text-[#111215] dark:text-white truncate leading-tight">{{ p.name }}</p>
-                      <p class="text-[9px] text-slate-500 dark:text-slate-400 truncate font-mono">{{ p.badge }}</p>
-                    </div>
-                  </button>
-                }
-              </div>
-
-              <!-- Dedicated Branch Shop Attendants Auto-Fill -->
-              <div class="mt-3 pt-2.5 border-t border-slate-200 dark:border-white/10">
-                <div class="flex items-center justify-between mb-1.5">
-                  <span class="text-[10px] uppercase font-mono font-bold text-[#59000A] dark:text-rose-300 flex items-center gap-1">
-                    <mat-icon class="!text-xs">storefront</mat-icon>
-                    <span>Branch Shop Attendants (11 Branches):</span>
-                  </span>
-                  <span class="text-[9px] text-slate-400 font-mono">1-Click Login</span>
-                </div>
-                <select 
-                  (change)="selectBranchManager($event)" 
-                  class="w-full text-xs px-2.5 py-2 rounded-xl bg-white dark:bg-[#181A1F] border border-slate-200 dark:border-white/15 text-[#111215] dark:text-slate-200 font-medium cursor-pointer focus:outline-none focus:border-[#59000A]"
-                >
-                  <option value="">-- Choose Branch Shop Attendant to Auto-Fill --</option>
-                  @for (bm of branchShopManagers; track bm.email) {
-                    <option [value]="bm.email">
-                      🏪 {{ bm.branchName }}: {{ bm.name }} ({{ bm.phone }})
-                    </option>
-                  }
-                </select>
-              </div>
-            </div>
-
             <!-- Feedback Banners -->
             @if (authErrorMessage()) {
               <div class="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2 animate-in fade-in duration-150">
@@ -339,7 +279,7 @@ export interface DemoPersona {
             <div class="flex items-center justify-between pb-4 border-b border-slate-800">
               <div class="flex items-center gap-2 text-emerald-400 font-bold text-sm">
                 <mat-icon class="!text-lg">lock_reset</mat-icon>
-                <span>Security Key Recovery</span>
+                <span>Password Recovery</span>
               </div>
               <button 
                 type="button" 
@@ -352,7 +292,7 @@ export interface DemoPersona {
 
             <div class="py-4 space-y-3 text-xs leading-relaxed text-slate-300">
               <p>
-                In compliance with DoorMaster precision installation standards, security tokens are managed via the Operations Governance Desk.
+                Enter your work email and contact your system administrator if you need a password reset.
               </p>
               <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] font-mono space-y-1">
                 <p class="text-slate-400">Default Seed Station Password:</p>
@@ -417,85 +357,11 @@ export class SignIn {
   readonly recoveryEmail = signal<string>('');
   readonly recoverySent = signal<boolean>(false);
 
-  readonly demoPersonas: DemoPersona[] = [
-    {
-      role: 'admin',
-      name: 'Alexander Cross',
-      title: 'System Administrator',
-      email: 'admin@doormasterops.com',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-      badge: 'Super Admin'
-    },
-    {
-      role: 'manager',
-      name: 'Sarah Sterling',
-      title: 'Manager',
-      email: 'manager@doormasterops.com',
-      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80',
-      badge: 'Manager'
-    },
-    {
-      role: 'installer',
-      name: 'Marcus Vance',
-      title: 'Lead Master Tech',
-      email: 'm.vance@doormasterops.com',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
-      badge: 'Master Installer'
-    },
-    {
-      role: 'dispatcher',
-      name: 'Emmanuel Kojo',
-      title: 'Logistics Lead Driver',
-      email: 'dispatch@doormasterops.com',
-      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&auto=format&fit=crop&q=80',
-      badge: 'Driver'
-    },
-    {
-      role: 'shop_manager',
-      name: 'Elena Rostova',
-      title: 'Shop Attendant',
-      email: 'shop@doormasterops.com',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-      badge: 'Shop Attendant'
-    },
-    {
-      role: 'account_officer',
-      name: 'Abena Osei',
-      title: 'Chief Financial Officer',
-      email: 'finance@doormasterops.com',
-      avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=120&auto=format&fit=crop&q=80',
-      badge: 'Finance Officer'
-    },
-    {
-      role: 'client',
-      name: 'Kwame Mensah',
-      title: 'Cantonments Villa Client',
-      email: 'client@doormasterops.com',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
-      badge: 'Site Client'
-    }
-  ];
-
-  readonly branchShopManagers = [
-    { branchName: 'Obeyeyie', name: 'Kofi Boateng', email: 'shop.obeyeyie@doormaster.online', phone: '0203169184' },
-    { branchName: 'Pobiman Turkey', name: 'Yaw Antwi', email: 'shop.pobiman-turkey@doormaster.online', phone: '0207867882' },
-    { branchName: 'Pobiman Economy', name: 'Kwabena Agyeman', email: 'shop.pobiman-economy@doormaster.online', phone: '0502584180' },
-    { branchName: 'ACP Pokuase', name: 'Akua Darko', email: 'shop.acp@doormaster.online', phone: '0201705689' },
-    { branchName: 'Nsawam Overhead', name: 'Kwame Appiah', email: 'shop.nsawam-overhead@doormaster.online', phone: '0505892144' },
-    { branchName: 'Nsawam Hospital Rd', name: 'Ama Serwaa', email: 'shop.nsawam-hospital@doormaster.online', phone: '0535825645' },
-    { branchName: 'Tema', name: 'Ebenezer Quaye', email: 'shop.tema@doormaster.online', phone: '0502290982' },
-    { branchName: 'Suhum', name: 'Daniel Asare', email: 'shop.suhum@doormaster.online', phone: '0201752755' },
-    { branchName: 'Ashalaja', name: 'Francis Mensah', email: 'shop.ashalaja@doormaster.online', phone: '0504725294' },
-    { branchName: 'Kumasi Ahinsan', name: 'Osei Tutu', email: 'shop.kumasi-ahinsan@doormaster.online', phone: '0535829827' },
-    { branchName: 'Kasoa Tipa Junction', name: 'Kojo Baidoo', email: 'shop.kasoa-tipa@doormaster.online', phone: '0533739756' },
-    { branchName: 'Amrahia', name: 'Priscilla Kyei', email: 'shop.amrahia@doormaster.online', phone: '0531025779' },
-    { branchName: 'Tseaddo', name: 'Nathaniel Tagoe', email: 'shop.tseaddo@doormaster.online', phone: '0591952205' },
-    { branchName: 'Kronum Kumasi', name: 'Baffour Gyan', email: 'shop.kronum@doormaster.online', phone: '0531025775' }
-  ];
+  private readonly route = inject(ActivatedRoute);
 
   readonly loginForm = this.fb.group({
-    email: ['manager@doormasterops.com', [Validators.required, Validators.email]],
-    password: ['DoorMaster2026!*', [Validators.required, Validators.minLength(8)]],
+    email: ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required]],
     rememberMe: [true]
   });
 
@@ -512,35 +378,12 @@ export class SignIn {
     this.cdr.detectChanges();
   }
 
-  selectPersona(persona: DemoPersona) {
-    this.loginForm.patchValue({
-      email: persona.email,
-      password: 'DoorMaster2026!*'
-    });
-    this.authErrorMessage.set(null);
-    this.authSuccessMessage.set(null);
-  }
-
-  selectBranchManager(event: Event) {
-    const email = (event.target as HTMLSelectElement).value;
-    if (!email) return;
-    const bm = this.branchShopManagers.find(m => m.email === email);
-    if (bm) {
-      this.loginForm.patchValue({
-        email: bm.email,
-        password: 'DoorMaster2026!*'
-      });
-      this.authErrorMessage.set(null);
-      this.authSuccessMessage.set(null);
-    }
-  }
-
   toggleShowPassword() {
     this.showPassword.update(p => !p);
   }
 
   openForgotModal() {
-    this.recoveryEmail.set(this.loginForm.get('email')?.value || 'manager@doormasterops.com');
+    this.recoveryEmail.set(this.loginForm.get('email')?.value || '');
     this.forgotModalOpen.set(true);
   }
 
@@ -561,12 +404,20 @@ export class SignIn {
   }
 
   async handleFormSubmit() {
+    const rawEmail = (this.loginForm.value.email || '').trim();
+    if (rawEmail !== this.loginForm.value.email) {
+      this.loginForm.patchValue({ email: rawEmail });
+    }
+
     if (this.loginForm.invalid) {
       this.loginForm.markAllAsTouched();
+      const msg = 'Please enter a valid email address and password.';
+      this.authErrorMessage.set(msg);
+      this.alert.toastWarning('Incomplete Credentials', msg);
       return;
     }
 
-    const email = this.loginForm.value.email || '';
+    const email = rawEmail;
     const password = this.loginForm.value.password || '';
     const rememberMe = Boolean(this.loginForm.value.rememberMe);
 
@@ -574,18 +425,27 @@ export class SignIn {
     this.authErrorMessage.set(null);
     this.authSuccessMessage.set(null);
 
-    const res = await this.store.signInWithApi(email, password, rememberMe);
-    this.isSubmitting.set(false);
+    try {
+      const res = await this.store.signInWithApi(email, password, rememberMe);
+      this.isSubmitting.set(false);
 
-    if (res.success && res.user) {
-      const welcomeMsg = res.message || `Welcome back, ${res.user.name}!`;
-      this.authSuccessMessage.set(welcomeMsg);
-      this.alert.toastSuccess('Signed In Successfully', welcomeMsg);
-      setTimeout(() => {
-        this.router.navigate(['/overview']);
-      }, 350);
-    } else {
-      const errorMsg = res.message || 'Authentication failed.';
+      if (res.success && res.user) {
+        const welcomeMsg = res.message || `Welcome back, ${res.user.name}!`;
+        this.authSuccessMessage.set(welcomeMsg);
+        this.alert.toastSuccess('Signed In Successfully', welcomeMsg);
+        const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+        const targetUrl = returnUrl && returnUrl.startsWith('/') ? returnUrl : '/overview';
+        setTimeout(() => {
+          void this.router.navigateByUrl(targetUrl);
+        }, 250);
+      } else {
+        const errorMsg = res.message || 'Authentication failed.';
+        this.authErrorMessage.set(errorMsg);
+        this.alert.error('Sign In Failed', errorMsg);
+      }
+    } catch (err: any) {
+      this.isSubmitting.set(false);
+      const errorMsg = err?.message || 'Unable to sign in right now.';
       this.authErrorMessage.set(errorMsg);
       this.alert.error('Sign In Failed', errorMsg);
     }

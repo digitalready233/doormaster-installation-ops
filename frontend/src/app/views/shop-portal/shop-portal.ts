@@ -1296,7 +1296,7 @@ export type SortDirection = 'asc' | 'desc';
                     <input 
                       type="text" 
                       formControlName="shopName" 
-                      placeholder="e.g. DoorMaster Flagship Workshop - Atelier A" 
+                      placeholder="e.g. DoorMaster Flagship Workshop - Branch A" 
                       class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 font-semibold"
                     />
                   </div>
@@ -1396,7 +1396,7 @@ export type SortDirection = 'asc' | 'desc';
                       (click)="setCoordinates(5.6231, -0.1582, 'Plot 48, Spintex Road Industrial Area')" 
                       class="px-2.5 py-1 text-[11px] font-medium bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:border-cyan-500 transition-colors cursor-pointer"
                     >
-                      🏭 Spintex Atelier
+                      🏭 Spintex Showroom
                     </button>
                     <button 
                       type="button" 

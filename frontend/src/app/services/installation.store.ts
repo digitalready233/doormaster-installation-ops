@@ -2325,12 +2325,22 @@ export class InstallationStore {
    * Confirms a persisted token is still valid and the account is still active.
    * A 401 clears the local session; the route guard then returns to sign-in.
    */
+  private async safeJson<T = any>(res: Response): Promise<T | null> {
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) return null;
+    try {
+      return (await res.json()) as T;
+    } catch {
+      return null;
+    }
+  }
+
   private async validateSession(): Promise<void> {
     try {
       const res = await this.apiFetch('/api/auth/me');
       if (res.ok) {
-        const responseData = await res.json()
-        if (responseData.success && responseData.user) {
+        const responseData = await this.safeJson(res);
+        if (responseData?.success && responseData.user) {
           this.applySession(responseData.user, this.apiToken() as string);
           return;
         }
@@ -3695,7 +3705,10 @@ export class InstallationStore {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData)
       });
-      const responseData = await res.json()
+      const responseData = await this.safeJson(res);
+      if (!responseData) {
+        return { success: false, message: 'API server returned a non-JSON response. Please ensure the backend server is running.' };
+      }
       if (responseData.success && responseData.user) {
         const newUser: AppUser = {
           id: responseData.user.id,
@@ -5989,18 +6002,26 @@ export class InstallationStore {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      const responseData = await res.json()
+      const responseData = await this.safeJson(res);
+      if (!responseData) {
+        return { success: false, message: 'API server returned a non-JSON response. Please ensure the backend server is running.' };
+      }
       if (responseData.success && responseData.user) {
         this.applySession(responseData.user, responseData.token || '');
         this.persistSession(responseData.user, responseData.token || '', rememberMe);
 
-        // Refresh the user directory, teams, and roles with the new token.
-        await Promise.all([
-          this.loadUsers(),
-          this.loadTeamsFromBackend(),
-          this.loadRolesFromBackend()
-        ]);
-        this.deriveInstallersAndDispatchersFromUsers();
+        // Refresh the user directory, teams, roles, and operational data with the new token.
+        try {
+          await Promise.all([
+            this.loadUsers(),
+            this.loadTeamsFromBackend(),
+            this.loadRolesFromBackend()
+          ]);
+          this.deriveInstallersAndDispatchersFromUsers();
+        } catch {
+          // Non-fatal: session is active and loadFromApi will sync remaining entities.
+        }
+        void this.loadFromApi();
 
         // Start real-time GPS tracking for tracked roles (installer, dispatcher, manager)
         void this.startGpsTracking();
@@ -6039,7 +6060,10 @@ export class InstallationStore {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, role, phone, password })
       });
-      const responseData = await res.json()
+      const responseData = await this.safeJson(res);
+      if (!responseData) {
+        return { success: false, message: 'API server returned a non-JSON response. Please ensure the backend server is running.' };
+      }
       if (responseData.success && responseData.user) {
         await this.loadUsers();
         if (responseData.user.status !== 'pending') {
@@ -6065,8 +6089,8 @@ export class InstallationStore {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
-        const resData = await res.json();
-        if (res.ok && resData.success && resData.user) {
+        const resData = await this.safeJson(res);
+        if (res.ok && resData?.success && resData.user) {
           this.apiUser.set(resData.user);
           this.persistSession(resData.user, this.apiToken() || '', true);
         }

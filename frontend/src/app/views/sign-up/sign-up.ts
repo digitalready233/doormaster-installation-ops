@@ -77,7 +77,7 @@ export interface RoleOption {
                 </span>
               </h1>
               <p class="text-xs text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-                Connect your field specialty to our digital audit trail. Seamless job routing, verified milestone payouts, and telemetry from atelier to handover.
+                Connect your field role to DoorMaster's job dispatch, installation tracking, and milestone payouts from workshop to handover.
               </p>
             </div>
           </div>
@@ -86,7 +86,7 @@ export interface RoleOption {
           <div class="my-6 p-4 rounded-2xl bg-white dark:bg-[#111215] border border-slate-200 dark:border-white/10 space-y-3 shadow-xs">
             <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-1.5">
               <mat-icon class="!text-sm text-[#59000A] dark:text-rose-300">verified_user</mat-icon>
-              <span>Atelier Onboarding Guarantees</span>
+              <span>DoorMaster Onboarding</span>
             </span>
 
             <div class="space-y-2.5 text-xs">
@@ -139,12 +139,12 @@ export interface RoleOption {
             <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
               <span class="flex items-center gap-1.5">
                 <mat-icon class="!text-xs text-[#59000A] dark:text-rose-300">security</mat-icon>
-                <span>Enterprise Identity Governance</span>
+                <span>Account Verification</span>
               </span>
               <span>Encrypted Storage</span>
             </div>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400 italic">
-              "Accounts are verified by the Operations Governance Desk to preserve precision hanging certifications."
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">
+              New accounts are reviewed by an administrator before portal access is activated.
             </p>
           </div>
         </div>
@@ -209,7 +209,7 @@ export interface RoleOption {
                 </div>
               </div>
 
-              <h2 class="text-2xl sm:text-3xl font-black text-[#111215] dark:text-white tracking-tight">Create Atelier Account</h2>
+              <h2 class="text-2xl sm:text-3xl font-black text-[#111215] dark:text-white tracking-tight">Create Account</h2>
               <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
                 Select your operational role and register credentials for DoorMaster operations access.
               </p>
@@ -272,95 +272,128 @@ export interface RoleOption {
                 </div>
               </div>
 
-              <!-- Phone & Direct Contact -->
-              <div>
-                <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Direct Mobile Phone (Dispatch SMS) *
-                </label>
-                <app-phone-input 
-                  formControlName="phone"
-                  placeholder="24 555 0199"
-                  customBorderClass="border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#111215]"
-                ></app-phone-input>
-              </div>
+              <!-- Phone & Operational Role (Same Row) -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Direct Mobile Phone (Dispatch SMS) *
+                  </label>
+                  <app-phone-input 
+                    formControlName="phone"
+                    placeholder="24 555 0199"
+                    customBorderClass="border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#111215]"
+                  ></app-phone-input>
+                </div>
 
-              <!-- Operational Role Selector: Interactive Visual Cards -->
-              <div>
-                <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Operational Role &amp; Access Tier *
-                </label>
-                
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  @for (role of roleOptions; track role.id) {
-                    <div
-                      role="button"
-                      tabindex="0"
-                      (click)="selectRole(role.id)"
-                      (keydown.enter)="selectRole(role.id)"
-                      (keydown.space)="$event.preventDefault(); selectRole(role.id)"
-                      class="p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between"
-                      [class]="registerForm.get('role')?.value === role.id 
-                        ? 'border-[#59000A] bg-[#59000A] text-white shadow-xs ring-1 ring-[#59000A]/40' 
-                        : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#111215] hover:bg-slate-100 dark:hover:bg-white/5 text-[#111215] dark:text-slate-300'"
-                    >
-                      <div class="flex items-center justify-between mb-1">
-                        <mat-icon class="!text-lg" [class]="registerForm.get('role')?.value === role.id ? 'text-white' : 'text-slate-500 dark:text-slate-400'">
-                          {{ role.icon }}
-                        </mat-icon>
-                        <span class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded" 
-                          [class]="registerForm.get('role')?.value === role.id ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-400'">
-                          {{ role.badge }}
-                        </span>
-                      </div>
-                      <p class="text-xs font-bold truncate leading-tight">{{ role.title }}</p>
-                      <p class="text-[10px] line-clamp-1 mt-0.5 leading-tight"
-                        [class]="registerForm.get('role')?.value === role.id ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'">{{ role.description }}</p>
+                <div>
+                  <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Operational Role &amp; Access Tier *
+                  </label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                      <mat-icon class="!text-base">badge</mat-icon>
                     </div>
-                  }
-                </div>
-              </div>
-
-              <!-- Password Input with Live Strength Bar -->
-              <div>
-                <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Master Security Key (Password) *
-                </label>
-                <div class="relative">
-                  <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
-                    <mat-icon class="!text-base">lock</mat-icon>
-                  </div>
-                  <input
-                    [type]="showPassword() ? 'text' : 'password'"
-                    formControlName="password"
-                    class="w-full pl-10 pr-11 py-2.5 rounded-xl bg-slate-50 dark:bg-[#111215] border border-slate-200 dark:border-white/10 text-[#111215] dark:text-white text-xs sm:text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#59000A] focus:ring-4 focus:ring-[#59000A]/10 transition-all font-mono"
-                    placeholder="Minimum 8 characters with numbers & symbols"
-                  />
-                  <button
-                    type="button"
-                    (click)="toggleShowPassword()"
-                    class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 dark:text-slate-500 hover:text-[#111215] dark:hover:text-slate-300 cursor-pointer"
-                    [title]="showPassword() ? 'Hide Password' : 'Show Password'"
-                  >
-                    <mat-icon class="!text-lg">{{ showPassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
-                  </button>
-                </div>
-
-                <!-- Password Strength Meter -->
-                <div class="mt-2 space-y-1">
-                  <div class="flex items-center justify-between text-[10px] font-mono">
-                    <span class="text-slate-500 dark:text-slate-400">Security Grade:</span>
-                    <span class="font-bold text-[#111215] dark:text-white">{{ passwordStrength().label }}</span>
-                  </div>
-                  <div class="grid grid-cols-4 gap-1.5 h-1">
-                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 1 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
-                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 2 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
-                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 3 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
-                    <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 4 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                    <select
+                      formControlName="role"
+                      class="w-full h-[38px] pl-10 pr-8 py-2 rounded-xl bg-slate-50 dark:bg-[#111215] border border-slate-200 dark:border-white/10 text-[#111215] dark:text-white text-xs font-medium focus:outline-none focus:border-[#59000A] focus:ring-4 focus:ring-[#59000A]/10 transition-all cursor-pointer"
+                    >
+                      @for (role of roleOptions; track role.id) {
+                        <option [value]="role.id">{{ role.title }} ({{ role.badge }})</option>
+                      }
+                    </select>
                   </div>
                 </div>
               </div>
 
-              <!-- Terms & Atelier Agreement -->
+              <!-- Password & Confirm Password with Live Strength Bars -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Password *
+                  </label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                      <mat-icon class="!text-base">lock</mat-icon>
+                    </div>
+                    <input
+                      [type]="showPassword() ? 'text' : 'password'"
+                      formControlName="password"
+                      (input)="onPasswordInput($event)"
+                      class="w-full pl-10 pr-11 py-2.5 rounded-xl bg-slate-50 dark:bg-[#111215] border border-slate-200 dark:border-white/10 text-[#111215] dark:text-white text-xs sm:text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#59000A] focus:ring-4 focus:ring-[#59000A]/10 transition-all font-mono"
+                      placeholder="Minimum 8 characters"
+                    />
+                    <button
+                      type="button"
+                      (click)="toggleShowPassword()"
+                      class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 dark:text-slate-500 hover:text-[#111215] dark:hover:text-slate-300 cursor-pointer"
+                      [title]="showPassword() ? 'Hide Password' : 'Show Password'"
+                    >
+                      <mat-icon class="!text-lg">{{ showPassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+                    </button>
+                  </div>
+
+                  <!-- Password Security Grade -->
+                  <div class="mt-2 space-y-1">
+                    <div class="flex items-center justify-between text-[10px] font-mono">
+                      <span class="text-slate-500 dark:text-slate-400">Security Grade:</span>
+                      <span class="font-bold text-[#111215] dark:text-white">{{ passwordStrength().label }}</span>
+                    </div>
+                    <div class="grid grid-cols-4 gap-1.5 h-1">
+                      <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 1 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                      <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 2 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                      <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 3 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                      <div class="rounded-full transition-colors" [class]="passwordStrength().score >= 4 ? passwordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-[11px] font-mono uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Confirm Password *
+                  </label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                      <mat-icon class="!text-base">lock_outline</mat-icon>
+                    </div>
+                    <input
+                      [type]="showConfirmPassword() ? 'text' : 'password'"
+                      formControlName="confirmPassword"
+                      (input)="onConfirmPasswordInput($event)"
+                      class="w-full pl-10 pr-11 py-2.5 rounded-xl bg-slate-50 dark:bg-[#111215] border border-slate-200 dark:border-white/10 text-[#111215] dark:text-white text-xs sm:text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#59000A] focus:ring-4 focus:ring-[#59000A]/10 transition-all font-mono"
+                      placeholder="Re-enter password"
+                    />
+                    <button
+                      type="button"
+                      (click)="toggleShowConfirmPassword()"
+                      class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 dark:text-slate-500 hover:text-[#111215] dark:hover:text-slate-300 cursor-pointer"
+                      [title]="showConfirmPassword() ? 'Hide Password' : 'Show Password'"
+                    >
+                      <mat-icon class="!text-lg">{{ showConfirmPassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+                    </button>
+                  </div>
+
+                  <!-- Confirm Password Security Grade -->
+                  <div class="mt-2 space-y-1">
+                    <div class="flex items-center justify-between text-[10px] font-mono">
+                      <span class="text-slate-500 dark:text-slate-400">Security Grade:</span>
+                      <span class="font-bold text-[#111215] dark:text-white">{{ confirmPasswordStrength().label }}</span>
+                    </div>
+                    <div class="grid grid-cols-4 gap-1.5 h-1">
+                      <div class="rounded-full transition-colors" [class]="confirmPasswordStrength().score >= 1 ? confirmPasswordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                      <div class="rounded-full transition-colors" [class]="confirmPasswordStrength().score >= 2 ? confirmPasswordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                      <div class="rounded-full transition-colors" [class]="confirmPasswordStrength().score >= 3 ? confirmPasswordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                      <div class="rounded-full transition-colors" [class]="confirmPasswordStrength().score >= 4 ? confirmPasswordStrength().color : 'bg-slate-200 dark:bg-slate-800'"></div>
+                    </div>
+                    @if (confirmPasswordValue() && passwordValue() !== confirmPasswordValue()) {
+                      <p class="text-[10px] font-mono text-rose-500 font-semibold">Passwords do not match</p>
+                    } @else if (confirmPasswordValue() && passwordValue() === confirmPasswordValue()) {
+                      <p class="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">Passwords match</p>
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <!-- Terms Agreement -->
               <div class="pt-1">
                 <label class="flex items-start gap-2.5 cursor-pointer text-xs text-slate-600 dark:text-slate-400 select-none">
                   <input 
@@ -387,7 +420,7 @@ export interface RoleOption {
                   <span>Registering Credentials...</span>
                 } @else {
                   <mat-icon class="!text-base">person_add</mat-icon>
-                  <span>Create Atelier Account</span>
+                  <span>Create Account</span>
                 }
               </button>
             </form>
@@ -412,6 +445,9 @@ export class SignUp {
 
   readonly authSubTab = signal<'signin' | 'register'>('register');
   readonly showPassword = signal<boolean>(false);
+  readonly showConfirmPassword = signal<boolean>(false);
+  readonly passwordValue = signal<string>('');
+  readonly confirmPasswordValue = signal<string>('');
   readonly isSubmitting = signal<boolean>(false);
   readonly authErrorMessage = signal<string | null>(null);
   readonly authSuccessMessage = signal<string | null>(null);
@@ -474,11 +510,11 @@ export class SignUp {
     email: ['', [Validators.required, Validators.email]],
     role: ['manager', [Validators.required]],
     phone: ['+233 24 555 0199', [Validators.required]],
-    password: ['', [Validators.required, Validators.minLength(8)]]
+    password: ['', [Validators.required, Validators.minLength(8)]],
+    confirmPassword: ['', [Validators.required, Validators.minLength(8)]]
   });
 
-  readonly passwordStrength = computed(() => {
-    const pwd = this.registerForm.get('password')?.value || '';
+  private evaluatePasswordStrength(pwd: string): { score: number; label: string; color: string } {
     if (!pwd) return { score: 0, label: 'Not entered', color: 'bg-slate-700' };
     let score = 0;
     if (pwd.length >= 8) score++;
@@ -489,10 +525,21 @@ export class SignUp {
     if (score <= 1) return { score: 1, label: 'Weak', color: 'bg-rose-500' };
     if (score === 2) return { score: 2, label: 'Moderate', color: 'bg-amber-500' };
     if (score === 3) return { score: 3, label: 'Strong', color: 'bg-emerald-400' };
-    return { score: 4, label: 'Precision Grade', color: 'bg-emerald-300' };
-  });
+    return { score: 4, label: 'Very Strong', color: 'bg-emerald-500' };
+  }
+
+  readonly passwordStrength = computed(() => this.evaluatePasswordStrength(this.passwordValue()));
+  readonly confirmPasswordStrength = computed(() => this.evaluatePasswordStrength(this.confirmPasswordValue()));
 
   constructor() {}
+
+  onPasswordInput(ev: Event) {
+    this.passwordValue.set((ev.target as HTMLInputElement).value || '');
+  }
+
+  onConfirmPasswordInput(ev: Event) {
+    this.confirmPasswordValue.set((ev.target as HTMLInputElement).value || '');
+  }
 
   selectRole(roleId: RoleType) {
     this.registerForm.patchValue({ role: roleId });
@@ -502,6 +549,10 @@ export class SignUp {
     this.showPassword.update(p => !p);
   }
 
+  toggleShowConfirmPassword() {
+    this.showConfirmPassword.update(p => !p);
+  }
+
   async handleRegisterSubmit() {
     if (this.registerForm.invalid) {
       this.registerForm.markAllAsTouched();
@@ -509,12 +560,18 @@ export class SignUp {
       return;
     }
 
-    if (!this.agreedToTerms()) {
-      this.alert.toastWarning('Compliance Agreement', 'Please accept the precision installation standards.');
+    const { name, email, role, phone, password, confirmPassword } = this.registerForm.value;
+    if (password !== confirmPassword) {
+      this.authErrorMessage.set('Password and Confirm Password do not match.');
+      this.alert.toastWarning('Password Mismatch', 'Please ensure both passwords match.');
       return;
     }
 
-    const { name, email, role, phone, password } = this.registerForm.value;
+    if (!this.agreedToTerms()) {
+      this.alert.toastWarning('Compliance Agreement', 'Please accept the installation standards.');
+      return;
+    }
+
     this.isSubmitting.set(true);
     this.authErrorMessage.set(null);
     this.authSuccessMessage.set(null);
@@ -531,7 +588,7 @@ export class SignUp {
     if (res.success && res.user) {
       if (res.user.status === 'pending') {
         this.authSuccessMessage.set(`Account submitted for approval. Welcome, ${res.user.name}!`);
-        this.alert.success('Registration Submitted', 'Your account has been submitted for Operations Governance approval.');
+        this.alert.success('Registration Submitted', 'Your account has been submitted for administrator approval.');
       } else {
         this.authSuccessMessage.set(`Account created. Logged in as ${res.user.name}`);
         this.alert.success('Welcome to DoorMaster!', `Account created successfully.`);

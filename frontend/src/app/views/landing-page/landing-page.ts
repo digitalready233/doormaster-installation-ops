@@ -37,7 +37,7 @@ export interface HeroSlide {
       <nav class="sticky top-0 z-50 backdrop-blur-md bg-white/90 dark:bg-slate-950/85 border-b border-slate-200/90 dark:border-slate-800/80 transition-colors duration-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <!-- Brand -->
-          <div class="flex items-center gap-3 cursor-pointer">
+          <button type="button" (click)="scrollToTop()" class="flex items-center gap-3 cursor-pointer text-left">
             <div class="w-10 h-10 rounded-xl bg-[#59000A] text-white flex items-center justify-center font-mono font-black text-lg shadow-md shrink-0">
               DM
             </div>
@@ -45,21 +45,17 @@ export interface HeroSlide {
               <span class="text-lg font-black tracking-tight text-[#111215] dark:text-white block">DoorMaster</span>
               <p class="text-[11px] text-slate-500 dark:text-slate-400 font-mono">Installation Operations</p>
             </div>
-          </div>
+          </button>
 
           <!-- Nav Links -->
           <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600 dark:text-slate-300">
-            <a href="#hero-slider" class="hover:text-[#59000A] dark:hover:text-rose-300 transition-colors flex items-center gap-1.5">
+            <a href="#hero-slider" (click)="scrollToSection('hero-slider', $event)" class="hover:text-[#59000A] dark:hover:text-rose-300 transition-colors flex items-center gap-1.5">
               <mat-icon class="!text-sm">handyman</mat-icon>
               <span>Installations</span>
             </a>
-            <a href="#standards" class="hover:text-[#59000A] dark:hover:text-rose-300 transition-colors flex items-center gap-1.5">
+            <a href="#standards" (click)="scrollToSection('standards', $event)" class="hover:text-[#59000A] dark:hover:text-rose-300 transition-colors flex items-center gap-1.5">
               <mat-icon class="!text-sm">verified</mat-icon>
               <span>How It Works</span>
-            </a>
-            <a href="#contact-form" class="hover:text-[#59000A] dark:hover:text-rose-300 transition-colors flex items-center gap-1.5">
-              <mat-icon class="!text-sm">calendar_month</mat-icon>
-              <span>Request Installation</span>
             </a>
           </div>
 
@@ -95,6 +91,7 @@ export interface HeroSlide {
             <!-- Request Installation Primary CTA -->
             <a 
               href="#contact-form"
+              (click)="scrollToSection('contact-form', $event)"
               class="hidden sm:inline-flex h-10 px-4 rounded-xl text-xs font-bold text-white bg-[#59000A] hover:bg-[#73000E] transition-all items-center gap-1.5 shadow-md active:scale-95"
             >
               <span>Request Installation</span>
@@ -207,6 +204,7 @@ export interface HeroSlide {
 
                   <a 
                     href="#contact-form"
+                    (click)="scrollToSection('contact-form', $event)"
                     class="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 dark:bg-emerald-400 dark:hover:bg-emerald-300 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-md transition-all active:scale-95"
                   >
                     <span>Request Installation</span>
@@ -216,12 +214,12 @@ export interface HeroSlide {
               </div>
 
               <!-- Slide Right: High-Res Real Work Scene Imagery -->
-              <div class="lg:col-span-7 relative min-h-[320px] lg:min-h-full overflow-hidden bg-slate-900">
+              <div class="lg:col-span-7 relative h-[320px] sm:h-[380px] lg:h-[520px] overflow-hidden bg-slate-900">
                 <img 
                   [src]="slide.photoUrl" 
                   [alt]="slide.doorTitle"
                   referrerpolicy="no-referrer"
-                  class="w-full h-full object-cover object-center transition-all duration-700 hover:scale-105"
+                  class="absolute inset-0 w-full h-full object-cover object-center transition-all duration-700 hover:scale-105"
                 />
 
                 <!-- Image overlay gradient for clean text readability & depth -->
@@ -667,10 +665,22 @@ export interface HeroSlide {
             </div>
           </div>
 
-          <div class="flex items-center gap-6 text-xs text-slate-500 dark:text-slate-400 font-mono">
+          <div class="flex flex-wrap items-center justify-center gap-5 text-xs text-slate-500 dark:text-slate-400 font-mono">
             <span>© 2026 DoorMaster Systems</span>
+            <a href="#hero-slider" (click)="scrollToSection('hero-slider', $event)" class="hover:text-slate-900 dark:hover:text-white transition-colors">
+              Installations
+            </a>
+            <a href="#standards" (click)="scrollToSection('standards', $event)" class="hover:text-slate-900 dark:hover:text-white transition-colors">
+              How It Works
+            </a>
+            <a href="#contact-form" (click)="scrollToSection('contact-form', $event)" class="hover:text-slate-900 dark:hover:text-white transition-colors">
+              Request Installation
+            </a>
+            <button type="button" (click)="navigateToSignUp()" class="text-slate-700 dark:text-slate-300 hover:underline cursor-pointer">
+              Create Account
+            </button>
             <button type="button" (click)="navigateToSignIn()" class="text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer">
-              Persona Sign In Portal
+              Sign In Portal
             </button>
           </div>
         </div>
@@ -691,12 +701,27 @@ export class LandingPage {
 
   navigateToSignIn() {
     this.goToSignIn.emit();
-    this.router.navigate(['/signin']);
+    this.router.navigate([this.store.isAuthenticated() ? '/overview' : '/signin']);
+  }
+
+  navigateToSignUp() {
+    this.router.navigate([this.store.isAuthenticated() ? '/overview' : '/signup']);
   }
 
   navigateToDashboard() {
     this.goToDashboard.emit();
-    this.router.navigate(['/overview']);
+    this.router.navigate([this.store.isAuthenticated() ? '/overview' : '/signin']);
+  }
+
+  scrollToSection(sectionId: string, event?: Event) {
+    event?.preventDefault();
+    if (typeof document === 'undefined') return;
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  scrollToTop() {
+    if (typeof window === 'undefined') return;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   readonly currentSlideIndex = signal<number>(0);
@@ -704,69 +729,98 @@ export class LandingPage {
   readonly submissionSuccess = signal<boolean>(false);
   readonly submittedInquiry = signal<InstallationInquiry | null>(null);
 
-  // Hero Slider items showcasing installers at work
-  readonly slides: HeroSlide[] = [
+  // Hero Slider items showcasing Black DoorMaster technicians & drivers with /doors catalog door types
+  readonly baseSlides: HeroSlide[] = [
     {
       id: 1,
-      badge: 'Active Work in Progress',
-      installerName: 'Marcus Vance',
-      installerRole: 'Senior Master Installer • 4.95 Rating',
-      doorTitle: 'Grand Pivot Walnut Entrance Door',
-      doorCategory: 'Architectural Pivot',
-      location: 'The Glasshouse Residence • Highview',
-      stage: 'Laser Level & Hinge Calibration',
-      tagline: '±1.0mm Floor Spring Flush Alignment',
-      description: 'Marcus Vance is calibrating the FritsJurgens System M+ pivot resistance on a 180kg Smoked American Walnut door slab, ensuring whisper-quiet acoustic self-closing motion.',
-      photoUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1400&q=80',
+      badge: 'Door Installation',
+      installerName: 'Kwame Mensah',
+      installerRole: 'Lead Pivot Door Technician • 4.95 Rating',
+      doorTitle: 'Turkey Pivot Security Entrance Door',
+      doorCategory: 'Turkey Doors',
+      location: 'East Legon Residence • Accra',
+      stage: 'Laser Level & Pivot Hinge Calibration',
+      tagline: 'Heavy-Duty Pivot Frame & Acoustic Seal',
+      description: 'Kwame Mensah calibrates the concealed pivot hinge and laser-levels a heavy Turkey Pivot security door slab for smooth, airtight self-closing operation.',
+      photoUrl: '/images/slider-door-installation.jpg',
       statNumber: '180 kg',
-      statLabel: 'Slab Weight Handled'
+      statLabel: 'Pivot Slab Installed'
     },
     {
       id: 2,
-      badge: 'Precision Carpentry',
-      installerName: 'Devon Sterling',
-      installerRole: 'Acoustic & Hardware Specialist • 4.88 Rating',
-      doorTitle: 'Solid Wood European White Oak Foyer',
-      doorCategory: 'Solid Timber Entrance',
-      location: 'Pacific Heights Executive Manor',
-      stage: 'Sub-Frame Mortise & Weather-Seals',
-      tagline: 'Perimeter Acoustic Drop-Seal Testing',
-      description: 'Devon Sterling installs magnetic mortise strike plates with high-torque anchors, routing thermal break seals into the solid white oak jamb for airtight envelope performance.',
-      photoUrl: 'https://images.unsplash.com/photo-1509644851169-2acc08aa25b5?auto=format&fit=crop&w=1400&q=80',
+      badge: 'Door Replacement',
+      installerName: 'Benjamin Koranteng',
+      installerRole: 'Hardware & Replacement Specialist • 4.88 Rating',
+      doorTitle: 'DM Double (2x) Steel-Core Security Door',
+      doorCategory: 'DM Doors',
+      location: 'Cantonments Manor • Accra',
+      stage: 'Smart Mortise Lock & Weather-Seal Fitting',
+      tagline: 'Full Frame Replacement & Lock Upgrade',
+      description: 'Benjamin Koranteng replaces the existing entrance frame and fits a brushed stainless smart mortise lock with perimeter EPDM weather seals on a DM Double security door.',
+      photoUrl: '/images/slider-door-replacement.jpg',
       statNumber: '42 dB',
-      statLabel: 'Sound Dampening Rating'
+      statLabel: 'Acoustic Seal Rating'
     },
     {
       id: 3,
-      badge: 'Patio & Exterior Enclosure',
-      installerName: 'Elena Rostova & Field Crew',
-      installerRole: 'Lead Joinery Installers • 4.98 Rating',
-      doorTitle: 'Bi-Fold Architectural Patio Glass System',
-      doorCategory: 'Multi-Panel Exterior Bi-Fold',
-      location: 'Meadowbrook Modern Villa',
-      stage: 'Stainless Track Glide & Multi-Lock Strike',
-      tagline: 'Effortless Finger-Touch Rollers',
-      description: 'Our certified crew secures stainless bottom tracks with laser alignment, adjusting top suspension carriers so massive 3-meter glass leaves glide with zero friction.',
-      photoUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=80',
-      statNumber: '3.2 m',
-      statLabel: 'Panoramic Span Height'
+      badge: 'Door Delivery',
+      installerName: 'Emmanuel Kojo & Delivery Crew',
+      installerRole: 'Logistics Dispatch Drivers • 4.98 Rating',
+      doorTitle: 'Economy & Turkey Security Door Fleet Delivery',
+      doorCategory: 'Economy Doors',
+      location: 'Tema Community 11 • Greater Accra',
+      stage: 'Direct Showroom-to-Site Dispatch',
+      tagline: 'Protected Trolley Offloading & GPS Tracking',
+      description: 'Emmanuel Kojo and the DoorMaster delivery team offload wrapped Economy Single, One & Half (OH), and Turkey Doors directly from our branch showroom to the client site.',
+      photoUrl: '/images/slider-door-delivery.jpg',
+      statNumber: '100%',
+      statLabel: 'GPS-Tracked Delivery'
     },
     {
       id: 4,
-      badge: 'Interior Architectural Suite',
-      installerName: 'Tariq Al-Mansoor',
-      installerRole: 'Master Finish Carpenter • 4.75 Rating',
-      doorTitle: 'Concealed Pocket Sliding Acoustic Doors',
-      doorCategory: 'Concealed Pocket System',
-      location: 'Skyline Penthouse Suites',
-      stage: 'Flush Soft-Stop Buffer Tuning',
-      tagline: 'Concealed Jamb & Magnetic Locks',
-      description: 'Tariq aligns dual-direction soft-close dampeners inside the recessed wall pocket cavity, guaranteeing completely invisible hardware when doors disappear into the wall.',
-      photoUrl: 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&w=1400&q=80',
-      statNumber: '100%',
-      statLabel: 'Concealed Pocket Flush'
+      badge: 'Interior Doors',
+      installerName: 'Kofi Boateng',
+      installerRole: 'Interior Finish Carpenter • 4.85 Rating',
+      doorTitle: 'Turkey Interior & WPC Flush Wooden Door',
+      doorCategory: 'Interior Doors',
+      location: 'Ahinsan Executive Suites • Kumasi',
+      stage: 'Concealed Hinge & Lever Alignment',
+      tagline: 'Flush Trimless Fit & Quiet Latch',
+      description: 'Kofi Boateng aligns recessed concealed hinges and matte black lever hardware on WPC and Turkey Interior flush doors for a clean, quiet architectural finish.',
+      photoUrl: '/images/slider-pocket-doors.jpg',
+      statNumber: '±1.0 mm',
+      statLabel: 'Flush Hinge Tolerance'
     }
   ];
+
+  get slides(): HeroSlide[] {
+    const catalog = this.store.doors();
+    if (!catalog || catalog.length === 0) return this.baseSlides;
+
+    const findMatch = (keywords: string[]) =>
+      catalog.find(d => {
+        const hay = `${d.name} ${d.category} ${d.material}`.toLowerCase();
+        return keywords.some(k => hay.includes(k));
+      });
+
+    const matches = [
+      findMatch(['pivot']),
+      findMatch(['2x', 'double']),
+      findMatch(['economy', 'single', 'oh']),
+      findMatch(['interior', 'wpc', 'flush'])
+    ];
+
+    return this.baseSlides.map((slide, idx) => {
+      const door = matches[idx];
+      if (!door) return slide;
+      return {
+        ...slide,
+        doorTitle: door.name,
+        doorCategory: door.category || slide.doorCategory,
+        tagline: `${door.modelCode ? door.modelCode + ' · ' : ''}${door.material || slide.tagline}`
+      };
+    });
+  }
 
   readonly currentSlide = () => this.slides[this.currentSlideIndex()];
 
