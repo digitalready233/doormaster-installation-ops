@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { InstallationStore } from '../../services/installation.store';
 import { AlertService } from '../../services/alert.service';
@@ -234,7 +235,7 @@ import { SignaturePad } from '../signature-pad/signature-pad';
                   [class]="installerPhaseIndex() >= 4 ? 'bg-blue-600 dark:bg-blue-500' : 'bg-slate-200 dark:bg-slate-800'"
                 ></div>
 
-                <!-- Step 4: Review & Clock Out -->
+                <!-- Step 4: Done -->
                 <button
                   type="button"
                   (click)="installerPhase.set('signoff')"
@@ -244,11 +245,11 @@ import { SignaturePad } from '../signature-pad/signature-pad';
                     class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-xs"
                     [class]="installerPhase() === 'signoff'
                       ? 'bg-blue-600 text-white ring-4 ring-blue-100 dark:ring-blue-950'
-                      : (j.customerSignoff && isClockOutDone()
-                        ? 'bg-blue-600 text-white'
+                      : (isClockOutDone()
+                        ? 'bg-emerald-600 text-white'
                         : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 group-hover:bg-slate-300 dark:group-hover:bg-slate-700')"
                   >
-                    @if (j.customerSignoff && isClockOutDone()) {
+                    @if (isClockOutDone()) {
                       <mat-icon class="!text-base !w-4 !h-4">check</mat-icon>
                     } @else {
                       <span>4</span>
@@ -258,11 +259,88 @@ import { SignaturePad } from '../signature-pad/signature-pad';
                     class="text-xs font-bold mt-2 tracking-tight transition-colors text-center truncate max-w-[110px]"
                     [class]="installerPhase() === 'signoff' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white'"
                   >
-                    Review & Out
+                    Done
                   </span>
                   <div class="flex items-center gap-1 mt-1.5 justify-center">
                     <span class="w-4 sm:w-5 h-1 rounded-full transition-colors" [class]="installerPhase() === 'signoff' ? 'bg-blue-600 dark:bg-blue-500' : 'bg-slate-300 dark:bg-slate-700'"></span>
                     <span class="w-4 sm:w-5 h-1 rounded-full transition-colors" [class]="installerPhase() === 'signoff' ? 'bg-blue-600/40 dark:bg-blue-500/40' : 'bg-slate-300/60 dark:bg-slate-700/60'"></span>
+                  </div>
+                </button>
+
+              </div>
+            </div>
+          } @else if (isDriver()) {
+            <!-- DRIVER 2-STEP NEXT-STEP PHASE STEPPER -->
+            <div class="px-4 sm:px-10 py-5 bg-slate-50/70 dark:bg-slate-950/70 border-b border-slate-200/80 dark:border-slate-800">
+              <div class="max-w-xl mx-auto flex items-start justify-between relative">
+
+                <!-- Step 1: Pick Up Doors -->
+                <button
+                  type="button"
+                  (click)="driverPhase.set('pickup')"
+                  class="flex flex-col items-center group relative z-10 flex-1 cursor-pointer focus:outline-none"
+                >
+                  <div
+                    class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-xs"
+                    [class]="driverPhase() === 'pickup'
+                      ? 'bg-sky-600 text-white ring-4 ring-sky-100 dark:ring-sky-950'
+                      : (isDriverPickedUp()
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 group-hover:bg-slate-300 dark:group-hover:bg-slate-700')"
+                  >
+                    @if (isDriverPickedUp()) {
+                      <mat-icon class="!text-base !w-4 !h-4">check</mat-icon>
+                    } @else {
+                      <span>1</span>
+                    }
+                  </div>
+                  <span
+                    class="text-xs font-bold mt-2 tracking-tight transition-colors text-center truncate max-w-[140px]"
+                    [class]="driverPhase() === 'pickup' ? 'text-sky-600 dark:text-sky-400' : 'text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white'"
+                  >
+                    Pick Up Doors
+                  </span>
+                  <div class="flex items-center gap-1 mt-1.5 justify-center">
+                    <span class="w-4 sm:w-5 h-1 rounded-full transition-colors" [class]="driverPhase() === 'pickup' ? 'bg-sky-600 dark:bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'"></span>
+                    <span class="w-4 sm:w-5 h-1 rounded-full transition-colors" [class]="driverPhase() === 'pickup' ? 'bg-sky-600/40 dark:bg-sky-500/40' : 'bg-slate-300/60 dark:bg-slate-700/60'"></span>
+                  </div>
+                </button>
+
+                <!-- Connector Line 1 -> 2 -->
+                <div
+                  class="flex-1 h-0.5 mt-5 -mx-2 sm:-mx-4 transition-colors"
+                  [class]="isDriverPickedUp() || driverPhase() === 'deliver' ? 'bg-sky-600 dark:bg-sky-500' : 'bg-slate-200 dark:bg-slate-800'"
+                ></div>
+
+                <!-- Step 2: Deliver to Destination & Done -->
+                <button
+                  type="button"
+                  (click)="driverPhase.set('deliver')"
+                  class="flex flex-col items-center group relative z-10 flex-1 cursor-pointer focus:outline-none"
+                >
+                  <div
+                    class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-xs"
+                    [class]="driverPhase() === 'deliver'
+                      ? 'bg-sky-600 text-white ring-4 ring-sky-100 dark:ring-sky-950'
+                      : (isDriverDelivered()
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 group-hover:bg-slate-300 dark:group-hover:bg-slate-700')"
+                  >
+                    @if (isDriverDelivered()) {
+                      <mat-icon class="!text-base !w-4 !h-4">check</mat-icon>
+                    } @else {
+                      <span>2</span>
+                    }
+                  </div>
+                  <span
+                    class="text-xs font-bold mt-2 tracking-tight transition-colors text-center truncate max-w-[160px]"
+                    [class]="driverPhase() === 'deliver' ? 'text-sky-600 dark:text-sky-400' : 'text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white'"
+                  >
+                    Done
+                  </span>
+                  <div class="flex items-center gap-1 mt-1.5 justify-center">
+                    <span class="w-4 sm:w-5 h-1 rounded-full transition-colors" [class]="driverPhase() === 'deliver' ? 'bg-sky-600 dark:bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'"></span>
+                    <span class="w-4 sm:w-5 h-1 rounded-full transition-colors" [class]="driverPhase() === 'deliver' ? 'bg-sky-600/40 dark:bg-sky-500/40' : 'bg-slate-300/60 dark:bg-slate-700/60'"></span>
                   </div>
                 </button>
 
@@ -539,86 +617,55 @@ import { SignaturePad } from '../signature-pad/signature-pad';
                     </div>
                   </div>
                 } @else if (installerPhase() === 'signoff') {
-                  <!-- Phase 4: Signoff & Clock Out -->
+                  <!-- Phase 4: Done (Complete Task) -->
                   <div class="space-y-6">
-                    <div class="pb-3 border-b border-slate-200/80 dark:border-slate-800">
-                      <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <span class="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-extrabold">4</span>
-                        <span>Customer Verification & Clock Out</span>
-                      </h3>
-                      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Collect the customer digital signature, rating, and finalize your job clock-out.</p>
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800">
+                      <div>
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <span class="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-extrabold">4</span>
+                          <span>Done</span>
+                        </h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Review your installation progress and mark the whole task as finished.</p>
+                      </div>
+                      @if (isClockOutDone()) {
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                          <mat-icon class="!text-sm">check_circle</mat-icon>
+                          <span>Finished</span>
+                        </span>
+                      }
                     </div>
 
-                    <!-- Customer Signature Form / Verified Certificate -->
-                    @if (j.customerSignoff) {
-                      <div class="bg-emerald-50/60 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 p-5 space-y-4">
-                        <div class="flex items-center justify-between">
-                          <div class="flex items-center gap-2">
-                            <mat-icon class="text-emerald-700 dark:text-emerald-400">verified</mat-icon>
-                            <h4 class="text-sm font-bold text-emerald-950 dark:text-emerald-300">Customer Signoff Verified</h4>
-                          </div>
-                          <span class="text-xs font-semibold px-2.5 py-1 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-mono border border-emerald-200 dark:border-emerald-800">
-                            Legally Signed
-                          </span>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                          <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/60 space-y-2">
-                            <div class="flex justify-between">
-                              <span class="text-slate-500 dark:text-slate-400">Signee Name</span>
-                              <strong class="text-slate-900 dark:text-white">{{ j.customerSignoff.clientName }}</strong>
-                            </div>
-                            <div class="flex justify-between">
-                              <span class="text-slate-500 dark:text-slate-400">Customer Rating</span>
-                              <strong class="text-amber-600 dark:text-amber-400 font-semibold">{{ j.customerSignoff.rating }}.0 / 5.0 ★</strong>
-                            </div>
-                            <div class="flex justify-between">
-                              <span class="text-slate-500 dark:text-slate-400">Timestamp</span>
-                              <span class="font-mono text-slate-700 dark:text-slate-300">{{ formatTime(j.customerSignoff.signedAt) }}</span>
-                            </div>
-                            @if (j.customerSignoff.feedback) {
-                              <div class="pt-2 border-t border-slate-100 dark:border-slate-800">
-                                <span class="text-[10px] text-slate-400 dark:text-slate-500 block uppercase">Feedback</span>
-                                <p class="text-slate-700 dark:text-slate-300 italic mt-0.5">"{{ j.customerSignoff.feedback }}"</p>
-                              </div>
-                            }
-                          </div>
-
-                          <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/60 flex flex-col items-center justify-center">
-                            <span class="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-mono mb-2">Customer Digital Signature</span>
-                            <div class="h-24 w-full flex items-center justify-center border-b border-dashed border-slate-300 dark:border-slate-700 pb-2">
-                              <img [src]="j.customerSignoff.signatureDataUrl" alt="Customer Signature" class="max-h-20 max-w-full object-contain bg-white rounded p-1" />
-                            </div>
-                          </div>
-                        </div>
+                    <!-- Installation Summary Card -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                      <div class="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3.5 border border-slate-200/80 dark:border-slate-800">
+                        <span class="text-[10px] uppercase font-semibold text-slate-400 block">Door &amp; Client</span>
+                        <p class="font-bold text-slate-900 dark:text-white mt-0.5 truncate">{{ j.doorModel }}</p>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">{{ j.client.name }}</p>
                       </div>
-                    } @else {
-                      <div class="space-y-3">
-                        <div class="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200/80 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-300 flex items-center gap-2">
-                          <mat-icon class="text-amber-700 dark:text-amber-400">draw</mat-icon>
-                          <span>Hand your device to the client to collect their signature and workmanship satisfaction rating.</span>
-                        </div>
+                      <div class="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3.5 border border-slate-200/80 dark:border-slate-800">
+                        <span class="text-[10px] uppercase font-semibold text-slate-400 block">Checklist</span>
+                        <p class="font-bold text-slate-900 dark:text-white mt-0.5">{{ completedChecklistCount() }} / {{ j.hardwareChecklist.length }} Items</p>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">Hardware verified</p>
+                      </div>
+                      <div class="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3.5 border border-slate-200/80 dark:border-slate-800">
+                        <span class="text-[10px] uppercase font-semibold text-slate-400 block">Photo Proof</span>
+                        <p class="font-bold text-slate-900 dark:text-white mt-0.5">{{ j.photos.length }} Photo(s)</p>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">Uploaded to record</p>
+                      </div>
+                    </div>
 
-                        <app-signature-pad 
-                          [initialClientName]="j.client.name"
-                          (signoffCompleted)="handleSignoff($event)"
-                          (cancelled)="installerPhase.set('photos')"
-                        />
+                    @if (isClockOutDone()) {
+                      <div class="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center gap-3 text-xs text-emerald-900 dark:text-emerald-200">
+                        <mat-icon class="text-emerald-600 dark:text-emerald-400">task_alt</mat-icon>
+                        <div>
+                          <p class="font-bold">Task Finished &amp; Completed</p>
+                          <p class="opacity-85">All steps are complete and management has been notified.</p>
+                        </div>
                       </div>
                     }
 
-                    <!-- Final Site Clock Out -->
-                    <div class="pt-4 border-t border-slate-200/80 dark:border-slate-800 space-y-3">
-                      <h4 class="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Final Site Clock Out</h4>
-                      <app-clock-widget 
-                        [job]="j"
-                        (clockInTriggered)="handleClockIn($event)"
-                        (clockOutTriggered)="handleClockOut($event)"
-                      />
-                    </div>
-
                     <!-- Phase 4 Navigation Controls -->
-                    <div class="pt-4 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                    <div class="pt-4 border-t border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
                       <button 
                         type="button" 
                         (click)="installerPhase.set('photos')"
@@ -628,14 +675,230 @@ import { SignaturePad } from '../signature-pad/signature-pad';
                         <span>Photo Proof</span>
                       </button>
 
-                      <button 
-                        type="button" 
-                        (click)="closed.emit()"
-                        class="px-5 py-2.5 text-xs font-bold text-white bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                      <div class="flex items-center gap-2 ml-auto">
+                        @if (!isClockOutDone()) {
+                          <button 
+                            type="button" 
+                            (click)="completeInstallerTask(j.id)"
+                            class="px-5 py-2.5 text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                          >
+                            <mat-icon class="!text-sm">task_alt</mat-icon>
+                            <span>Click to complete Task</span>
+                          </button>
+                        } @else {
+                          <button 
+                            type="button" 
+                            (click)="closed.emit()"
+                            class="px-5 py-2.5 text-xs font-bold text-white bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                          >
+                            <mat-icon class="!text-sm">check</mat-icon>
+                            <span>Done / Close</span>
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else if (isDriver()) {
+              @let driverTrack = getDriverDeliveryTracker(j);
+              <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm p-4 sm:p-6">
+                @if (driverPhase() === 'pickup') {
+                  <!-- Step 1: Pick Up Doors at Showroom / Warehouse -->
+                  <div class="space-y-5">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800">
+                      <div>
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <span class="w-6 h-6 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-extrabold">1</span>
+                          <span>Pick Up Doors from Showroom</span>
+                        </h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Verify doors &amp; hardware loaded on your vehicle before departing.</p>
+                      </div>
+                      @if (isDriverPickedUp()) {
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                          <mat-icon class="!text-sm">check_circle</mat-icon>
+                          <span>Picked Up</span>
+                        </span>
+                      }
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <div class="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                        <h4 class="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Pickup Showroom &amp; Vehicle</h4>
+                        <div class="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-700/60">
+                          <span class="text-slate-500 dark:text-slate-400">Pickup Branch</span>
+                          <span class="font-semibold text-slate-900 dark:text-white text-right">{{ j.shopBranch }}</span>
+                        </div>
+                        <div class="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-700/60">
+                          <span class="text-slate-500 dark:text-slate-400">Assigned Truck</span>
+                          <span class="font-mono font-semibold text-slate-900 dark:text-white">{{ j.logisticsTruck?.truckPlate || 'Assigned Fleet' }}</span>
+                        </div>
+                        <div class="flex justify-between py-1">
+                          <span class="text-slate-500 dark:text-slate-400">Lead Installer</span>
+                          <span class="font-semibold text-slate-900 dark:text-white">{{ j.assignedInstallerName || 'Assigned Crew' }}</span>
+                        </div>
+                      </div>
+
+                      <div class="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 space-y-2">
+                        <h4 class="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Doors &amp; Hardware to Load</h4>
+                        @for (d of getChecklistDoors(j); track d.id) {
+                          <div class="flex items-center justify-between py-1 border-b last:border-0 border-slate-200/60 dark:border-slate-700/60">
+                            <div class="min-w-0">
+                              <p class="font-bold text-slate-900 dark:text-white truncate">{{ d.doorModel }}</p>
+                              <p class="text-[10px] text-slate-500 dark:text-slate-400">{{ d.doorCategory }}</p>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 font-mono font-bold text-[11px] shrink-0">
+                              x{{ d.quantity }}
+                            </span>
+                          </div>
+                        }
+                      </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                      @if (!isDriverPickedUp()) {
+                        <button
+                          type="button"
+                          (click)="confirmDriverPickup(j.id)"
+                          class="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                        >
+                          <mat-icon class="!text-base">local_shipping</mat-icon>
+                          <span>Confirm Doors Picked Up &amp; Depart</span>
+                        </button>
+                      } @else {
+                        <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                          <mat-icon class="!text-base">verified</mat-icon>
+                          <span>Doors picked up and ready for delivery.</span>
+                        </span>
+                      }
+
+                      <button
+                        type="button"
+                        (click)="driverPhase.set('deliver')"
+                        class="px-4 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ml-auto"
                       >
-                        <mat-icon class="!text-sm">check</mat-icon>
-                        <span>Done / Close</span>
+                        <span>Step 2: Deliver to Destination</span>
+                        <mat-icon class="!text-sm">arrow_forward</mat-icon>
                       </button>
+                    </div>
+                  </div>
+                } @else {
+                  <!-- Step 2: Deliver to Destination & Done -->
+                  <div class="space-y-5">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800">
+                      <div>
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <span class="w-6 h-6 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-extrabold">2</span>
+                          <span>Deliver to Destination &amp; Done</span>
+                        </h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Follow live route to client site and confirm handover when delivered.</p>
+                      </div>
+                      @if (isDriverDelivered()) {
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                          <mat-icon class="!text-sm">check_circle</mat-icon>
+                          <span>Delivered &amp; Done</span>
+                        </span>
+                      }
+                    </div>
+
+                    <!-- Live 2-Point Route Progress -->
+                    <div class="bg-slate-900 dark:bg-slate-950 text-white rounded-xl p-4 border border-slate-800 space-y-3">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border" [class]="driverTrack.badgeClass">
+                          <span class="w-1.5 h-1.5 rounded-full" [class]="driverTrack.dotClass"></span>
+                          <span>{{ driverTrack.statusLabel }}</span>
+                        </span>
+                        @if (driverTrack.liveGpsText) {
+                          <span class="text-[10px] font-mono text-cyan-300">{{ driverTrack.liveGpsText }}</span>
+                        }
+                      </div>
+
+                      <div class="relative flex items-center justify-between gap-2 pt-1">
+                        <div class="flex items-center gap-1.5 z-10 bg-slate-900 dark:bg-slate-950 pr-1.5 max-w-[38%]">
+                          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30 shrink-0"></span>
+                          <div class="min-w-0">
+                            <span class="text-[8px] uppercase text-slate-400 font-bold block leading-none">Start</span>
+                            <span class="text-[11px] font-semibold text-slate-200 truncate block">{{ j.shopBranch }}</span>
+                          </div>
+                        </div>
+
+                        <div class="flex-1 relative h-1.5 bg-slate-800 rounded-full overflow-visible mx-1">
+                          <div
+                            class="h-full rounded-full transition-all duration-700"
+                            [class]="driverTrack.progressPercent >= 100 ? 'bg-emerald-500' : 'bg-cyan-500'"
+                            [style.width.%]="driverTrack.progressPercent"
+                          ></div>
+                          <div
+                            class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-slate-900 border-2 flex items-center justify-center shadow-md transition-all duration-700"
+                            [class]="driverTrack.progressPercent >= 100 ? 'border-emerald-400 text-emerald-400' : 'border-cyan-400 text-cyan-400'"
+                            [style.left.%]="driverTrack.progressPercent"
+                          >
+                            <mat-icon class="!text-xs !w-3.5 !h-3.5" [class.animate-pulse]="driverTrack.isMoving">local_shipping</mat-icon>
+                          </div>
+                        </div>
+
+                        <div class="flex items-center gap-1.5 z-10 bg-slate-900 dark:bg-slate-950 pl-1.5 max-w-[38%] text-right">
+                          <div class="min-w-0">
+                            <span class="text-[8px] uppercase text-slate-400 font-bold block leading-none">Destination</span>
+                            <span class="text-[11px] font-semibold text-slate-200 truncate block">{{ j.client.siteAddress }}</span>
+                          </div>
+                          <span class="w-2.5 h-2.5 rounded-full bg-rose-400 ring-2 ring-rose-400/30 shrink-0"></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Destination Client Info -->
+                    <div class="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span class="text-[10px] uppercase font-semibold text-slate-400 block">Client Name &amp; Phone</span>
+                        <p class="font-bold text-slate-900 dark:text-white">{{ j.client.name }} · {{ j.client.phone }}</p>
+                      </div>
+                      <div>
+                        <span class="text-[10px] uppercase font-semibold text-slate-400 block">Destination Site Address</span>
+                        <p class="font-semibold text-slate-900 dark:text-white">{{ j.client.siteAddress }}</p>
+                      </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                      <button
+                        type="button"
+                        (click)="driverPhase.set('pickup')"
+                        class="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <mat-icon class="!text-sm">arrow_back</mat-icon>
+                        <span>Step 1: Pick Up</span>
+                      </button>
+
+                      <div class="flex flex-wrap items-center gap-2 ml-auto">
+                        <button
+                          type="button"
+                          (click)="openRouteOnMap(j.id)"
+                          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <mat-icon class="!text-sm">map</mat-icon>
+                          <span>Open Live Route</span>
+                        </button>
+
+                        @if (!isDriverDelivered()) {
+                          <button
+                            type="button"
+                            (click)="confirmDriverDelivered(j.id)"
+                            class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                          >
+                            <mat-icon class="!text-sm">task_alt</mat-icon>
+                            <span>Click to complete Task</span>
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            (click)="closed.emit()"
+                            class="px-5 py-2 bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                          >
+                            <mat-icon class="!text-sm">check</mat-icon>
+                            <span>Done / Close</span>
+                          </button>
+                        }
+                      </div>
                     </div>
                   </div>
                 }
@@ -1354,12 +1617,69 @@ export class JobDetailModal {
   jobId = input.required<string>();
   readonly store = inject(InstallationStore);
   readonly alert = inject(AlertService);
+  private readonly router = inject(Router);
   closed = output<void>();
 
   readonly activeTab = signal<'specs' | 'site_ops' | 'checklist' | 'photos' | 'signoff' | 'bonus'>('specs');
 
   readonly isInstaller = computed(() => this.store.currentRole() === 'installer');
+  readonly isDriver = computed(() => this.store.currentRole() === 'dispatcher');
   readonly installerPhase = signal<'clock_in' | 'checklist' | 'photos' | 'signoff'>('clock_in');
+  readonly driverPhase = signal<'pickup' | 'deliver'>('pickup');
+
+  readonly isDriverPickedUp = computed(() => {
+    const j = this.currentJob();
+    if (!j) return false;
+    return (
+      j.status === 'dispatched' ||
+      !!j.motionLiveStarted ||
+      this.isDriverDelivered()
+    );
+  });
+
+  readonly isDriverDelivered = computed(() => {
+    const j = this.currentJob();
+    if (!j) return false;
+    return [
+      'delivered_on_site',
+      'on_site',
+      'in_progress',
+      'installed_pending_signoff',
+      'completed',
+      'bonus_awarded'
+    ].includes(j.status);
+  });
+
+  constructor() {
+    effect(() => {
+      const j = this.currentJob();
+      if (j && this.isDriver()) {
+        if (this.isDriverPickedUp()) {
+          this.driverPhase.set('deliver');
+        } else {
+          this.driverPhase.set('pickup');
+        }
+      }
+    });
+  }
+
+  confirmDriverPickup(jobId: string) {
+    this.store.pickupDoorsByDriver(jobId);
+    this.driverPhase.set('deliver');
+  }
+
+  confirmDriverDelivered(jobId: string) {
+    this.store.markDeliveredByDriver(jobId);
+  }
+
+  completeInstallerTask(jobId: string) {
+    this.store.completeTaskAsDone(jobId);
+  }
+
+  openRouteOnMap(jobId: string) {
+    this.closed.emit();
+    void this.router.navigate(['/map'], { queryParams: { jobId } });
+  }
 
   readonly installerPhaseIndex = computed(() => {
     switch (this.installerPhase()) {
@@ -1676,13 +1996,27 @@ export class JobDetailModal {
     liveGpsText: string | null;
   } {
     const liveUnit = j.dispatcherId
-      ? this.store.liveLocations().find(l => l.userId === j.dispatcherId && l.status === 'online')
+      ? this.store.liveLocations().find(
+          l =>
+            (l.userId === j.dispatcherId ||
+              (!!j.dispatcherName && (l.userName || '').trim().toLowerCase() === j.dispatcherName.trim().toLowerCase())) &&
+            l.status !== 'offline'
+        )
       : undefined;
     const liveGpsText = liveUnit
       ? `Live GPS: ${liveUnit.latitude.toFixed(5)}, ${liveUnit.longitude.toFixed(5)} · Updated ${this.formatTime(liveUnit.updatedAt)}`
       : null;
 
-    if (['delivered_on_site', 'on_site', 'in_progress', 'installed_pending_signoff', 'completed', 'bonus_awarded'].includes(j.status)) {
+    const arrivedByGps = !!(
+      liveUnit &&
+      j.client.coordinates &&
+      this.haversineKm(liveUnit.latitude, liveUnit.longitude, j.client.coordinates.lat, j.client.coordinates.lng) < 0.1
+    );
+
+    if (
+      arrivedByGps ||
+      ['delivered_on_site', 'on_site', 'in_progress', 'installed_pending_signoff', 'completed', 'bonus_awarded'].includes(j.status)
+    ) {
       return {
         statusLabel: 'Delivered on Site (Completed)',
         progressPercent: 100,
@@ -1747,6 +2081,16 @@ export class JobDetailModal {
     };
   }
 
+  private haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
   getInstallerClockRows(j: InstallationJob): {
     installerId: string;
     name: string;
@@ -1762,23 +2106,60 @@ export class JobDetailModal {
   }[] {
     const team = this.getAssignedTeam(j);
     const allInstallers = this.store.installers();
+    const lives = this.store.liveLocations();
+    const shop = this.store.branches().find(b => String(b.id) === String(j.shopId)) || this.store.shopLocation();
     return team.map(member => {
       const profile = allInstallers.find(inst => inst.id === member.id);
       const startLocation = profile?.currentLocationName || j.shopBranch || 'DoorMaster Workshop';
       const destination = j.client?.siteAddress || 'Client Site';
+      const liveUnit = lives.find(
+        l =>
+          (l.userId === member.id || (l.userName || '').trim().toLowerCase() === member.name.trim().toLowerCase()) &&
+          l.status !== 'offline'
+      );
+      const arrivedByGps = !!(
+        liveUnit &&
+        j.client.coordinates &&
+        this.haversineKm(liveUnit.latitude, liveUnit.longitude, j.client.coordinates.lat, j.client.coordinates.lng) < 0.1
+      );
       const sessions = j.clockSessions.filter(s => s.installerId === member.id);
       const fallbackSessions = sessions.length === 0 && team.length === 1 ? j.clockSessions : sessions;
       const latest = fallbackSessions[fallbackSessions.length - 1];
       if (!latest) {
-        const isEnRoute = j.status === 'dispatched' || j.status === 'delivered_on_site' || j.status === 'on_site' || j.status === 'in_progress';
+        if (arrivedByGps || ['on_site', 'in_progress', 'installed_pending_signoff', 'completed', 'bonus_awarded'].includes(j.status)) {
+          return {
+            installerId: member.id,
+            name: member.name,
+            role: member.role || 'assistant',
+            statusLabel: 'Arrived · Completed',
+            statusClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+            clockInText: liveUnit ? this.formatTime(liveUnit.updatedAt) : 'On Site',
+            clockOutText: ['completed', 'bonus_awarded'].includes(j.status) ? 'Done' : 'Active',
+            startLocation,
+            destination,
+            progressPercent: 100,
+            isMoving: false
+          };
+        }
+
+        const isEnRoute = j.status === 'dispatched' || j.status === 'delivered_on_site' || !!liveUnit;
         const isAccepted = j.installerAssignmentStatus === 'accepted';
-        const progressPercent = isEnRoute ? 55 : isAccepted ? 25 : 10;
+        let progressPercent = isEnRoute ? 55 : isAccepted ? 25 : 10;
+        if (liveUnit && j.client.coordinates && shop?.latitude && shop?.longitude) {
+          const totalDist = this.haversineKm(shop.latitude, shop.longitude, j.client.coordinates.lat, j.client.coordinates.lng);
+          const remDist = this.haversineKm(liveUnit.latitude, liveUnit.longitude, j.client.coordinates.lat, j.client.coordinates.lng);
+          if (totalDist > 0.05) {
+            progressPercent = Math.max(15, Math.min(95, Math.round((1 - remDist / totalDist) * 100)));
+          }
+        }
         return {
           installerId: member.id,
           name: member.name,
           role: member.role || 'assistant',
-          statusLabel: 'Not Clocked In',
-          statusClass: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+          statusLabel: liveUnit ? 'En Route' : 'Not Clocked In',
+          statusClass: liveUnit
+            ? 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300'
+            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
           clockInText: '—',
           clockOutText: '—',
           startLocation,

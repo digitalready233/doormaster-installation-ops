@@ -1,5 +1,6 @@
 import prisma from './prisma';
 import { Prisma } from '@prisma/client';
+import * as crypto from 'node:crypto';
 
 export interface DbInstallationJob {
   id: string;
@@ -540,7 +541,7 @@ export async function getJobsFromDb(filterShopId?: string): Promise<DbInstallati
  */
 export async function saveJobToDb(job: Partial<DbInstallationJob>): Promise<DbInstallationJob | null> {
   try {
-    const id = job.id || `DM-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+    const id = job.id || `DM-${new Date().getFullYear()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
     const jobNumber = job.jobNumber || id;
 
     const existingJob = await prisma.installationJob.findUnique({ where: { id } });
@@ -1093,12 +1094,14 @@ export async function saveCustomerSignoff(signoff: Partial<DbCustomerSignoff>): 
     if (!signoff.jobId) return null;
     const id = signoff.id || `SGF-${Date.now().toString(36).toUpperCase()}`;
 
+    const safeRating = Math.min(5, Math.max(1, Math.round(Number(signoff.rating) || 5)));
+
     const saved = await prisma.customerSignoffRecord.upsert({
       where: { jobId: signoff.jobId },
       update: {
         clientName: signoff.clientName,
         clientPhone: signoff.clientPhone,
-        rating: signoff.rating || 5,
+        rating: safeRating,
         feedback: signoff.feedback,
         signatureDataUrl: signoff.signatureDataUrl,
         satisfactionLevel: signoff.satisfactionLevel || 'Excellent',
@@ -1109,7 +1112,7 @@ export async function saveCustomerSignoff(signoff: Partial<DbCustomerSignoff>): 
         jobId: signoff.jobId,
         clientName: signoff.clientName || 'Valued Client',
         clientPhone: signoff.clientPhone || null,
-        rating: signoff.rating || 5,
+        rating: safeRating,
         feedback: signoff.feedback || null,
         signatureDataUrl: signoff.signatureDataUrl || null,
         satisfactionLevel: signoff.satisfactionLevel || 'Excellent',

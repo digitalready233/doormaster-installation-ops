@@ -567,7 +567,7 @@ interface CrewRoute {
                     @if (!st) {
                       —
                     } @else if (st.mode === 'arrived') {
-                      Arrived
+                      Completed · On Site
                     } @else if (st.mode === 'offline') {
                       Not signed in
                     } @else if (st.mode === 'stationary') {
@@ -1180,6 +1180,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
   private crewRoutePending = new Set<string>();
   private crewLines = new Map<string, { line: LType.Polyline; version: number; dashed: boolean }>();
   private crewMarkers = new Map<string, { marker: LType.Marker; iconKey: string }>();
+  private autoArrivedKeys = new Set<string>();
   private crewTicker: ReturnType<typeof setInterval> | null = null;
   private livePoller: ReturnType<typeof setInterval> | null = null;
   private readonly mountedAt = Date.now();
@@ -2424,7 +2425,7 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
       : (st.mode === 'simulated' ? 'SIM'
         : (st.mode === 'live' ? 'MOVING'
           : (st.mode === 'stationary' ? 'STATIONARY'
-            : (st.mode === 'arrived' ? 'ON SITE' : 'NOT SIGNED IN'))));
+            : (st.mode === 'arrived' ? 'COMPLETED' : 'NOT SIGNED IN'))));
     const badgeBg = st.mode === 'off-route'
       ? '#e11d48'
       : (st.mode === 'simulated' ? '#d97706'
@@ -2453,6 +2454,39 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
           <span style="background:${badgeBg}; padding:0 4px; border-radius:3px; font-size:7.5px;">${badge}</span>
         </div>
       </div>`;
+  }
+
+  private handleCrewArrivedAtDestination(t: CrewTrack, st: CrewTrackState) {
+    if (this.autoArrivedKeys.has(t.key)) return;
+    this.autoArrivedKeys.add(t.key);
+
+    const job = this.store.jobs().find(j => j.id === t.jobId);
+    if (!job) return;
+
+    // Require accountant verification before transitioning operational status
+    if (job.shopBooking && job.shopBooking.accountantVerified === false) return;
+
+    if (t.role === 'dispatcher') {
+      const alreadyDelivered = [
+        'delivered_on_site',
+        'on_site',
+        'in_progress',
+        'installed_pending_signoff',
+        'completed',
+        'bonus_awarded'
+      ].includes(job.status);
+      if (!alreadyDelivered) {
+        this.store.markDeliveredByDriver(t.jobId);
+      }
+      return;
+    }
+
+    if (t.role === 'installer') {
+      const hasSession = (job.clockSessions || []).some(s => s.installerId === t.userId);
+      if (!hasSession) {
+        this.store.clockIn(t.jobId, st.lat, st.lng, 12, t.userId);
+      }
+    }
   }
 
   /** Diff-based renderer for crew routes & markers. Only moves markers when real GPS or simulation moves them. */
@@ -2486,6 +2520,10 @@ export class DeliveryMap implements AfterViewInit, OnDestroy {
 
       const st = this.computeCrewState(t, route);
       states[t.key] = st;
+
+      if (st.mode === 'arrived' && !t.arrived && (t.live || this.isSimulationMode())) {
+        this.handleCrewArrivedAtDestination(t, st);
+      }
 
       // Route polyline
       const existingLine = this.crewLines.get(t.key);
