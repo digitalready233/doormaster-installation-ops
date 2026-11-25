@@ -100,9 +100,22 @@ import {
 const app = express();
 const port = process.env['PORT'] || 3001;
 
+const allowedOrigins = (process.env['CORS_ORIGINS'] || process.env['APP_URL'] || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 // Enable Cross-Origin Resource Sharing for separated frontend
 app.use(cors({
-  origin: true,
+  origin: allowedOrigins.length > 0
+    ? (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Origin not allowed by CORS'));
+        }
+      }
+    : (process.env['NODE_ENV'] === 'production' ? false : true),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -168,41 +181,25 @@ async function requireActiveUser(req: express.Request, res: express.Response, ne
   const token = bearerToken(req);
   const payload: AuthTokenPayload | null = token ? verifyToken(token) : null;
 
-  if (payload) {
-    const user = await getUserById(payload.sub);
-    if (user && user.status === 'active') {
-      (req as any).auth = payload;
-      (req as any).user = user;
-      next();
-      return;
-    }
+  if (!payload) {
+    res.status(401).json({ success: false, message: 'Authentication required or session expired.' });
+    return;
   }
 
-  // Fallback for session resilience in local operations environment:
-  // If no bearer token is attached, resolve to the authoritative active administrator
   try {
-    const fallbackUser = await prisma.user.findFirst({
-      where: { status: 'active', role: { in: ['admin', 'manager'] } },
-      orderBy: { role: 'asc' },
-    });
-    if (fallbackUser) {
-      (req as any).auth = {
-        sub: fallbackUser.id,
-        name: fallbackUser.name,
-        email: fallbackUser.email,
-        role: fallbackUser.role,
-        phone: fallbackUser.phone,
-        status: fallbackUser.status,
-      };
-      (req as any).user = fallbackUser;
-      next();
+    const user = await getUserById(payload.sub);
+    if (!user || user.status !== 'active') {
+      res.status(401).json({ success: false, message: 'This account is no longer active.' });
       return;
     }
-  } catch (err) {
-    console.warn('[Server] Error finding fallback user:', err);
-  }
 
-  res.status(401).json({ success: false, message: 'Authentication required or session expired.' });
+    (req as any).auth = payload;
+    (req as any).user = user;
+    next();
+  } catch (err) {
+    console.error('[Server] Error verifying active user:', err);
+    res.status(500).json({ success: false, message: 'Authentication service unavailable.' });
+  }
 }
 
 /**
@@ -373,8 +370,8 @@ app.post('/api/auth/register', registerRateLimiter, async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
     const { name, email, password, role, phone, avatarUrl, shopId } = req.body;
-    if (!name || !email || !role) {
-      res.status(400).json({ success: false, message: 'Name, email, and role are required' });
+    if (!name || !email || !role || !password) {
+      res.status(400).json({ success: false, message: 'Name, email, password, and role are required' });
       return;
     }
 
@@ -448,21 +445,29 @@ app.post(['/api/auth/users', '/api/users'], requireRole(['admin', 'manager']), a
   }
 });
 
-app.patch(['/api/auth/users/:id', '/api/users/:id'], async (req, res) => {
+app.patch(['/api/auth/users/:id', '/api/users/:id'], requireActiveUser, async (req, res) => {
   try {
     const id = String(req.params.id);
+    const caller = (req as any).user as UserRecord;
+    const isPrivileged = caller.role === 'admin' || caller.role === 'manager';
+
+    if (!isPrivileged && caller.id !== id) {
+      res.status(403).json({ success: false, message: 'You do not have permission to update another user.' });
+      return;
+    }
+
     const { name, email, phone, avatarUrl, role, status, shopId, teamId, teamRole, teamPosition } = req.body;
+    if (!isPrivileged && (role !== undefined || status !== undefined || shopId !== undefined || teamId !== undefined || teamRole !== undefined || teamPosition !== undefined)) {
+      res.status(403).json({ success: false, message: 'Only administrators or managers can change roles, status, or branch/team assignments.' });
+      return;
+    }
+
     const result = await updateUserProfile(id, {
       name,
       email,
       phone,
       avatarUrl,
-      role,
-      status,
-      shopId,
-      teamId,
-      teamRole,
-      teamPosition,
+      ...(isPrivileged ? { role, status, shopId, teamId, teamRole, teamPosition } : {}),
     });
     if (!result.success) {
       res.status(400).json(result);
@@ -529,7 +534,7 @@ app.delete(['/api/auth/users/:id', '/api/users/:id'], requireRole(['admin']), as
  * ============================================================================
  */
 
-app.get('/api/teams', async (_req, res) => {
+app.get('/api/teams', requireActiveUser, async (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
     const teams = await getTeamsWithMembers();
@@ -547,7 +552,7 @@ app.get('/api/teams', async (_req, res) => {
   }
 });
 
-app.post('/api/teams', async (req, res) => {
+app.post('/api/teams', requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const { name, code, description, specialties, positions, color, status, members } = req.body;
     const result = await createTeamInDb({
@@ -574,7 +579,7 @@ app.post('/api/teams', async (req, res) => {
   }
 });
 
-app.patch('/api/teams/:id', async (req, res) => {
+app.patch('/api/teams/:id', requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const id = String(req.params.id);
     const { name, code, description, specialties, positions, color, status, leadId } = req.body;
@@ -602,7 +607,7 @@ app.patch('/api/teams/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/teams/:id', async (req, res) => {
+app.delete('/api/teams/:id', requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const id = String(req.params.id);
     const result = await deleteTeamInDb(id);
@@ -620,7 +625,7 @@ app.delete('/api/teams/:id', async (req, res) => {
   }
 });
 
-app.post('/api/teams/:id/members', async (req, res) => {
+app.post('/api/teams/:id/members', requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const teamId = String(req.params.id);
     const { userId, position, teamRole } = req.body;
@@ -647,7 +652,7 @@ app.post('/api/teams/:id/members', async (req, res) => {
   }
 });
 
-app.patch('/api/teams/:id/members/:userId', async (req, res) => {
+app.patch('/api/teams/:id/members/:userId', requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const teamId = String(req.params.id);
     const userId = String(req.params.userId);
@@ -671,7 +676,7 @@ app.patch('/api/teams/:id/members/:userId', async (req, res) => {
   }
 });
 
-app.delete('/api/teams/:id/members/:userId', async (req, res) => {
+app.delete('/api/teams/:id/members/:userId', requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const teamId = String(req.params.id);
     const userId = String(req.params.userId);
@@ -690,7 +695,7 @@ app.delete('/api/teams/:id/members/:userId', async (req, res) => {
   }
 });
 
-app.get('/api/roles', async (_req, res) => {
+app.get('/api/roles', requireActiveUser, async (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
     const roles = await getRolesFromDb();
@@ -708,7 +713,7 @@ app.get('/api/roles', async (_req, res) => {
   }
 });
 
-app.post('/api/roles', async (req, res) => {
+app.post('/api/roles', requireRole(['admin']), async (req, res) => {
   try {
     const roleDef = req.body;
     if (!roleDef || !roleDef.id || !roleDef.name) {
@@ -726,7 +731,7 @@ app.post('/api/roles', async (req, res) => {
   }
 });
 
-app.patch('/api/roles/:id', async (req, res) => {
+app.patch('/api/roles/:id', requireRole(['admin']), async (req, res) => {
   try {
     const id = String(req.params.id);
     const result = await upsertRoleInDb({ ...req.body, id });
@@ -740,7 +745,7 @@ app.patch('/api/roles/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/roles/:id', async (req, res) => {
+app.delete('/api/roles/:id', requireRole(['admin']), async (req, res) => {
   try {
     const id = String(req.params.id);
     const result = await deleteCustomRoleInDb(id);
@@ -801,10 +806,12 @@ app.get('/api/doors', async (req, res) => {
   }
 });
 
-app.post('/api/doors/scrape-all', requireActiveUser, async (req, res) => {
+app.post('/api/doors/scrape-all', requireRole(['admin', 'manager']), async (req, res) => {
   try {
-    const startPage = Number(req.body?.startPage) || 1;
-    const endPage = Number(req.body?.endPage) || 28;
+    const rawStart = Number(req.body?.startPage);
+    const rawEnd = Number(req.body?.endPage);
+    const startPage = Number.isFinite(rawStart) ? Math.max(1, Math.min(50, Math.floor(rawStart))) : 1;
+    const endPage = Number.isFinite(rawEnd) ? Math.max(startPage, Math.min(50, Math.floor(rawEnd))) : Math.max(startPage, 28);
 
     const { scrapeAllPages } = await import('./scraper-service');
     const result = await scrapeAllPages(startPage, endPage);
@@ -841,7 +848,7 @@ app.get('/api/doors/categories', async (_req, res) => {
   }
 });
 
-app.post('/api/doors', requireActiveUser, async (req, res) => {
+app.post('/api/doors', requireRole(['admin', 'manager', 'shop_manager']), async (req, res) => {
   try {
     const newDoor = await addDoorEntry(req.body);
     res.status(201).json({
@@ -858,7 +865,7 @@ app.post('/api/doors', requireActiveUser, async (req, res) => {
   }
 });
 
-app.patch('/api/doors/:id', requireActiveUser, async (req, res) => {
+app.patch('/api/doors/:id', requireRole(['admin', 'manager', 'shop_manager']), async (req, res) => {
   try {
     const id = String(req.params['id']);
     const updated = await updateDoorEntry(id, req.body);
@@ -880,7 +887,7 @@ app.patch('/api/doors/:id', requireActiveUser, async (req, res) => {
   }
 });
 
-app.put('/api/doors/:id', requireActiveUser, async (req, res) => {
+app.put('/api/doors/:id', requireRole(['admin', 'manager', 'shop_manager']), async (req, res) => {
   try {
     const id = String(req.params['id']);
     const updated = await updateDoorEntry(id, req.body);
@@ -902,7 +909,7 @@ app.put('/api/doors/:id', requireActiveUser, async (req, res) => {
   }
 });
 
-app.patch('/api/doors/:id/stock', requireActiveUser, async (req, res) => {
+app.patch('/api/doors/:id/stock', requireRole(['admin', 'manager', 'shop_manager']), async (req, res) => {
   try {
     const id = String(req.params['id']);
     const { stockQuantity, status } = req.body;
@@ -925,7 +932,7 @@ app.patch('/api/doors/:id/stock', requireActiveUser, async (req, res) => {
   }
 });
 
-app.delete('/api/doors/:id', requireActiveUser, async (req, res) => {
+app.delete('/api/doors/:id', requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const id = String(req.params['id']);
     const deleted = await deleteDoor(id);
@@ -952,7 +959,7 @@ app.delete('/api/doors/:id', requireActiveUser, async (req, res) => {
  * ============================================================================
  */
 
-app.get('/api/jobs', async (req, res) => {
+app.get('/api/jobs', requireActiveUser, async (req, res) => {
   try {
     const queryShopId = typeof req.query['shopId'] === 'string' ? req.query['shopId'].trim() : '';
     const filterShopId: string | undefined = queryShopId && queryShopId !== 'all' ? queryShopId : undefined;
@@ -973,16 +980,14 @@ app.get('/api/jobs', async (req, res) => {
   }
 });
 
-app.post('/api/jobs', async (req, res) => {
+app.post('/api/jobs', requireActiveUser, async (req, res) => {
   try {
-    const token = bearerToken(req);
-    const tokenPayload = token ? verifyToken(token) : null;
-    const user = tokenPayload ? await getUserById(tokenPayload.sub) : undefined;
+    const user = (req as any).user as UserRecord;
 
     const payload = {
       ...req.body,
       shopId: req.body?.shopId || user?.shopId || undefined,
-      createdByUserId: req.body?.createdByUserId || user?.id || undefined,
+      createdByUserId: user?.id,
     };
 
     const job = await saveJobToDb(payload);
@@ -1004,9 +1009,9 @@ app.post('/api/jobs', async (req, res) => {
   }
 });
 
-app.delete('/api/jobs/:id', async (req, res) => {
+app.delete('/api/jobs/:id', requireRole(['admin', 'manager']), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const deleted = await deleteJobFromDb(id);
     if (!deleted) {
       res.status(404).json({ success: false, message: `Job ${id} not found or could not be deleted.` });
@@ -1031,7 +1036,7 @@ app.delete('/api/jobs/:id', async (req, res) => {
  * ============================================================================
  */
 
-app.get('/api/clients', async (_req, res) => {
+app.get('/api/clients', requireActiveUser, async (_req, res) => {
   try {
     const clients = await getClientsFromDb();
     res.json({
@@ -1048,9 +1053,9 @@ app.get('/api/clients', async (_req, res) => {
   }
 });
 
-app.get('/api/clients/:id', async (req, res) => {
+app.get('/api/clients/:id', requireActiveUser, async (req, res) => {
   try {
-    const client = await getClientByIdFromDb(req.params.id);
+    const client = await getClientByIdFromDb(String(req.params.id));
     if (!client) {
       res.status(404).json({ success: false, message: 'Client not found' });
       return;
@@ -1065,9 +1070,9 @@ app.get('/api/clients/:id', async (req, res) => {
   }
 });
 
-app.get('/api/jobs/:id/relational', async (req, res) => {
+app.get('/api/jobs/:id/relational', requireActiveUser, async (req, res) => {
   try {
-    const job = await getJobByIdWithRelations(req.params.id);
+    const job = await getJobByIdWithRelations(String(req.params.id));
     if (!job) {
       res.status(404).json({ success: false, message: 'Job not found' });
       return;
@@ -1082,7 +1087,7 @@ app.get('/api/jobs/:id/relational', async (req, res) => {
   }
 });
 
-app.get('/api/sms/logs', async (_req, res) => {
+app.get('/api/sms/logs', requireActiveUser, async (_req, res) => {
   try {
     const logs = await getSmsLogsFromDb();
     res.json({
@@ -1121,7 +1126,7 @@ app.post('/api/sms/log', requireActiveUser, async (req, res) => {
  * NOTIFICATIONS API
  * ============================================================================
  */
-app.get('/api/notifications', async (req, res) => {
+app.get('/api/notifications', requireActiveUser, async (req, res) => {
   try {
     const role = req.query['role'] as string | undefined;
     const userId = req.query['userId'] as string | undefined;
@@ -1140,7 +1145,7 @@ app.get('/api/notifications', async (req, res) => {
   }
 });
 
-app.post('/api/notifications', async (req, res) => {
+app.post('/api/notifications', requireActiveUser, async (req, res) => {
   try {
     const notif = await saveNotificationToDb(req.body);
     if (!notif) {
@@ -1161,7 +1166,7 @@ app.post('/api/notifications', async (req, res) => {
   }
 });
 
-app.patch('/api/notifications/:id/read', async (req, res) => {
+app.patch('/api/notifications/:id/read', requireActiveUser, async (req, res) => {
   try {
     const id = String(req.params.id);
     const success = await markNotificationReadInDb(id);
@@ -1171,7 +1176,7 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
   }
 });
 
-app.patch('/api/notifications/mark-all-read', async (req, res) => {
+app.patch('/api/notifications/mark-all-read', requireActiveUser, async (req, res) => {
   try {
     const role = (req.body && req.body.role) || (req.query['role'] as string) || 'all';
     const success = await markAllNotificationsReadInDb(role);
@@ -1220,7 +1225,7 @@ app.get('/api/shop-locations', async (_req, res) => {
   }
 });
 
-app.post('/api/shop-location', requireActiveUser, async (req, res) => {
+app.post('/api/shop-location', requireRole(['admin', 'manager', 'shop_manager']), async (req, res) => {
   try {
     const location = await saveShopLocationToDb(req.body);
     if (!location) {
@@ -1241,7 +1246,7 @@ app.post('/api/shop-location', requireActiveUser, async (req, res) => {
   }
 });
 
-app.put('/api/shop-location', requireActiveUser, async (req, res) => {
+app.put('/api/shop-location', requireRole(['admin', 'manager', 'shop_manager']), async (req, res) => {
   try {
     const location = await saveShopLocationToDb(req.body);
     if (!location) {
@@ -1267,7 +1272,7 @@ app.put('/api/shop-location', requireActiveUser, async (req, res) => {
  * INSTALLER TRACKING (CLOCK-IN / TRACK-IN SESSIONS)
  * ============================================================================
  */
-app.get('/api/tracking/installer', async (req, res) => {
+app.get('/api/tracking/installer', requireActiveUser, async (req, res) => {
   try {
     const installerId = req.query['installerId'] as string;
     const jobId = req.query['jobId'] as string;
@@ -1308,7 +1313,7 @@ app.post('/api/tracking/installer', requireActiveUser, async (req, res) => {
  * DISPATCH RIDER / VEHICLE TRACKING
  * ============================================================================
  */
-app.get('/api/tracking/dispatch', async (req, res) => {
+app.get('/api/tracking/dispatch', requireActiveUser, async (req, res) => {
   try {
     const jobId = req.query['jobId'] as string;
     const records = await getDispatchTracking(jobId);
@@ -1348,7 +1353,7 @@ app.post('/api/tracking/dispatch', requireActiveUser, async (req, res) => {
  * INQUIRIES & QUOTE REQUESTS (Landing Page Form)
  * ============================================================================
  */
-app.get('/api/inquiries', async (_req, res) => {
+app.get('/api/inquiries', requireActiveUser, async (_req, res) => {
   try {
     const inquiries = await getInquiries();
     res.json({
@@ -1420,8 +1425,17 @@ app.post('/api/location/update', requireActiveUser, async (req, res) => {
     const payload = (req as any).user as { id: string; name: string; role: string };
     const { latitude, longitude, accuracyM, heading, speedKmh, jobId, status } = req.body;
 
-    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-      res.status(400).json({ success: false, message: 'latitude and longitude are required' });
+    if (
+      typeof latitude !== 'number' ||
+      typeof longitude !== 'number' ||
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      res.status(400).json({ success: false, message: 'Valid latitude [-90, 90] and longitude [-180, 180] are required' });
       return;
     }
 
@@ -1584,6 +1598,10 @@ app.get('/api/geocoding/ghanapost/:code', async (req, res) => {
         timestamp: Date.now()
       };
 
+      if (ghanaPostCache.size >= 2000) {
+        const oldestKey = ghanaPostCache.keys().next().value;
+        if (oldestKey) ghanaPostCache.delete(oldestKey);
+      }
       ghanaPostCache.set(queryCode, entry);
 
       return res.json({
@@ -1613,7 +1631,7 @@ app.get('/api/geocoding/ghanapost/:code', async (req, res) => {
  */
 app.get('/api/messages/threads', requireActiveUser, async (req, res) => {
   try {
-    const actorId = String(req.headers['x-actor-user-id'] || req.query['actorId'] || (req as any).user?.id || '');
+    const actorId = String((req as any).user?.id || '');
     const data = await getUserThreadsAndMessages(actorId);
     res.json({ success: true, ...data });
   } catch (error) {
@@ -1623,7 +1641,7 @@ app.get('/api/messages/threads', requireActiveUser, async (req, res) => {
 
 app.get('/api/messages/thread/:peerId', requireActiveUser, async (req, res) => {
   try {
-    const actorId = String(req.headers['x-actor-user-id'] || req.query['actorId'] || (req as any).user?.id || '');
+    const actorId = String((req as any).user?.id || '');
     const peerId = String(req.params.peerId);
     const messages = await getConversationMessages(actorId, peerId);
     res.json({ success: true, messages });
@@ -1636,9 +1654,9 @@ app.post('/api/messages', requireActiveUser, async (req, res) => {
   try {
     const authUser = (req as any).user;
     const body = req.body || {};
-    const senderId = String(req.headers['x-actor-user-id'] || body.senderId || authUser?.id || '');
-    const senderName = String(body.senderName || authUser?.name || 'User');
-    const senderRole = String(body.senderRole || authUser?.role || 'staff');
+    const senderId = String(authUser?.id || '');
+    const senderName = String(authUser?.name || 'User');
+    const senderRole = String(authUser?.role || 'staff');
     const recipientId = String(body.recipientId || '');
     if (!senderId || !recipientId) {
       res.status(400).json({ success: false, message: 'senderId and recipientId are required' });
@@ -1665,7 +1683,7 @@ app.post('/api/messages', requireActiveUser, async (req, res) => {
 
 app.patch('/api/messages/:id', requireActiveUser, async (req, res) => {
   try {
-    const actorId = String(req.headers['x-actor-user-id'] || req.body?.actorId || (req as any).user?.id || '');
+    const actorId = String((req as any).user?.id || '');
     const updated = await editChatMessage(String(req.params.id), actorId, String(req.body?.text || ''));
     if (!updated) {
       res.status(404).json({ success: false, message: 'Message not found or unauthorized' });
@@ -1679,7 +1697,7 @@ app.patch('/api/messages/:id', requireActiveUser, async (req, res) => {
 
 app.delete('/api/messages/:id', requireActiveUser, async (req, res) => {
   try {
-    const actorId = String(req.headers['x-actor-user-id'] || req.query['actorId'] || (req as any).user?.id || '');
+    const actorId = String((req as any).user?.id || '');
     const updated = await deleteChatMessage(String(req.params.id), actorId);
     if (!updated) {
       res.status(404).json({ success: false, message: 'Message not found or unauthorized' });
@@ -1694,8 +1712,8 @@ app.delete('/api/messages/:id', requireActiveUser, async (req, res) => {
 app.post('/api/messages/:id/react', requireActiveUser, async (req, res) => {
   try {
     const authUser = (req as any).user;
-    const actorId = String(req.headers['x-actor-user-id'] || req.body?.actorId || authUser?.id || '');
-    const actorName = String(req.body?.actorName || authUser?.name || 'User');
+    const actorId = String(authUser?.id || '');
+    const actorName = String(authUser?.name || 'User');
     const emoji = String(req.body?.emoji || '👍');
     const updated = await toggleMessageReaction(String(req.params.id), actorId, actorName, emoji);
     if (!updated) {
@@ -1710,7 +1728,7 @@ app.post('/api/messages/:id/react', requireActiveUser, async (req, res) => {
 
 app.post('/api/messages/read', requireActiveUser, async (req, res) => {
   try {
-    const actorId = String(req.headers['x-actor-user-id'] || req.body?.actorId || (req as any).user?.id || '');
+    const actorId = String((req as any).user?.id || '');
     const peerId = String(req.body?.peerId || '');
     const count = await markConversationRead(actorId, peerId);
     res.json({ success: true, count });
@@ -1721,7 +1739,7 @@ app.post('/api/messages/read', requireActiveUser, async (req, res) => {
 
 app.post('/api/messages/typing', requireActiveUser, async (req, res) => {
   try {
-    const actorId = String(req.headers['x-actor-user-id'] || req.body?.actorId || (req as any).user?.id || '');
+    const actorId = String((req as any).user?.id || '');
     const peerId = String(req.body?.peerId || '');
     const isTyping = !!req.body?.isTyping;
     if (actorId && peerId) {
