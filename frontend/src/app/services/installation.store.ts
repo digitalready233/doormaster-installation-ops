@@ -2368,20 +2368,27 @@ export class InstallationStore {
    * No demo/seed data is used — everything comes from the database.
    */
   private async loadFromApi(): Promise<void> {
-    await Promise.all([
-      this.loadUsers(),
-      this.loadTeamsFromBackend(),
-      this.loadRolesFromBackend(),
-      this.loadJobsFromBackend(),
-      this.loadClientsFromBackend(),
-      this.loadNotificationsFromBackend(),
-      this.loadSmsLogsFromBackend(),
-      this.loadInquiriesFromBackend(),
+    const publicRequests: Promise<any>[] = [
       this.loadDoorsFromBackend(),
       this.loadShopLocationFromBackend(),
       this.loadBranchesFromBackend(),
       this.checkDbStatus()
-    ]);
+    ];
+
+    if (this.apiToken()) {
+      publicRequests.push(
+        this.loadUsers(),
+        this.loadTeamsFromBackend(),
+        this.loadRolesFromBackend(),
+        this.loadJobsFromBackend(),
+        this.loadClientsFromBackend(),
+        this.loadNotificationsFromBackend(),
+        this.loadSmsLogsFromBackend(),
+        this.loadInquiriesFromBackend()
+      );
+    }
+
+    await Promise.all(publicRequests);
 
     // Derive installers & dispatchers from authenticated users & DB teams
     this.deriveInstallersAndDispatchersFromUsers();
@@ -5997,14 +6004,22 @@ export class InstallationStore {
     rememberMe = true
   ): Promise<{ success: boolean; message: string; user?: ApiAuthUser }> {
     try {
-      const res = await this.apiFetch('/api/auth/signin', {
+      let res = await this.apiFetch('/api/auth/signin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      const responseData = await this.safeJson(res);
+      let responseData = await this.safeJson(res);
+      if (!responseData && typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        res = await fetch('http://127.0.0.1:3001/api/auth/signin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        responseData = await this.safeJson(res);
+      }
       if (!responseData) {
-        return { success: false, message: 'API server returned a non-JSON response. Please ensure the backend server is running.' };
+        return { success: false, message: 'API server returned a non-JSON response. Please ensure the backend server is running on port 3001.' };
       }
       if (responseData.success && responseData.user) {
         this.applySession(responseData.user, responseData.token || '');
@@ -6055,20 +6070,29 @@ export class InstallationStore {
     rememberMe = true
   ): Promise<{ success: boolean; message: string; user?: ApiAuthUser }> {
     try {
-      const res = await this.apiFetch('/api/auth/register', {
+      let res = await this.apiFetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, role, phone, password })
       });
-      const responseData = await this.safeJson(res);
+      let responseData = await this.safeJson(res);
+      if (!responseData && typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        res = await fetch('http://127.0.0.1:3001/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, role, phone, password })
+        });
+        responseData = await this.safeJson(res);
+      }
       if (!responseData) {
-        return { success: false, message: 'API server returned a non-JSON response. Please ensure the backend server is running.' };
+        return { success: false, message: 'API server returned a non-JSON response. Please ensure the backend server is running on port 3001.' };
       }
       if (responseData.success && responseData.user) {
-        await this.loadUsers();
-        if (responseData.user.status !== 'pending') {
-          this.applySession(responseData.user, responseData.token || '');
-          this.persistSession(responseData.user, responseData.token || '', rememberMe);
+        if (responseData.user.status !== 'pending' && responseData.token) {
+          this.applySession(responseData.user, responseData.token);
+          this.persistSession(responseData.user, responseData.token, rememberMe);
+          void this.loadFromApi();
+          void this.startGpsTracking();
         }
         return { success: true, message: responseData.message, user: responseData.user };
       }

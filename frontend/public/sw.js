@@ -4,7 +4,7 @@
  * asset precaching, and key API payload caching (/api/doors, /api/doors/categories).
  */
 
-const CACHE_VERSION = 'v2.2.0';
+const CACHE_VERSION = 'v2.2.1';
 const STATIC_CACHE = `dm-static-${CACHE_VERSION}`;
 const ASSET_CACHE = `dm-assets-${CACHE_VERSION}`;
 const API_CACHE = `dm-api-${CACHE_VERSION}`;
@@ -128,6 +128,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Never cache or intercept auth, users, jobs, messages, or other dynamic /api/* calls
+  if (url.pathname.startsWith('/api/')) {
+    return;
+  }
+
   // 4. OpenStreetMap Map Tiles (*.tile.openstreetmap.org/*)
   // Let the browser fetch directly from OpenStreetMap servers with native HTTP caching
   if (url.hostname.includes('tile.openstreetmap.org') || url.hostname.includes('leaflet')) {
@@ -238,7 +243,7 @@ async function handleKeyApiRequest(req) {
     );
     const networkRes = await Promise.race([fetch(req), timeoutPromise]);
 
-    if (networkRes && networkRes.ok) {
+    if (networkRes && networkRes.ok && (networkRes.headers.get('content-type') || '').includes('application/json')) {
       // Store fresh copy in API cache
       await apiCache.put(req, networkRes.clone());
       return networkRes;
