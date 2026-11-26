@@ -402,7 +402,7 @@ export interface HeroSlide {
             </div>
 
             <!-- Right Form Column -->
-            <div class="lg:col-span-7 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-10 shadow-lg dark:shadow-2xl relative transition-colors">
+            <div class="lg:col-span-7 bg-slate-900 dark:bg-white border border-slate-800 dark:border-slate-200 rounded-3xl p-6 sm:p-10 shadow-2xl dark:shadow-lg relative transition-colors">
               
               @if (submissionSuccess()) {
                 <!-- Success Message Banner -->
@@ -453,8 +453,8 @@ export interface HeroSlide {
                 <!-- Standard Contact Us / Installation Request Form -->
                 <div>
                   <div class="mb-6">
-                    <h3 class="text-xl font-bold text-slate-900 dark:text-white">Request Installation Service</h3>
-                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                    <h3 class="text-xl font-bold text-white dark:text-slate-900">Request Installation Service</h3>
+                    <p class="text-xs text-slate-300 dark:text-slate-600 mt-1">
                       Fill out your site details below. Our field coordinator will review your door specifications and send you an immediate schedule & quote.
                     </p>
                   </div>
@@ -463,7 +463,7 @@ export interface HeroSlide {
                     <!-- Name & Email Row -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label for="contactFullName" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        <label for="contactFullName" class="block text-xs font-semibold text-slate-200 dark:text-slate-700 mb-1">
                           Full Name *
                         </label>
                         <input 
@@ -471,7 +471,7 @@ export interface HeroSlide {
                           type="text" 
                           formControlName="fullName"
                           placeholder="e.g. Eleanor Vance"
-                          class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
+                          class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 dark:bg-white border border-slate-700 dark:border-slate-300 text-white dark:text-slate-900 text-xs placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
                         />
                         @if (inquiryForm.get('fullName')?.touched && inquiryForm.get('fullName')?.invalid) {
                           <span class="text-[11px] text-red-500 dark:text-red-400 mt-1 block">Full name is required.</span>
@@ -479,7 +479,7 @@ export interface HeroSlide {
                       </div>
 
                       <div>
-                        <label for="contactEmail" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        <label for="contactEmail" class="block text-xs font-semibold text-slate-200 dark:text-slate-700 mb-1">
                           Email Address *
                         </label>
                         <input 
@@ -487,7 +487,7 @@ export interface HeroSlide {
                           type="email" 
                           formControlName="email"
                           placeholder="client@residence.com"
-                          class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
+                          class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 dark:bg-white border border-slate-700 dark:border-slate-300 text-white dark:text-slate-900 text-xs placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
                         />
                         @if (inquiryForm.get('email')?.touched && inquiryForm.get('email')?.invalid) {
                           <span class="text-[11px] text-red-500 dark:text-red-400 mt-1 block">A valid email is required.</span>
@@ -498,7 +498,7 @@ export interface HeroSlide {
                     <!-- Phone & Door Category -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label for="contactPhone" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        <label for="contactPhone" class="block text-xs font-semibold text-slate-200 dark:text-slate-700 mb-1">
                           Phone Number *
                         </label>
                         <app-phone-input 
@@ -512,13 +512,13 @@ export interface HeroSlide {
                       </div>
 
                       <div>
-                        <label for="contactDoorType" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        <label for="contactDoorType" class="block text-xs font-semibold text-slate-200 dark:text-slate-700 mb-1">
                           Door System / Category *
                         </label>
                         <select 
                           id="contactDoorType"
                           formControlName="doorType"
-                          class="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
+                          class="w-full px-3 py-2.5 rounded-xl bg-slate-950 dark:bg-white border border-slate-700 dark:border-slate-300 text-white dark:text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
                         >
                           <option value="entrance_pivot">Architectural Entrance Pivot Door</option>
                           <option value="solid_wood_entrance">Solid Wood Entrance Door Slab</option>
@@ -534,13 +534,13 @@ export interface HeroSlide {
                     <!-- Project Type & Quantity -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label for="contactProjectType" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        <label for="contactProjectType" class="block text-xs font-semibold text-slate-200 dark:text-slate-700 mb-1">
                           Project Environment
                         </label>
                         <select 
                           id="contactProjectType"
                           formControlName="projectType"
-                          class="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
+                          class="w-full px-3 py-2.5 rounded-xl bg-slate-950 dark:bg-white border border-slate-700 dark:border-slate-300 text-white dark:text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
                         >
                           <option value="luxury_estate">Luxury Private Estate / New Build</option>
                           <option value="residential">Residential Renovation</option>
@@ -550,7 +550,7 @@ export interface HeroSlide {
                       </div>
 
                       <div>
-                        <label for="contactDoorsCount" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        <label for="contactDoorsCount" class="block text-xs font-semibold text-slate-200 dark:text-slate-700 mb-1">
                           Number of Door Openings
                         </label>
                         <input 
@@ -559,14 +559,14 @@ export interface HeroSlide {
                           min="1" 
                           max="50"
                           formControlName="doorsCount"
-                          class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
+                          class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 dark:bg-white border border-slate-700 dark:border-slate-300 text-white dark:text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
                         />
                       </div>
                     </div>
 
                     <!-- Site Address -->
                     <div>
-                      <label for="contactSiteAddress" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      <label for="contactSiteAddress" class="block text-xs font-semibold text-slate-200 dark:text-slate-700 mb-1">
                         Installation Site Address *
                       </label>
                       <input 
@@ -574,7 +574,7 @@ export interface HeroSlide {
                         type="text" 
                         formControlName="siteAddress"
                         placeholder="e.g. 184 Maplewood Crest, Highview Terraces"
-                        class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 dark:bg-white border border-slate-700 dark:border-slate-300 text-white dark:text-slate-900 text-xs placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
                       />
                       @if (inquiryForm.get('siteAddress')?.touched && inquiryForm.get('siteAddress')?.invalid) {
                         <span class="text-[11px] text-red-500 dark:text-red-400 mt-1 block">Site address is required for dispatch estimation.</span>
@@ -584,25 +584,25 @@ export interface HeroSlide {
                     <!-- Preferred Date & Slot -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label for="contactPrefDate" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        <label for="contactPrefDate" class="block text-xs font-semibold text-slate-200 dark:text-slate-700 mb-1">
                           Preferred Installation Date
                         </label>
                         <input 
                           id="contactPrefDate"
                           type="date" 
                           formControlName="preferredDate"
-                          class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
+                          class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 dark:bg-white border border-slate-700 dark:border-slate-300 text-white dark:text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
                         />
                       </div>
 
                       <div>
-                        <label for="contactTimeSlot" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        <label for="contactTimeSlot" class="block text-xs font-semibold text-slate-200 dark:text-slate-700 mb-1">
                           Preferred Arrival Window
                         </label>
                         <select 
                           id="contactTimeSlot"
                           formControlName="preferredTimeSlot"
-                          class="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
+                          class="w-full px-3 py-2.5 rounded-xl bg-slate-950 dark:bg-white border border-slate-700 dark:border-slate-300 text-white dark:text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
                         >
                           <option value="morning">Morning (08:00 - 12:00)</option>
                           <option value="afternoon">Afternoon (12:00 - 17:00)</option>
@@ -613,7 +613,7 @@ export interface HeroSlide {
 
                     <!-- Notes / Special Instructions -->
                     <div>
-                      <label for="contactMessage" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      <label for="contactMessage" class="block text-xs font-semibold text-slate-200 dark:text-slate-700 mb-1">
                         Specific Hardware, Weight, or Site Instructions
                       </label>
                       <textarea 
@@ -621,7 +621,7 @@ export interface HeroSlide {
                         rows="3"
                         formControlName="message"
                         placeholder="Provide details about rough opening, existing frame, pivot hardware brands, or access codes..."
-                        class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none shadow-2xs transition-colors"
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 dark:bg-white border border-slate-700 dark:border-slate-300 text-white dark:text-slate-900 text-xs placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none shadow-2xs transition-colors"
                       ></textarea>
                     </div>
 

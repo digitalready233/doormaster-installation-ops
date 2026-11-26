@@ -37,6 +37,12 @@ import {
   markConversationRead,
   setTypingStatus
 } from './messages-service';
+import {
+  enqueueCallSignal,
+  consumeCallSignals,
+  CallMediaType,
+  CallSignalType
+} from './call-signaling';
 
 import {
   authenticateUser,
@@ -1677,7 +1683,8 @@ app.post('/api/messages', requireActiveUser, async (req, res) => {
       replyToId: body.replyToId || null,
       jobId: body.jobId || null,
       attachments: Array.isArray(body.attachments) ? body.attachments : [],
-      location: body.location || null
+      location: body.location || null,
+      callLog: body.callLog || null
     });
     res.status(201).json({ success: true, message: msg });
   } catch (error) {
@@ -1750,6 +1757,51 @@ app.post('/api/messages/typing', requireActiveUser, async (req, res) => {
       setTypingStatus(actorId, peerId, isTyping);
     }
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: (error as Error).message });
+  }
+});
+
+// =============================================================================
+// IN-APP VOICE & VIDEO CALL SIGNALING (WebRTC)
+// =============================================================================
+app.post('/api/calls/signal', requireActiveUser, (req, res) => {
+  try {
+    const actorId = String((req as any).user?.id || '');
+    const toUserId = String(req.body?.toUserId || '').trim();
+    const callId = String(req.body?.callId || '').trim();
+    const type = String(req.body?.type || '').trim() as CallSignalType;
+    const mediaType = (req.body?.mediaType === 'video' ? 'video' : 'audio') as CallMediaType;
+    const fromName = String(req.body?.fromName || (req as any).user?.name || 'User');
+    const fromRole = String(req.body?.fromRole || (req as any).user?.role || 'user');
+
+    if (!actorId || !toUserId || !callId || !type) {
+      res.status(400).json({ success: false, message: 'Missing required call signal fields.' });
+      return;
+    }
+
+    const signal = enqueueCallSignal({
+      callId,
+      type,
+      mediaType,
+      fromUserId: actorId,
+      fromName,
+      fromRole,
+      toUserId,
+      payload: req.body?.payload
+    });
+
+    res.json({ success: true, signalId: signal.id });
+  } catch (error) {
+    res.status(500).json({ success: false, message: (error as Error).message });
+  }
+});
+
+app.get('/api/calls/signals', requireActiveUser, (req, res) => {
+  try {
+    const actorId = String((req as any).user?.id || '');
+    const signals = actorId ? consumeCallSignals(actorId) : [];
+    res.json({ success: true, signals });
   } catch (error) {
     res.status(500).json({ success: false, message: (error as Error).message });
   }

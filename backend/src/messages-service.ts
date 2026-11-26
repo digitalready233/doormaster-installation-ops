@@ -24,6 +24,17 @@ export interface ChatReaction {
   userName: string;
 }
 
+export interface ChatCallLog {
+  callId: string;
+  mediaType: 'audio' | 'video';
+  status: 'answered' | 'missed' | 'declined' | 'cancelled' | 'busy';
+  durationSec?: number;
+  callerId: string;
+  callerName: string;
+  calleeId: string;
+  calleeName: string;
+}
+
 export interface ChatMessage {
   id: string;
   senderId: string;
@@ -37,6 +48,7 @@ export interface ChatMessage {
   jobId?: string | null;
   attachments?: ChatAttachment[];
   location?: ChatLocationShare | null;
+  callLog?: ChatCallLog | null;
   reactions?: ChatReaction[];
   createdAt: string;
   editedAt?: string | null;
@@ -119,21 +131,31 @@ export async function createChatMessage(input: {
   jobId?: string | null;
   attachments?: ChatAttachment[];
   location?: ChatLocationShare | null;
+  callLog?: ChatCallLog | null;
 }): Promise<ChatMessage> {
   const all = await ensureLoaded();
+
+  if (input.callLog?.callId) {
+    const existing = all.find(m => m.callLog?.callId === input.callLog!.callId);
+    if (existing) {
+      return existing;
+    }
+  }
+
   const msg: ChatMessage = {
     id: `msg-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
-    senderId: input.senderId,
-    senderName: input.senderName,
+    senderId: input.callLog?.callerId || input.senderId,
+    senderName: input.callLog?.callerName || input.senderName,
     senderRole: input.senderRole,
-    recipientId: input.recipientId,
-    recipientName: input.recipientName,
+    recipientId: input.callLog?.calleeId || input.recipientId,
+    recipientName: input.callLog?.calleeName || input.recipientName,
     recipientRole: input.recipientRole,
     text: (input.text || '').trim(),
     replyToId: input.replyToId || null,
     jobId: input.jobId || null,
     attachments: Array.isArray(input.attachments) ? input.attachments : [],
     location: input.location || null,
+    callLog: input.callLog || null,
     reactions: [],
     createdAt: new Date().toISOString(),
     editedAt: null,

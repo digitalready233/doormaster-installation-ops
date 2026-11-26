@@ -24,6 +24,17 @@ export interface ChatReaction {
   userName: string;
 }
 
+export interface ChatCallLog {
+  callId: string;
+  mediaType: 'audio' | 'video';
+  status: 'answered' | 'missed' | 'declined' | 'cancelled' | 'busy';
+  durationSec?: number;
+  callerId: string;
+  callerName: string;
+  calleeId: string;
+  calleeName: string;
+}
+
 export interface ChatMessage {
   id: string;
   senderId: string;
@@ -37,6 +48,7 @@ export interface ChatMessage {
   jobId?: string | null;
   attachments?: ChatAttachment[];
   location?: ChatLocationShare | null;
+  callLog?: ChatCallLog | null;
   reactions?: ChatReaction[];
   createdAt: string;
   editedAt?: string | null;
@@ -545,6 +557,70 @@ export class MessagesService {
       });
     } catch {
       // Ignore
+    }
+  }
+
+  async recordCallLog(callLog: ChatCallLog, peerRole = 'staff'): Promise<void> {
+    const me = this.currentActorId();
+    if (!me || !callLog.callId) return;
+
+    // Deduplicate locally by callId
+    if (this.messages().some(m => m.callLog?.callId === callLog.callId)) {
+      return;
+    }
+
+    const otherId = callLog.callerId === me ? callLog.calleeId : callLog.callerId;
+    const otherName = callLog.callerId === me ? callLog.calleeName : callLog.callerName;
+    const myName = this.currentActorName();
+    const myRole = this.currentActorRole();
+
+    const tempId = `tmp-call-${callLog.callId}`;
+    const optimistic: ChatMessage = {
+      id: tempId,
+      senderId: callLog.callerId,
+      senderName: callLog.callerName,
+      senderRole: callLog.callerId === me ? myRole : peerRole,
+      recipientId: callLog.calleeId,
+      recipientName: callLog.calleeName,
+      recipientRole: callLog.calleeId === me ? myRole : peerRole,
+      text: '',
+      callLog,
+      reactions: [],
+      createdAt: new Date().toISOString(),
+      readAt: null
+    };
+
+    this.messages.update(list => [...list, optimistic]);
+    this.saveLocal(this.messages());
+
+    if (this.store.isNetworkOnline()) {
+      try {
+        const res = await this.apiRequest('/api/messages', {
+          method: 'POST',
+          body: JSON.stringify({
+            actorId: me,
+            actorName: myName,
+            actorRole: myRole,
+            recipientId: otherId,
+            recipientName: otherName,
+            recipientRole: peerRole,
+            text: '',
+            callLog
+          })
+        });
+        const data = await this.safeJson(res);
+        if (res.ok && data?.message) {
+          this.messages.update(list => {
+            const withoutTemp = list.filter(m => m.id !== tempId && m.callLog?.callId !== callLog.callId);
+            return [...withoutTemp, data.message as ChatMessage].sort(
+              (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+          });
+          this.saveLocal(this.messages());
+        }
+      } catch {
+        // Keep optimistic local record if offline
+      }
     }
   }
 }

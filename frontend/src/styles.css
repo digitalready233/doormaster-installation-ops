@@ -56,12 +56,12 @@ html:not(.dark) body {
   color: var(--dm-dark);
 }
 
-/* Harmonize dark surfaces to DoorMaster Obsidian (#111215 / #181a1f) */
-.dark .bg-slate-950 {
+/* Harmonize dark surfaces to DoorMaster Obsidian (#111215 / #181a1f) unless explicitly overridden */
+.dark .bg-slate-950:not([class*="dark:bg-"]) {
   background-color: #111215 !important;
 }
 
-.dark .bg-slate-900 {
+.dark .bg-slate-900:not([class*="dark:bg-"]) {
   background-color: #181a1f !important;
 }
 

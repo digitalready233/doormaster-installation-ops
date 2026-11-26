@@ -15,6 +15,7 @@ import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import {
   ChatAttachment,
+  ChatCallLog,
   ChatContact,
   ChatLocationShare,
   ChatMessage,
@@ -22,6 +23,7 @@ import {
 } from '../../services/messages.service';
 import { InstallationStore } from '../../services/installation.store';
 import { AlertService } from '../../services/alert.service';
+import { CallService } from '../../services/call.service';
 
 @Component({
   selector: 'app-messages',
@@ -260,6 +262,28 @@ import { AlertService } from '../../services/alert.service';
             <div class="flex items-center gap-1 shrink-0">
               <button
                 type="button"
+                (click)="startInAppCall(peer, 'audio')"
+                [disabled]="callSvc.isActive()"
+                class="p-2 rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 disabled:opacity-40 transition-colors cursor-pointer"
+                [title]="'In-app voice call with ' + peer.name"
+                aria-label="Start voice call"
+              >
+                <mat-icon class="!text-lg">call</mat-icon>
+              </button>
+
+              <button
+                type="button"
+                (click)="startInAppCall(peer, 'video')"
+                [disabled]="callSvc.isActive()"
+                class="p-2 rounded-xl text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 disabled:opacity-40 transition-colors cursor-pointer"
+                [title]="'In-app video call with ' + peer.name"
+                aria-label="Start video call"
+              >
+                <mat-icon class="!text-lg">videocam</mat-icon>
+              </button>
+
+              <button
+                type="button"
                 (click)="showInChatSearch.update(v => !v)"
                 class="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 title="Search in conversation"
@@ -270,10 +294,10 @@ import { AlertService } from '../../services/alert.service';
               @if (peer.phone) {
                 <a
                   [href]="'tel:' + peer.phone"
-                  class="p-2 rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
-                  [title]="'Call ' + peer.name + ' (' + peer.phone + ')'"
+                  class="p-2 rounded-xl text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  [title]="'Dial phone: ' + peer.phone"
                 >
-                  <mat-icon class="!text-lg">phone</mat-icon>
+                  <mat-icon class="!text-lg">dialpad</mat-icon>
                 </a>
               }
             </div>
@@ -323,6 +347,63 @@ import { AlertService } from '../../services/alert.service';
                   @let msg = item.message!;
                   @let isMine = msg.senderId === messagesSvc.currentActorId();
 
+                  @if (msg.callLog; as callLog) {
+                    @let isMissed = isMissedCallForMe(callLog);
+                    <div
+                      [id]="'chat-msg-' + msg.id"
+                      class="flex flex-col"
+                      [class]="isMine ? 'items-end' : 'items-start'"
+                    >
+                      <div
+                        class="max-w-[85%] sm:max-w-[72%] rounded-2xl px-3.5 py-2.5 shadow-xs border flex items-center gap-3 text-xs"
+                        [class]="isMissed
+                          ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/80 text-rose-950 dark:text-rose-100'
+                          : 'bg-white dark:bg-slate-800/95 border-slate-200/80 dark:border-slate-700/80 text-slate-900 dark:text-white'"
+                      >
+                        <div
+                          class="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                          [class]="isMissed
+                            ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
+                            : (callLog.status === 'answered'
+                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-amber-500/15 text-amber-600 dark:text-amber-400')"
+                        >
+                          <mat-icon class="!text-lg">
+                            {{ callLog.mediaType === 'video' ? 'videocam' : (isMissed ? 'call_missed' : (isMine ? 'call_made' : 'call_received')) }}
+                          </mat-icon>
+                        </div>
+
+                        <div class="min-w-0 flex-1">
+                          <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="font-bold truncate">{{ getCallRecordTitle(callLog) }}</span>
+                            <span
+                              class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold uppercase"
+                              [class]="callLog.mediaType === 'video'
+                                ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+                                : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'"
+                            >
+                              {{ callLog.mediaType === 'video' ? 'Video' : 'Voice' }}
+                            </span>
+                          </div>
+                          <div class="text-[11px] opacity-80 flex items-center gap-1.5 mt-0.5">
+                            <span>{{ getCallRecordSubtitle(callLog) }}</span>
+                            <span>·</span>
+                            <span class="font-mono text-[10px]">{{ formatShortTime(msg.createdAt) }}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          (click)="startInAppCall(peer, callLog.mediaType)"
+                          [disabled]="callSvc.isActive()"
+                          class="w-8 h-8 rounded-full bg-slate-100 hover:bg-emerald-100 dark:bg-slate-700 dark:hover:bg-emerald-900/60 text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center justify-center shrink-0 transition-colors cursor-pointer disabled:opacity-40"
+                          [title]="'Call back (' + (callLog.mediaType === 'video' ? 'Video' : 'Voice') + ')'"
+                        >
+                          <mat-icon class="!text-base">{{ callLog.mediaType === 'video' ? 'videocam' : 'call' }}</mat-icon>
+                        </button>
+                      </div>
+                    </div>
+                  } @else {
                   <div
                     [id]="'chat-msg-' + msg.id"
                     class="flex flex-col group"
@@ -525,6 +606,7 @@ import { AlertService } from '../../services/alert.service';
                     }
                   </div>
                 }
+                }
               }
             }
           </div>
@@ -713,8 +795,16 @@ import { AlertService } from '../../services/alert.service';
 export class MessagesView implements OnDestroy {
   readonly messagesSvc = inject(MessagesService);
   readonly store = inject(InstallationStore);
+  readonly callSvc = inject(CallService);
   private readonly router = inject(Router);
   private readonly alert = inject(AlertService);
+
+  startInAppCall(peer: ChatContact, mediaType: 'audio' | 'video') {
+    void this.callSvc.startCall(
+      { id: peer.id, name: peer.name, role: peer.role, roleLabel: peer.roleLabel },
+      mediaType
+    );
+  }
 
   private readonly feedEl = viewChild<ElementRef<HTMLDivElement>>('messagesFeed');
 
@@ -1089,6 +1179,13 @@ export class MessagesView implements OnDestroy {
 
   getPreviewText(msg: ChatMessage): string {
     if (msg.deletedForEveryone) return 'This message was deleted';
+    if (msg.callLog) {
+      const title = this.getCallRecordTitle(msg.callLog);
+      const dur = msg.callLog.status === 'answered' && msg.callLog.durationSec !== undefined
+        ? ` · ${this.formatCallDuration(msg.callLog.durationSec)}`
+        : '';
+      return `${msg.callLog.mediaType === 'video' ? '📹' : '📞'} ${title}${dur}`;
+    }
     if (msg.text) return msg.text;
     if (msg.location) return '📍 Live GPS Location';
     if (msg.attachments && msg.attachments.length > 0) {
@@ -1098,6 +1195,60 @@ export class MessagesView implements OnDestroy {
       return `📎 ${first.name}`;
     }
     return '';
+  }
+
+  isMissedCallForMe(callLog: ChatCallLog): boolean {
+    const me = this.messagesSvc.currentActorId();
+    const isCaller = callLog.callerId === me;
+    if (isCaller) return callLog.status === 'missed';
+    return callLog.status === 'missed' || callLog.status === 'cancelled' || callLog.status === 'busy';
+  }
+
+  getCallRecordTitle(callLog: ChatCallLog): string {
+    const me = this.messagesSvc.currentActorId();
+    const isCaller = callLog.callerId === me;
+    const kind = callLog.mediaType === 'video' ? 'Video Call' : 'Voice Call';
+
+    if (isCaller) {
+      switch (callLog.status) {
+        case 'answered': return `Outgoing ${kind}`;
+        case 'missed': return `No Answer · ${kind}`;
+        case 'cancelled': return `Cancelled ${kind}`;
+        case 'declined': return `Declined · ${kind}`;
+        case 'busy': return `Busy · ${kind}`;
+      }
+    } else {
+      switch (callLog.status) {
+        case 'answered': return `Incoming ${kind}`;
+        case 'missed':
+        case 'cancelled':
+        case 'busy': return `Missed ${kind}`;
+        case 'declined': return `Declined ${kind}`;
+      }
+    }
+  }
+
+  getCallRecordSubtitle(callLog: ChatCallLog): string {
+    const me = this.messagesSvc.currentActorId();
+    const isCaller = callLog.callerId === me;
+    if (callLog.status === 'answered') {
+      return `Duration ${this.formatCallDuration(callLog.durationSec || 0)}`;
+    }
+    if (isCaller) {
+      if (callLog.status === 'missed') return `${callLog.calleeName} didn't answer`;
+      if (callLog.status === 'declined') return `${callLog.calleeName} declined`;
+      if (callLog.status === 'busy') return `${callLog.calleeName} was on another call`;
+      return 'Call cancelled';
+    }
+    if (callLog.status === 'declined') return 'You declined';
+    return `From ${callLog.callerName}`;
+  }
+
+  formatCallDuration(sec: number): string {
+    const total = Math.max(0, Math.floor(sec || 0));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
   groupReactions(reactions: { emoji: string; userName: string }[]) {

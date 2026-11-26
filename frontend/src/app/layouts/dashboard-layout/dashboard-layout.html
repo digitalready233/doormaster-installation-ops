@@ -934,7 +934,8 @@
   <!-- 6. MAIN CONTENT VIEW CANVAS (ROUTED VIEW COMPONENT)                    -->
   <!-- ======================================================================= -->
   <main
-    class="flex-1 w-full max-w-screen-2xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 pb-24 lg:pb-16 min-w-0 text-slate-900 dark:text-slate-100">
+    class="flex-1 w-full max-w-screen-2xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 pb-24 lg:pb-16 min-w-0 text-slate-900 dark:text-slate-100"
+    [ngClass]="currentView() === 'messages' ? 'bg-slate-900 dark:bg-white' : ''">
     <div class="rounded-2xl min-w-0">
       <router-outlet (activate)="onRouteActivated($event)"></router-outlet>
     </div>
@@ -1340,3 +1341,5 @@
   </div>
 </div>
 }
+
+<app-call-overlay />

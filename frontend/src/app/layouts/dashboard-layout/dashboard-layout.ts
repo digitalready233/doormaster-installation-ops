@@ -14,6 +14,7 @@ import { AddUserModal } from '../../components/add-user-modal/add-user-modal';
 import { NotificationDrawer } from '../../components/notification-drawer/notification-drawer';
 import { RejectionModal } from '../../components/rejection-modal/rejection-modal';
 import { PwaInstallButton } from '../../components/pwa-install-button/pwa-install-button';
+import { CallOverlay } from '../../components/call-overlay/call-overlay';
 import { AlertService } from '../../services/alert.service';
 import { MessagesService } from '../../services/messages.service';
 import { InstallationJob, InstallerTeam, NotificationItem, RoleDefinition, RoleType } from '../../models/installation.model';
@@ -62,7 +63,8 @@ export interface MenuSection {
     AddUserModal,
     NotificationDrawer,
     RejectionModal,
-    PwaInstallButton
+    PwaInstallButton,
+    CallOverlay
   ],
   templateUrl: './dashboard-layout.html'
 })
